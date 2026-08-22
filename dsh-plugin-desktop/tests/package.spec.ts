@@ -516,8 +516,10 @@ describe('published package surface', () => {
   it('publishes the manually dispatched internal Mac DMG with provenance', () => {
     expect(macInternalWorkflow).toContain('workflow_dispatch:')
     expect(macInternalWorkflow).toContain('submodules: recursive')
+    expect(macInternalWorkflow).toContain('YARN_ENABLE_IMMUTABLE_INSTALLS=false yarn install')
+    expect(macInternalWorkflow).toContain('yarn install --immutable')
     expect(macInternalWorkflow).toContain('run: yarn check')
-    expect(macInternalWorkflow).toContain('yarn workspace dsh-plugin-desktop build:vendor-sidebar')
+    expect(macInternalWorkflow).not.toContain('yarn workspace dsh-plugin-desktop build:vendor-sidebar')
     expect(macInternalWorkflow).toContain('yarn workspace dsh-plugin-desktop verify:vendor-sidebar')
     expect(macInternalWorkflow)
       .toContain('run: yarn workspace dsh-plugin-desktop verify:webview-continuity')
