@@ -4,8 +4,12 @@ node_modules/
 # Python venv（pymupdf4llm 高保真引擎，setup 时生成）
 .venv/
 
-# OCR traineddata 缓存（首次识别扫描件时自动下载 ~24MB）
-vendor/tessdata/
+# Keep the two audited offline OCR languages in release source. Ignore any
+# additional language caches downloaded by developers at runtime.
+vendor/tessdata/*
+!vendor/tessdata/eng.traineddata.gz
+!vendor/tessdata/chi_sim.traineddata.gz
+!vendor/tessdata/README.md
 
 # Build outputs / temporary
 dist/

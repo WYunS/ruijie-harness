@@ -11385,7 +11385,7 @@ __metadata:
 
 "dsh-attachment-formats@file:../vendor/dsh-attachment-formats::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
   version: 0.6.4
-  resolution: "dsh-attachment-formats@file:../vendor/dsh-attachment-formats#../vendor/dsh-attachment-formats::hash=c70f76&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
+  resolution: "dsh-attachment-formats@file:../vendor/dsh-attachment-formats#../vendor/dsh-attachment-formats::hash=8b2acf&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
   dependencies:
     "@joplin/turndown-plugin-gfm": "npm:^1.0.67"
     "@napi-rs/canvas": "npm:^0.1.80"
@@ -11396,7 +11396,7 @@ __metadata:
     sharp: "npm:^0.35.3"
     tesseract.js: "npm:^5.1.1"
     turndown: "npm:^7.2.4"
-  checksum: 10c0/87a18486cb27e3d916e8e5e2db95b39b074a238147cc9552549311881234a0e808afd9de64ea618fad3c173b3fe3c42d51531db968083546ea7cf7d670f16783
+  checksum: 10c0/d2fb927089ac98d38fda635f36132e934f1343f0953cd4916517d2fac154d79873e019e20ecf53ee0d19670cb1bd1ee5b6306e7933dca969f866dfb98cf7f0e0
   languageName: node
   linkType: hard
 
