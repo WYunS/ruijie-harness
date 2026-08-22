@@ -45,7 +45,7 @@ jobs:
       # then prove the resulting graph is stable before any release checks run.
       - name: Install locked dependencies for macOS
         run: |
-          yarn install
+          YARN_ENABLE_IMMUTABLE_INSTALLS=false yarn install
           yarn install --immutable
 
       - name: Run release checks
