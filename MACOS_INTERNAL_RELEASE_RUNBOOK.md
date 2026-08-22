@@ -82,10 +82,11 @@ Artifact 解压后必须包含：
 1. 递归检出固定的 upstream 子模块。
 2. 在一次性 macOS runner 中刷新四个 `file:../vendor/*` 本地依赖的宿主平台哈希，然后立即再次执行 `yarn install --immutable`，确认依赖图稳定。该刷新不改变依赖版本，也不会回写仓库；不能直接删除第二次 immutable 校验。
 3. 运行完整 `yarn check`。
-4. 运行真实 Electron 侧栏/popup 连续性测试 20 次。
-5. 验证两套 CPU 的 18 个原生依赖文件（包括 Office/PDF 可能使用的 Canvas 与 Vectorizer）并生成 universal DMG。
-6. 挂载 DMG，检查 Info.plist、主程序、执行权限、`app.asar`、`x86_64`/`arm64` 架构和原生依赖。
-7. 计算 SHA-256 并上传可下载 Artifact。
+4. 校验已由 Windows 发布门禁生成并提交的侧栏 bundle 与 Mac 将要打包的依赖副本逐文件一致；不要在 Mac runner 上重新生成该前端 bundle，因为 source map 路径字节具有宿主平台差异。
+5. 运行真实 Electron 侧栏/popup 连续性测试 20 次。
+6. 验证两套 CPU 的 18 个原生依赖文件（包括 Office/PDF 可能使用的 Canvas 与 Vectorizer）并生成 universal DMG。
+7. 挂载 DMG，检查 Info.plist、主程序、执行权限、`app.asar`、`x86_64`/`arm64` 架构和原生依赖。
+8. 计算 SHA-256 并上传可下载 Artifact。
 
 任一步失败都不能把该次产物交给同事。
 
