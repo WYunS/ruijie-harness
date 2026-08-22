@@ -166,6 +166,7 @@ Get-Content -LiteralPath (Join-Path $download 'BUILD-MANIFEST.txt')
 | 修复实现正确但 CI 合约测试失败 | `package.spec.ts` 仍断言旧工作流 | 修改工作流时同步更新对应合约测试并在本地运行 |
 | 自动验收无法进入主工作台 | 最终应用要求真实 OAuth，CI 没有人工浏览器登录 | 使用现有 OAuth 公共入口和仅限 loopback HTTP 的模拟 issuer；禁止增加跳过登录的环境变量后门 |
 | 自动验收首启通过、重启再次登录 | macOS `safeStorage` 或隔离 userData 没有正确持久化 | 保留两次启动证据并阻止发布，不能把第二次登录视为可忽略 |
+| 截图只有 `HARNESS / Loading plugins…`，随后缺少 profile 设置 | 验收脚本把插件加载中的过渡页误判为工作台就绪，并过早关闭应用 | 就绪判定必须等待非空的 loopback 工作台且排除 `Loading plugins…`；超时保留 failure 截图与页面快照，禁止仅凭 DevTools 可连接判定通过 |
 
 排障顺序固定为：读取失败步骤和日志 → 归类为源码、依赖、平台产物或 CI 合约 → 做最小修复 → 本地运行相关测试与完整门禁 → 提交并推送 → 只重跑一次。失败邮件数量不是诊断依据。
 

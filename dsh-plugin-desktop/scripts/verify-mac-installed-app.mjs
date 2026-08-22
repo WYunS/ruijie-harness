@@ -16,6 +16,7 @@ import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 import process from 'node:process'
 import puppeteer from 'puppeteer-core'
+import { isInstalledWorkbenchReady } from './mac-installed-acceptance.ts'
 
 const PRODUCT_NAME = '锐捷 Harness'
 const STARTUP_TIMEOUT_MS = 120_000
@@ -147,12 +148,11 @@ async function waitForDebugger(port, child, stderr) {
   throw new Error(`timed out waiting for packaged app DevTools endpoint: ${stderr()}`)
 }
 
-async function waitForWorkbench(browser, issuerOrigin) {
+async function waitForWorkbench(browser, issuerOrigin, onObservation) {
   const deadline = Date.now() + STARTUP_TIMEOUT_MS
   while (Date.now() < deadline) {
     for (const page of await browser.pages()) {
-      const url = page.url()
-      if (url.startsWith('http://127.0.0.1:') && !url.startsWith(issuerOrigin)) {
+      try {
         const snapshot = await page.evaluate(() => ({
           title: document.title,
           url: location.href,
@@ -160,8 +160,9 @@ async function waitForWorkbench(browser, issuerOrigin) {
           width: window.innerWidth,
           height: window.innerHeight,
         }))
-        if (snapshot.bodyText.trim().length > 0) return { page, snapshot }
-      }
+        onObservation(page, snapshot)
+        if (isInstalledWorkbenchReady(snapshot, issuerOrigin)) return { page, snapshot }
+      } catch {}
     }
     await new Promise(resolveWait => { setTimeout(resolveWait, 500) })
   }
@@ -190,10 +191,15 @@ async function runInstalledSession({ executable, environment, evidenceDir, issue
   child.stdout.on('data', chunk => { stdout += String(chunk) })
   child.stderr.on('data', chunk => { stderr += String(chunk) })
   let browser
+  let lastPage
+  let lastSnapshot
   try {
     const browserURL = await waitForDebugger(debugPort, child, () => stderr)
     browser = await puppeteer.connect({ browserURL, defaultViewport: null })
-    const { page, snapshot } = await waitForWorkbench(browser, issuerOrigin)
+    const { page, snapshot } = await waitForWorkbench(browser, issuerOrigin, (observedPage, observedSnapshot) => {
+      lastPage = observedPage
+      lastSnapshot = observedSnapshot
+    })
     if (snapshot.width < 900 || snapshot.height < 600) {
       throw new Error(`packaged workbench viewport is unexpectedly small: ${String(snapshot.width)}x${String(snapshot.height)}`)
     }
@@ -202,6 +208,16 @@ async function runInstalledSession({ executable, environment, evidenceDir, issue
     if (unexpected !== undefined) throw new Error(`packaged workbench exposed obsolete onboarding text: ${unexpected}`)
     await page.screenshot({ path: join(evidenceDir, `${label}.png`), fullPage: false })
     return { ...snapshot, screenshot: `${label}.png` }
+  } catch (cause) {
+    if (lastSnapshot !== undefined) {
+      writeFileSync(join(evidenceDir, `${label}-failure-snapshot.json`), `${JSON.stringify(lastSnapshot, null, 2)}\n`)
+    }
+    if (lastPage !== undefined) {
+      try {
+        await lastPage.screenshot({ path: join(evidenceDir, `${label}-failure.png`), fullPage: false })
+      } catch {}
+    }
+    throw cause
   } finally {
     await browser?.disconnect()
     await stopApplication(child)
