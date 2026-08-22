@@ -40,8 +40,13 @@ jobs:
           path: ${{ steps.yarn-cache.outputs.dir }}
           key: yarn-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
 
-      - name: Install locked dependencies
-        run: yarn install --immutable
+      # Yarn's file: dependency checksum includes host-specific archive metadata.
+      # Refresh only those local vendor hashes on this disposable macOS checkout,
+      # then prove the resulting graph is stable before any release checks run.
+      - name: Install locked dependencies for macOS
+        run: |
+          yarn install
+          yarn install --immutable
 
       - name: Run release checks
         run: yarn check

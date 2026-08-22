@@ -5283,13 +5283,13 @@ __metadata:
 
 "@liustack/modsearch@file:../vendor/modsearch::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
   version: 5.6.0
-  resolution: "@liustack/modsearch@file:../vendor/modsearch#../vendor/modsearch::hash=10bce8&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
+  resolution: "@liustack/modsearch@file:../vendor/modsearch#../vendor/modsearch::hash=967368&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
   dependencies:
     commander: "npm:^13.1.0"
     undici: "npm:^7.29.0"
   bin:
     modsearch: ./dist/main.js
-  checksum: 10c0/35d07ee88db41e4c5339c1c40d45c10203e157f256b8c346a6ddd7f7aa8e8adc4c94923c514c70ebcf95b61e646348c97e93bc012fc065137519d39e66ae1db6
+  checksum: 10c0/16e84312f2aca7a74a175f002a4a6401a0a63694e8d474d36d58b96b4064e37e3b2a295b342641b59e94a46b87c2e88048c6d35462b61a6b009c037c5589f546
   languageName: node
   linkType: hard
 
@@ -11777,7 +11777,7 @@ __metadata:
 
 "dsh-vision-router@file:../vendor/dsh-vision-router::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
   version: 1.7.3
-  resolution: "dsh-vision-router@file:../vendor/dsh-vision-router#../vendor/dsh-vision-router::hash=2c37ee&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
+  resolution: "dsh-vision-router@file:../vendor/dsh-vision-router#../vendor/dsh-vision-router::hash=b8e58c&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
   dependencies:
     "@deepseek-ai/schemastery": "npm:>=3.18.0"
     "@neplex/vectorizer": "npm:0.1.0"
@@ -11796,7 +11796,7 @@ __metadata:
       optional: true
   bin:
     dsh-vision-router: ./lib/doctor-cli.js
-  checksum: 10c0/44b4c94d922e77fadbc8ba0424d14113c6569c187e44eabe7d788293d1f8f6d83c653e021e253e378bdfffba6746fca5a63da9d7401f5ed728e3efd876658d67
+  checksum: 10c0/d609c904b231b02edcc3e8cf292d4a617c80223f70e2696b1e564f09fa103dc0855e57257fd85645264e1079ef660d56485d7ef8ec02d1f84d072551761b7b34
   languageName: node
   linkType: hard
 

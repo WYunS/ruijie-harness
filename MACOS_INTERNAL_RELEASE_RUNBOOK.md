@@ -6,7 +6,7 @@
 
 - 唯一本地仓库：`D:\ChatGPT\RuijieDSH`
 - 桌面应用：`D:\ChatGPT\RuijieDSH\dsh-plugin-desktop`
-- GitHub 仓库：`https://github.com/anywhere-labs/deepseek-harness-desktop.git`
+- GitHub 仓库：`https://github.com/WYunS/ruijie-harness.git`
 - GitHub Actions：`.github/workflows/macos-internal-build.yml`
 - 内部 Mac 构建入口：`corepack yarn dist:mac-internal`
 - 内部 Mac 输出目录：`dsh-plugin-desktop/dist/mac-internal`
@@ -80,7 +80,7 @@ Artifact 解压后必须包含：
 工作流会在真实 macOS runner 上：
 
 1. 递归检出固定的 upstream 子模块。
-2. 使用锁定的 Yarn 依赖安装。
+2. 在一次性 macOS runner 中刷新四个 `file:../vendor/*` 本地依赖的宿主平台哈希，然后立即再次执行 `yarn install --immutable`，确认依赖图稳定。该刷新不改变依赖版本，也不会回写仓库；不能直接删除第二次 immutable 校验。
 3. 运行完整 `yarn check`。
 4. 运行真实 Electron 侧栏/popup 连续性测试 20 次。
 5. 验证两套 CPU 的 18 个原生依赖文件（包括 Office/PDF 可能使用的 Canvas 与 Vectorizer）并生成 universal DMG。
