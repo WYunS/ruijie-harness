@@ -38,6 +38,7 @@ function options(calls: CommandCall[], logs: string[] = []): MacInternalPackageO
     prepareRuntime: () => undefined,
     builderCli: '/repo/node_modules/electron-builder/cli.js',
     verifier: '/repo/dsh-plugin-desktop/scripts/verify-mac-smoke.ts',
+    acceptanceVerifier: '/repo/dsh-plugin-desktop/scripts/verify-mac-installed-app.mjs',
     nodeExecutable: '/usr/local/bin/node',
     run: (command, args, cwd, env) => {
       calls.push({ command, args: [...args], cwd, env: { ...env } })
@@ -53,7 +54,7 @@ describe('internal macOS DMG packaging', () => {
 
     packageMacInternal(options(calls, logs))
 
-    expect(calls).toHaveLength(3)
+    expect(calls).toHaveLength(4)
     expect(calls[0]).toEqual({
       command: 'corepack',
       args: ['yarn', 'workspace', 'dsh-plugin-desktop', 'check:mac-package'],
@@ -89,6 +90,15 @@ describe('internal macOS DMG packaging', () => {
       cwd: '/repo/dsh-plugin-desktop',
       env: { PATH: '/usr/bin:/bin', SAFE_VALUE: 'kept' },
     })
+    expect(calls[3]).toEqual({
+      command: '/usr/local/bin/node',
+      args: [
+        '/repo/dsh-plugin-desktop/scripts/verify-mac-installed-app.mjs',
+        '/repo/dsh-plugin-desktop/dist/mac-internal',
+      ],
+      cwd: '/repo/dsh-plugin-desktop',
+      env: { PATH: '/usr/bin:/bin', SAFE_VALUE: 'kept' },
+    })
     expect(logs).toEqual([
       'Building the installable unsigned internal macOS DMG without Apple credentials or notarization.',
     ])
@@ -107,7 +117,7 @@ describe('internal macOS DMG packaging', () => {
 
     packageMacInternal(value)
 
-    expect(calls).toHaveLength(2)
+    expect(calls).toHaveLength(3)
     expect(calls[0]?.args).toEqual([
       '/repo/node_modules/electron-builder/cli.js',
       '--mac',
@@ -118,6 +128,10 @@ describe('internal macOS DMG packaging', () => {
       '--config.mac.notarize=false',
       '--config.npmRebuild=false',
       '--config.directories.output=/repo/dsh-plugin-desktop/dist/mac-internal',
+    ])
+    expect(calls[2]?.args).toEqual([
+      '/repo/dsh-plugin-desktop/scripts/verify-mac-installed-app.mjs',
+      '/repo/dsh-plugin-desktop/dist/mac-internal',
     ])
     expect(logs).toEqual([
       'Building the installable unsigned internal macOS DMG without Apple credentials or notarization.',

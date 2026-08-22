@@ -11760,6 +11760,7 @@ __metadata:
     koffi: "npm:3.1.5"
     node-addon-require-builtin: "npm:^0.1.4"
     pnpm: "npm:11.7.0"
+    puppeteer-core: "npm:25.8.0"
     react: "npm:18.3.1"
     react-dom: "npm:18.3.1"
     sharp: "npm:0.35.3"
@@ -15373,7 +15374,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"puppeteer-core@npm:^25.6.0":
+"puppeteer-core@npm:25.8.0, puppeteer-core@npm:^25.6.0":
   version: 25.8.0
   resolution: "puppeteer-core@npm:25.8.0"
   dependencies:

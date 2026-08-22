@@ -60,11 +60,20 @@ jobs:
       - name: Run real Electron sidebar continuity gate
         run: yarn workspace dsh-plugin-desktop verify:webview-continuity
 
-      - name: Build unsigned universal DMG
+      - name: Build DMG and run installed-app acceptance
         env:
           DSH_PACKAGE_CHECK_ALREADY_RAN: '1'
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: yarn workspace dsh-plugin-desktop dist:mac-internal
+
+      - name: Upload macOS installed-app acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ruijie-Harness-macOS-acceptance-${{ github.run_id }}
+          path: dsh-plugin-desktop/dist/mac-internal/acceptance-evidence/**
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Give the distributable a stable name and checksum
         id: artifact
@@ -92,6 +101,7 @@ jobs:
             echo "architecture=universal (x86_64 + arm64)"
             echo "signing=unsigned internal build"
             echo "notarization=disabled"
+            echo "installed_acceptance=passed"
             echo "workflow=${GITHUB_WORKFLOW}"
           } > "$output_dir/BUILD-MANIFEST.txt"
           echo "name=$artifact_name" >> "$GITHUB_OUTPUT"
@@ -104,6 +114,7 @@ jobs:
             dsh-plugin-desktop/dist/mac-internal/*.dmg
             dsh-plugin-desktop/dist/mac-internal/*.sha256
             dsh-plugin-desktop/dist/mac-internal/BUILD-MANIFEST.txt
+            dsh-plugin-desktop/dist/mac-internal/acceptance-evidence/**
           if-no-files-found: error
           compression-level: 0
           retention-days: 14

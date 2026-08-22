@@ -32,6 +32,8 @@ export interface MacInternalPackageOptions {
   readonly builderCli: string
   /** Absolute packaged-DMG verification script. */
   readonly verifier: string
+  /** Absolute installed-application acceptance script. */
+  readonly acceptanceVerifier: string
   /** Node executable used to run package-local scripts. */
   readonly nodeExecutable: string
   /** Execute one packaging command. */
@@ -75,6 +77,7 @@ function defaultOptions(): MacInternalPackageOptions {
     prepareRuntime: () => prepareInstalledMacUniversalRuntime(desktopRoot),
     builderCli: require.resolve('electron-builder/cli.js'),
     verifier: fileURLToPath(new URL('./verify-mac-smoke.ts', import.meta.url)),
+    acceptanceVerifier: fileURLToPath(new URL('./verify-mac-installed-app.mjs', import.meta.url)),
     nodeExecutable: process.execPath,
     run,
     log: message => console.log(message),
@@ -142,6 +145,12 @@ export function packageMacInternal(options: MacInternalPackageOptions = defaultO
   options.run(
     options.nodeExecutable,
     [options.verifier, options.outputDir],
+    options.desktopRoot,
+    cleanEnvironment,
+  )
+  options.run(
+    options.nodeExecutable,
+    [options.acceptanceVerifier, options.outputDir],
     options.desktopRoot,
     cleanEnvironment,
   )

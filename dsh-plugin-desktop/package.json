@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-desktop",
-  "version": "2.0.7",
+  "version": "2.0.8",
   "description": "DSH Desktop: an Electron shell composed as a DeepSeek Harness Cordis plugin",
   "license": "MIT",
   "publishConfig": {
@@ -255,6 +255,7 @@
     "@types/react": "^18",
     "electron": "43.4.0",
     "electron-builder": "26.15.7",
+    "puppeteer-core": "25.8.0",
     "sharp": "0.35.3",
     "tsdown": "0.22.2",
     "typescript": "6.0.3",

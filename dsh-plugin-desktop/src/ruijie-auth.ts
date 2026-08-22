@@ -1,7 +1,12 @@
 /** Ruijie OAuth login, secure refresh-token persistence, and loopback model transport. */
 
 import { createHash, randomBytes } from 'node:crypto'
-import { createServer, type IncomingHttpHeaders, type ServerResponse } from 'node:http'
+import {
+  createServer,
+  request as httpRequest,
+  type IncomingHttpHeaders,
+  type ServerResponse,
+} from 'node:http'
 import { request as httpsRequest } from 'node:https'
 import type { RuijieAccountSummary } from './ruijie-account-contract.ts'
 
@@ -82,8 +87,17 @@ function callbackPort(environment: NodeJS.ProcessEnv): number {
   return port
 }
 
+function isLoopbackHostname(hostname: string): boolean {
+  return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '[::1]'
+}
+
 function issuer(environment: NodeJS.ProcessEnv): string {
-  return environment.RUIJIE_DSH_OAUTH_ISSUER?.trim() || DEFAULT_ISSUER
+  const configured = environment.RUIJIE_DSH_OAUTH_ISSUER?.trim() || DEFAULT_ISSUER
+  const target = new URL(configured)
+  if (target.protocol !== 'https:' && !(target.protocol === 'http:' && isLoopbackHostname(target.hostname))) {
+    throw new Error(`GPTAuth issuer must use HTTPS unless it is a loopback acceptance fixture: ${target.origin}`)
+  }
+  return target.toString()
 }
 
 function clientId(environment: NodeJS.ProcessEnv): string {
@@ -375,6 +389,15 @@ const HOP_BY_HOP_HEADERS = new Set([
   'te', 'trailer', 'transfer-encoding', 'upgrade',
 ])
 
+function issuerRequest(target: URL): typeof httpsRequest {
+  if (target.protocol === 'https:') return httpsRequest
+  if (
+    target.protocol === 'http:'
+    && isLoopbackHostname(target.hostname)
+  ) return httpRequest
+  throw new Error(`GPTAuth issuer must use HTTPS unless it is a loopback acceptance fixture: ${target.origin}`)
+}
+
 function forwardedHeaders(headers: IncomingHttpHeaders, accessToken: string, host: string): Record<string, string | string[]> {
   const next: Record<string, string | string[]> = {}
   for (const [name, value] of Object.entries(headers)) {
@@ -432,7 +455,7 @@ async function startLocalOAuthProxy(
         body = Buffer.from(JSON.stringify(normalizeRuijieChatPayload(JSON.parse(source.toString('utf8')))))
         headers = { ...headers, 'content-length': String(body.length) }
       }
-      const upstream = httpsRequest(target, { method: request.method, headers }, upstreamResponse => {
+      const upstream = issuerRequest(target)(target, { method: request.method, headers }, upstreamResponse => {
         response.writeHead(upstreamResponse.statusCode ?? 502, responseHeaders(upstreamResponse.headers))
         upstreamResponse.pipe(response)
       })

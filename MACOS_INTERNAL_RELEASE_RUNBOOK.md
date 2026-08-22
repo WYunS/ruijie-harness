@@ -10,6 +10,8 @@
 - GitHub Actions：`.github/workflows/macos-internal-build.yml`
 - 内部 Mac 构建入口：`corepack yarn dist:mac-internal`
 - 内部 Mac 输出目录：`dsh-plugin-desktop/dist/mac-internal`
+- 安装后自动验收：`dsh-plugin-desktop/scripts/verify-mac-installed-app.mjs`
+- 自动验收证据：`dsh-plugin-desktop/dist/mac-internal/acceptance-evidence`
 - 产品版本唯一来源：`dsh-plugin-desktop/package.json`；Artifact 与 DMG 名称必须动态使用该版本。
 
 不要复制出 `RuijieDSH-M` 或长期维护 macOS 专属源码目录。Windows 与 macOS 必须共用业务代码；平台差异通过 `process.platform`、Electron 平台策略和打包脚本处理。
@@ -112,6 +114,8 @@ Artifact 解压后必须包含：
 - `Ruijie-Harness-${version}-macOS-universal.dmg`
 - 同名 `.sha256` 文件
 - `BUILD-MANIFEST.txt`，记录源码 commit、版本、架构与签名状态
+- `acceptance-evidence/ACCEPTANCE-REPORT.md` 与 `acceptance-report.json`
+- `acceptance-evidence/first-launch.png`、`restart.png` 及对应 stdout/stderr 日志
 
 下载和本机复核：
 
@@ -144,7 +148,10 @@ Get-Content -LiteralPath (Join-Path $download 'BUILD-MANIFEST.txt')
 5. 运行真实 Electron 侧栏/popup 连续性测试 20 次。
 6. 验证两套 CPU 的 18 个原生依赖文件（包括 Office/PDF 可能使用的 Canvas 与 Vectorizer）并生成 universal DMG。
 7. 挂载 DMG，检查 Info.plist、主程序、执行权限、`app.asar`、`x86_64`/`arm64` 架构和原生依赖。
-8. 计算 SHA-256 并上传可下载 Artifact。
+8. 把 DMG 中的 `.app` 复制到一次性 `Applications` 目录，用隔离的 `DSH_HOME` 和 Electron userData 启动最终应用；通过仅监听 loopback 的模拟 OAuth/模型服务完成无密钥登录，连接真实 Chromium UI，检查主工作台、窗口尺寸、旧引导文本、首次 profile 创建，并截图。
+9. 关闭后使用同一隔离数据再次启动，确认 profile 和系统安全存储中的登录状态可复用，不会再次要求授权。
+10. 无论通过或失败都上传 `acceptance-evidence`，其中包含首次启动/重启截图、stdout、stderr、JSON 与 Markdown 报告；失败时也必须保留诊断证据。
+11. 计算 SHA-256 并上传可下载 Artifact。
 
 任一步失败都不能把该次产物交给同事。
 
@@ -157,6 +164,8 @@ Get-Content -LiteralPath (Join-Path $download 'BUILD-MANIFEST.txt')
 | Office/PDF 闭包检查缺 OCR 数据 | `eng`、`chi_sim` traineddata 曾被 `.gitignore` 整目录排除 | 两个 gzip 文件、README 和哈希必须纳入 Git，禁止依赖开发机缓存 |
 | Mac 重建 sidebar 后 Git 出现差异 | source map 包含宿主路径字节 | Windows 门禁生成并提交 bundle；Mac 只逐文件校验打包副本 |
 | 修复实现正确但 CI 合约测试失败 | `package.spec.ts` 仍断言旧工作流 | 修改工作流时同步更新对应合约测试并在本地运行 |
+| 自动验收无法进入主工作台 | 最终应用要求真实 OAuth，CI 没有人工浏览器登录 | 使用现有 OAuth 公共入口和仅限 loopback HTTP 的模拟 issuer；禁止增加跳过登录的环境变量后门 |
+| 自动验收首启通过、重启再次登录 | macOS `safeStorage` 或隔离 userData 没有正确持久化 | 保留两次启动证据并阻止发布，不能把第二次登录视为可忽略 |
 
 排障顺序固定为：读取失败步骤和日志 → 归类为源码、依赖、平台产物或 CI 合约 → 做最小修复 → 本地运行相关测试与完整门禁 → 提交并推送 → 只重跑一次。失败邮件数量不是诊断依据。
 
@@ -194,6 +203,8 @@ git diff --stat <上次已验收提交>..HEAD
 3. **相邻影响**：根据依赖和调用关系测试受变化间接影响的功能。例如 sidebar 变化同时回归 Office、PDF、浏览器和关闭/收起；模型适配器变化同时回归普通文本、工具调用、上下文恢复和推理模式。
 
 功能被删除或行为被改变时，必须有用户明确授权，并在矩阵中写出新预期；不能通过删除旧验收项把回归包装成通过。打包前冻结矩阵，打包后在最终安装的 DMG 上执行；开发版测试不能替代安装包验收。若无法确定上次已验收提交，先从旧包的 `BUILD-MANIFEST.txt`、发布快照或 GitHub run 追溯，无法追溯时按全部最低基线加全部可见变更验收。
+
+自动安装后门禁是最低机器验收，不等于整张动态矩阵。当前它实际覆盖：DMG 安装副本可启动、无旧引导文本、主工作台达到可交互状态、窗口尺寸正常、全新 profile 自动创建、相同数据目录重启成功、受保护登录状态可复用，以及截图/日志留证。Office/PDF 的资源与插件仍由自动单元/集成和打包闭包门禁覆盖；真人视觉质量、真实账号、真实模型回答、真实 WebSearch、外部网页和公司网络仍按下列清单人工验证。最终报告必须明确区分自动覆盖与人工未覆盖项。
 
 必须验证：
 

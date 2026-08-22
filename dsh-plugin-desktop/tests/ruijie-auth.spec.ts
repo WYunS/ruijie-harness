@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
+import { createServer } from 'node:http'
 import {
   accountSummaryFromPayloads,
   ensureRuijieAuthEnvironment,
@@ -14,6 +15,55 @@ function unsignedJwt(payload: object): string {
 }
 
 describe('Ruijie desktop authentication module', () => {
+  it('accepts a loopback HTTP issuer for packaged acceptance without weakening remote OAuth', async () => {
+    const requests: string[] = []
+    const server = createServer((request, response) => {
+      requests.push(request.url ?? '')
+      response.writeHead(200, { 'content-type': 'application/json' })
+      response.end('{"object":"list","data":[]}')
+    })
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(0, '127.0.0.1', resolve)
+    })
+    const address = server.address()
+    if (address === null || typeof address === 'string') throw new Error('fixture has no TCP address')
+    const environment: NodeJS.ProcessEnv = {
+      RUIJIE_DSH_OAUTH_ISSUER: `http://127.0.0.1:${String(address.port)}`,
+    }
+    const tokens = {
+      accessToken: unsignedJwt({ exp: Math.floor(Date.now() / 1000) + 3600 }),
+      refreshToken: 'acceptance-refresh-token',
+    }
+    try {
+      const auth = await ensureRuijieAuthEnvironment({
+        environment,
+        credentialStore: {
+          load: async () => tokens,
+          save: async () => undefined,
+          clear: async () => undefined,
+        },
+        openExternal: async () => { throw new Error('interactive authorization must not run') },
+      })
+      expect(environment.DEEPSEEK_BASE_URL).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/v1$/u)
+      expect(environment.DEEPSEEK_API_KEY).toBeTypeOf('string')
+      expect(requests).toEqual(['/v1/models'])
+      await auth.close()
+    } finally {
+      await new Promise<void>(resolve => { server.close(() => { resolve() }) })
+    }
+  })
+
+  it('rejects a non-loopback HTTP issuer before opening a browser', async () => {
+    const openExternal = async (): Promise<never> => {
+      throw new Error('browser must not open for an insecure issuer')
+    }
+    await expect(ensureRuijieAuthEnvironment({
+      environment: { RUIJIE_DSH_OAUTH_ISSUER: 'http://example.com' },
+      openExternal,
+    })).rejects.toThrow('must use HTTPS unless it is a loopback acceptance fixture')
+  })
+
   it('does not expose an environment-key bypass around SSO', () => {
     const source = ensureRuijieAuthEnvironment.toString()
     expect(source).not.toContain('existingKey')
