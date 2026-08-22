@@ -12,14 +12,11 @@
 
 版本号以 `dsh-plugin-desktop\package.json` 为唯一事实来源，不要从聊天记录、旧 EXE 名称或备份目录猜测。
 
-当前已验证快照为 `2.0.6`：
-
-- EXE：`D:\ChatGPT\RuijieDSH\dsh-plugin-desktop\dist\Ruijie-Harness-2.0.6-x64-Setup.exe`
-- 大小：`344273900` bytes（328.33 MiB）
-- SHA-256：`EDAFE070FAE5F2B992F61B59882DE93F5BFFBE53FCB9FD7C2A5BCC3EFE408CFA`
-- 签名状态：`NotSigned`，这是当前内部发布的预期状态。
+当前最新版快照为 `2.0.7`，`2.0.6` 作为上版备份；两者的完整信息见第 12 节。当前内部发布的预期签名状态为 `NotSigned`。
 
 任何源码变化都会使上述哈希失效。新构建必须重新计算，不能复用旧哈希。
+
+Windows 与 macOS 共用 `main` 上的业务源码。不要复制一套长期的 Windows 源码目录，也不要从所谓 `win branch` 猜测最新版。平台差异应保留在 `process.platform` 分支、Windows 专属模块和 `scripts/package-win.ts` 中。共享运行时或资源变化后，先判断两个平台是否都受影响；需要双平台重发时提升版本号，不能让内容不同的 EXE 与 DMG 共用同一版本号。
 
 ## 2. 本机双版本隔离
 
@@ -53,6 +50,10 @@
 ```powershell
 Set-Location -LiteralPath 'D:\ChatGPT\RuijieDSH'
 git status --short
+git branch --show-current
+git rev-parse HEAD
+git submodule status --recursive
+git remote -v
 git rev-parse --show-toplevel
 Get-Content -LiteralPath '.\dsh-plugin-desktop\package.json' -Raw |
   ConvertFrom-Json | Select-Object name,version
@@ -67,6 +68,8 @@ corepack yarn --version
 - Yarn 必须由 Corepack 启动；当前锁定版本是 `4.18.0`。
 - 记录工作树已有改动。它们可能属于用户，禁止通过 `git reset --hard`、`git checkout --` 或批量删除来“清理”。
 - 确认本轮需要进入正式版的每项改动都在这个仓库内。
+- 正式源码位于本地 `main`；个人发布远端为 `ruijie/main`（`https://github.com/WYunS/ruijie-harness.git`）。`origin` 是上游仓库，未经明确授权不要推送。
+- 开始前记录上次 Windows 发布 commit。用 `git diff --name-status <上次发布提交>..HEAD` 审查所有后续变化，不能只看提交标题。
 
 ## 5. 防止打入旧 bundle
 
@@ -92,9 +95,48 @@ corepack yarn workspace dsh-plugin-desktop verify:vendor-sidebar
 
 完成条件：生成的 vendor 发布文件与 Electron 实际打包的安装副本逐文件一致，且从干净检出重新构建不会产生未提交的 sidebar `lib` 差异。
 
+Office/PDF 的离线扫描识别依赖两个正式纳管的 OCR 文件。它们必须同时存在于源码和安装后的 file dependency，不能依赖开发电脑历史缓存：
+
+```powershell
+Set-Location -LiteralPath 'D:\ChatGPT\RuijieDSH'
+git ls-files --error-unmatch vendor/dsh-attachment-formats/vendor/tessdata/eng.traineddata.gz
+git ls-files --error-unmatch vendor/dsh-attachment-formats/vendor/tessdata/chi_sim.traineddata.gz
+Get-FileHash -Algorithm SHA256 -LiteralPath `
+  '.\vendor\dsh-attachment-formats\vendor\tessdata\eng.traineddata.gz', `
+  '.\vendor\dsh-attachment-formats\vendor\tessdata\chi_sim.traineddata.gz'
+```
+
+期望 SHA-256 分别为：
+
+- `eng.traineddata.gz`：`45B4CB346724AC1774F1C36F42F182B887BCDB28EBE63E6FFF90AC41F3FCFF91`
+- `chi_sim.traineddata.gz`：`B8A23F10C7DE500891EB458A8ADC9CC58AB7F242F08B7D149F5E9AEA4AD5DB7C`
+
+若这些文件、其他共享 vendor 内容或 `yarn.lock` 在上次 Windows 构建后发生变化，现有 EXE 不会自动获得变化。必须明确决定保留旧版还是提升版本后重新打包。
+
 开发 profile 还可能残留旧的 `profiles\desktop\node_modules\dsh-better-sidebar` 实体副本。启动准备阶段必须把它修复为指向当前 `dsh-plugin-desktop\node_modules\dsh-better-sidebar` 的 Junction；否则源码和打包依赖即使已经更新，实际 UI 仍会继续加载旧侧栏。
 
 ## 6. 上线前功能门禁
+
+### 6.1 动态生成当次验收标准
+
+本节列出的功能是不能删除的最低回归基线，不是每一版的完整固定清单。每次打包前，发布模型必须找到上一个已经完成安装验收的 Windows 发布 commit/tag，并根据到当前 `HEAD` 的真实差异生成当次验收矩阵：
+
+```powershell
+Set-Location -LiteralPath 'D:\ChatGPT\RuijieDSH'
+git log --oneline <上次已验收提交>..HEAD
+git diff --name-status <上次已验收提交>..HEAD
+git diff --stat <上次已验收提交>..HEAD
+```
+
+必须阅读变更文件、对应测试、配置、数据迁移与依赖变化，不能只根据 commit 标题生成清单。矩阵写入当次构建记录或最终交付说明，每行至少包含：`编号 / 功能或风险 / 变更依据 / 测试环境 / 操作 / 预期结果 / 证据 / 结果`。
+
+当次矩阵必须同时覆盖：
+
+1. **历史回归**：本节最低基线全部执行，确认此前正常功能在新安装包中仍然正常。
+2. **本次增量**：每个新增、修改或修复点覆盖正常路径、关键异常路径、重启与升级持久化；bug 修复必须复现旧失败条件。
+3. **相邻影响**：按依赖和调用关系扩展验证。例如 sidebar 改动要同时回归 Office、PDF、浏览器、Files 与关闭/收起；模型适配器改动要同时回归普通对话、工具调用、已有上下文、新对话和推理模式；安装/数据目录改动要同时回归全新安装、升级、卸载和开发版隔离。
+
+功能删除或行为变化必须有用户明确授权，并在矩阵中记录新预期。不能删除旧验收项来掩盖回归。打包前冻结矩阵，打包后在最终 Setup EXE 安装出的应用上逐项执行；开发版或 `win-unpacked` 结果不能替代最终安装包验收。若无法追溯上次已验收 commit，则按全部最低基线加全部可见变更验收，并明确记录基线不确定性。
 
 运行完整检查：
 
@@ -114,7 +156,7 @@ corepack yarn workspace dsh-community-market vitest run tests/contracts.spec.ts 
 
 所有命令必须退出码为 0。测试输出中的失败、未处理拒绝和超时都算失败，不能只看最后是否生成 EXE。
 
-### 6.1 首次启动
+### 6.2 首次启动
 
 用新的空白用户数据目录验证：
 
@@ -128,7 +170,7 @@ corepack yarn workspace dsh-community-market vitest run tests/contracts.spec.ts 
 
 完成条件：不能依赖开发电脑旧 profile、缓存或已安装插件才能通过。
 
-### 6.2 `.dsh` 与插件市场生命周期
+### 6.3 `.dsh` 与插件市场生命周期
 
 必须分别使用“保留旧数据升级”和“删除数据后重建”两条路径验收；不要把 `%USERPROFILE%\.dsh` 当成安装包内容，也不要在升级安装时删除它。
 
@@ -140,7 +182,7 @@ corepack yarn workspace dsh-community-market vitest run tests/contracts.spec.ts 
 
 完成条件：首次安装有可用默认市场，用户仍拥有来源和安装决定权；保留 `.dsh` 能无损升级，删除 `.dsh` 能自动恢复到可用初始状态。
 
-### 6.3 Office 文件
+### 6.4 Office 文件
 
 分别从 Files 面板打开真实的 `.docx`、`.xlsx`、`.pptx`：
 
@@ -150,7 +192,7 @@ corepack yarn workspace dsh-community-market vitest run tests/contracts.spec.ts 
 
 完成条件：测试的是安装包创建的空白 profile，不是开发 profile。
 
-### 6.4 浏览器与两种搜索
+### 6.5 浏览器与两种搜索
 
 必须区分：
 
@@ -185,7 +227,7 @@ corepack yarn workspace dsh-community-market vitest run tests/contracts.spec.ts 
 
 只调用 `session.setProxy()` 不能自动证明 Node WebSearch 已使用同一代理。代理必须来自系统、PAC、环境或明确设置，不能硬编码开发电脑地址。
 
-### 6.5 PDF
+### 6.6 PDF
 
 PDF 有两条不同链路，必须分开验收：
 
@@ -214,7 +256,7 @@ PDF 有两条不同链路，必须分开验收：
 - “在文件夹中显示”交给系统文件管理器处理，不得在编辑器里报“is a directory”。
 - rc.8 的产物数据从 `owner.turn.data.get('deliverables')` 读取；不要恢复旧版 `owner.nodes` 作为主路径。
 
-### 6.6 登录授权回调
+### 6.7 登录授权回调
 
 首次登录完成后，系统浏览器的 `/auth/callback` 必须显示锐捷 Harness 品牌完成页，并明确提示用户可以关闭页面、返回应用。浏览器可能拒绝脚本自动关闭，因此不得使用隐藏空白页作为唯一成功反馈；同时确认桌面登录窗口继续显示启动进度。
 
@@ -270,6 +312,15 @@ corepack yarn dist:win
 
 不得设置 `DSH_PACKAGE_CHECK_ALREADY_RAN=1` 跳过门禁，除非同一次受控 CI 工作流已经成功完成等价检查并保存日志。
 
+打包前再执行一次发布差异判定：
+
+1. 仅 Mac 工作流、Mac 打包脚本、测试断言或文档变化：通常不要求重打 Windows。
+2. 登录、模型、会话、侧栏、Office、PDF、浏览器、WebSearch、市场、共享 vendor 或 OCR 数据变化：Windows 必须重新通过门禁；若要交付这些变化，提升版本后重打。
+3. Windows 专属路径、Shell、ACL、安装器、更新逻辑变化：必须重打 Windows。
+4. 无法证明现有 EXE 是否包含某项共享资源时，将其视为未包含；通过解包检查或提升版本重打解决，不凭开发机缓存猜测。
+
+已有安装包不会因源码后来修改而失效或被远程改变。重新打包是为了纳入新修复和保持版本一致，不是为了“修复”磁盘上已经生成的旧 EXE。
+
 ## 9. 打包后验证与清理顺序
 
 先验证，再清理 `win-unpacked`；顺序不能反。
@@ -294,7 +345,7 @@ Get-Item -LiteralPath $exe |
 - 文件非空，SHA-256 已记录。
 - 当前内部版签名状态为 `NotSigned`。
 
-最后只清理 `win-unpacked`、`builder-debug.yml`、`latest.yml`、临时 `.nsis.zip` 等中间产物。当前发布目录必须保留两个正式 Setup EXE：`Ruijie-Harness-2.0.6-x64-Setup.exe` 作为上版备份，`Ruijie-Harness-2.0.7-x64-Setup.exe` 作为本次最新版；不得删除或覆盖 2.0.6。删除前必须解析并核对目标都位于准确的 `dsh-plugin-desktop\dist` 内；不得递归删除仓库根目录、用户目录或通过未解析变量构造的路径。
+最后只清理 `win-unpacked`、`builder-debug.yml`、`latest.yml`、临时 `.nsis.zip` 等中间产物。保留用户指定的历史正式 Setup EXE 和本次最新版；当前明确要求保留 `2.0.6` 备份与 `2.0.7`。生成更高版本时不得擅自删除这两个文件。删除前必须解析并核对每个目标都位于准确的 `dsh-plugin-desktop\dist` 内；不得递归删除仓库根目录、用户目录或通过未解析变量构造的路径。
 
 ## 10. 安装后真机验收
 
@@ -309,7 +360,7 @@ Get-Item -LiteralPath $exe |
 7. 记录 Windows 版本、网络类型、代理/PAC 状态、安装包 SHA-256和失败时间。
 8. 异常时先区分应用缺陷与环境限制，再决定是否阻止发布。
 
-完成条件：普通网络的全新安装体验与开发机一致；升级安装不会被旧缓存或旧 profile 误判为新包问题；公司网络限制会显示可诊断错误，不会诱导用户关闭安全保护。
+完成条件：普通网络的全新安装体验与开发机一致；升级安装不会被旧缓存或旧 profile 误判为新包问题；公司网络限制会显示可诊断错误，不会诱导用户关闭安全保护；当次动态验收矩阵中的历史回归、本次增量和相邻影响全部有结果与证据，任何必测失败都已解决或明确阻止发布。
 
 ## 11. 交付时必须输出
 
@@ -317,13 +368,16 @@ Get-Item -LiteralPath $exe |
 
 - 正式 EXE 的绝对路径和可点击文件链接。
 - 产品版本。
+- 源码 commit，以及本地分支与目标远端分支。
 - 文件大小（bytes 与 MiB）。
 - SHA-256。
 - Authenticode 状态。
 - 完整门禁结果与跳过项；没有跳过才可写“全部通过”。
 - 真机测试矩阵及结果。
+- 当次动态验收矩阵及其基线 commit；明确列出历史回归、本次增量、相邻影响和未执行项。
 - `dist` 最终文件列表，确认只保留 2.0.6 备份与 2.0.7 最新版两个正式 EXE，不含构建中间产物。
 - 已知环境限制与通用产品缺陷分开列出。
+- 本次是否产生值得写回手册的稳定经验；若有，说明已更新的章节。
 
 只生成 EXE、不验证安装后的真实功能，不算完成发布。
 
@@ -337,3 +391,19 @@ Get-Item -LiteralPath $exe |
 | 当前最新版 | `Ruijie-Harness-2.0.7-x64-Setup.exe` | 344285426 | 328.34 | `875576C9A857D9B96EE913CDF27A94DF905110C44E8338398B74C652F8A731E3` | `NotSigned` |
 
 `node scripts/verify-win-installer.ts` 已对 2.0.7 通过验证。此快照只证明构建产物结构与发布门禁通过；安装后的联网、登录、侧栏、Office、搜索和 PDF 仍须按第 10 节在真实安装环境验收。
+
+`2.0.7` EXE 生成于本次 OCR 文件正式纳入 Git 与重新安装 file dependency 之前，因此不能宣称它已内置离线中英文 OCR。该 EXE 仍可继续使用；若离线扫描 PDF OCR 属于交付要求，应提升版本并按本手册重新打包，而不是覆盖同名 `2.0.7`。
+
+## 13. 失败处理与手册回写
+
+失败后先保存命令、退出码和首个根因日志。一次修复只对应一个已理解的问题；完成相关定向测试和完整门禁后才重新打包。不要因产物尚未出现、下载无进度或单个环境网络异常而重复启动多个构建。
+
+每次发布结束都要审查本手册，但只有以下变化值得永久写入：
+
+1. 可复现的新失败已有明确根因、稳定修复和验证命令。
+2. 唯一仓库路径、脚本入口、版本来源、产物命名、数据隔离或验收标准发生变化。
+3. 新的共享变更会影响 Windows/Mac 发布判定，或出现新的旧缓存/旧 bundle 风险。
+4. 新门禁已进入脚本或测试；手册只引用权威入口和必须知道的原因，不复制容易过期的实现。
+5. 新功能已成为以后每版都必须保留的核心能力；此时把它加入第 6 节最低回归基线。仅适用于本次版本的用例留在当次动态矩阵，不把手册写成版本流水账。
+
+单次下载慢、临时网络抖动、偶发 runner 故障和未经证实的猜测只写入当次交付记录。更新手册后必须运行 `git diff --check`，审查文档是否仍存在版本、路径或命令冲突，并与对应源码修复一起提交。
