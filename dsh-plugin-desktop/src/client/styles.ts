@@ -44,12 +44,47 @@ html:has([aria-modal="true"]) .dshDesktopSidebarSurface::before { -webkit-app-re
 @media (prefers-reduced-motion: reduce) { .dshDesktopFrame { transition: none !important; } }
 `
 
+/** Keep the upstream compatibility layout below the native Windows overlay. */
+const WINDOWS_COMPATIBILITY_STYLES = `
+html, body { width: 100%; height: 100%; }
+body[data-dsh-desktop-mode="compatibility"][data-dsh-desktop-platform="win32"] {
+  box-sizing: border-box;
+  height: 100%;
+  margin: 0;
+  padding-top: ${WINDOWS_TITLEBAR_HEIGHT}px;
+}
+body[data-dsh-desktop-mode="compatibility"][data-dsh-desktop-platform="win32"]::before {
+  content: "";
+  position: fixed;
+  z-index: 2147483646;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: ${WINDOWS_TITLEBAR_HEIGHT}px;
+  background: var(--dsw-specific-sidebar-fill, var(--dsw-alias-bg-base, #f5f6f7));
+  pointer-events: none;
+  user-select: none;
+  -webkit-app-region: drag;
+}
+body[data-dsh-desktop-mode="compatibility"][data-dsh-desktop-platform="win32"] > #root { height: 100%; }
+`
+
 /** Install and remove the advanced shell's global native-window styles. @returns the style disposer. */
 export function installAdvancedStyles(): () => void {
   const style = document.createElement('style')
   style.dataset.plugin = 'dsh-plugin-desktop'
   style.dataset.pluginCss = 'dsh-plugin-desktop/advanced-shell'
   style.textContent = ADVANCED_STYLES
+  document.head.appendChild(style)
+  return () => { style.remove() }
+}
+
+/** Reserve the transparent Windows caption overlay without changing the upstream layout below it. */
+export function installWindowsCompatibilityStyles(): () => void {
+  const style = document.createElement('style')
+  style.dataset.plugin = 'dsh-plugin-desktop'
+  style.dataset.pluginCss = 'dsh-plugin-desktop/windows-compatibility-shell'
+  style.textContent = WINDOWS_COMPATIBILITY_STYLES
   document.head.appendChild(style)
   return () => { style.remove() }
 }

@@ -31,6 +31,19 @@ const ALLOWED_LICENSES = new Set([
   'CC0-1.0',
   'Zlib',
   'Python-2.0',
+  'BSD',
+  'BlueOak-1.0.0',
+  'MIT/X11',
+  '(MIT OR GPL-3.0-or-later)',
+  '(MIT AND Zlib)',
+  '(MPL-2.0 OR Apache-2.0)',
+])
+
+// The 15-year-old buffers@0.1.1 tarball predates npm license metadata and
+// omits the upstream MIT file. Keep the exception package-scoped so another
+// metadata-free dependency still fails closed.
+const KNOWN_LICENSE_OVERRIDES = new Map([
+  ['buffers', 'MIT'],
 ])
 
 /**
@@ -41,6 +54,7 @@ const ALLOWED_LICENSES = new Set([
  * review any addition.
  */
 const NOTICE_LICENSES = new Set([
+  'AGPL-3.0',
   'LGPL-3.0-or-later',
   'Apache-2.0 AND LGPL-3.0-or-later',
 ])
@@ -91,7 +105,7 @@ for (let index = 0; index < queue.length; index += 1) {
   const manifest = JSON.parse(readFileSync(current.manifestPath, 'utf8'))
 
   if (current.name !== rootManifest.name) {
-    const license = licenseExpression(manifest)
+    const license = KNOWN_LICENSE_OVERRIDES.get(current.name) ?? licenseExpression(manifest)
     const hasLicenseFile = existsSync(join(dirname(current.manifestPath), 'LICENSE'))
       || existsSync(join(dirname(current.manifestPath), 'LICENSE.md'))
       || existsSync(join(dirname(current.manifestPath), 'LICENSE.txt'))

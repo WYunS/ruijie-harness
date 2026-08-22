@@ -10,6 +10,10 @@ import { startRendererBootReporter } from './boot-health.ts'
 import { installDesktopDirectoryPickerBridge } from './directory-picker.ts'
 import { parseDesktopClientEnvironment } from './environment.ts'
 import { installWorkspaceFolderDrop } from './workspace-folder-drop.ts'
+import { applyRuijieAccountCard } from './ruijie-account-card.tsx'
+import { applyRuijieBrand } from './ruijie-brand.ts'
+import { applyRuijieUnifiedModelDirectory } from './ruijie-model-directory.ts'
+import { installWindowsCompatibilityStyles } from './styles.ts'
 
 export { applyAdvancedShell } from './advanced-shell.ts'
 export {
@@ -24,6 +28,7 @@ export type { DesktopClientEnvironment, DesktopClientMode, DesktopClientPlatform
 
 /** Services required by advanced presentation. */
 export const inject = [
+  'modelDirectories',
   'slots',
   'sessions',
   'theme',
@@ -34,6 +39,14 @@ export const inject = [
 export function apply(ctx: ClientContext): void {
   const environment = parseDesktopClientEnvironment(window.location.search)
   if (!environment) return
+  ctx.effect(() => {
+    document.body.dataset.dshDesktopMode = environment.mode
+    document.body.dataset.dshDesktopPlatform = environment.platform
+    return () => {
+      delete document.body.dataset.dshDesktopMode
+      delete document.body.dataset.dshDesktopPlatform
+    }
+  }, 'dsh-plugin-desktop: renderer environment markers')
   ctx.effect(
     () => startRendererBootReporter(ctx.loader),
     'dsh-plugin-desktop: renderer boot health report',
@@ -51,5 +64,15 @@ export function apply(ctx: ClientContext): void {
       'dsh-plugin-desktop: native directory picker bridge',
     )
   }
-  if (environment.mode === 'advanced') applyAdvancedShell(ctx, environment)
+  applyRuijieAccountCard(ctx)
+  applyRuijieBrand(ctx)
+  applyRuijieUnifiedModelDirectory(ctx)
+  if (environment.mode === 'advanced') {
+    applyAdvancedShell(ctx, environment)
+  } else if (environment.platform === 'win32') {
+    ctx.effect(
+      () => installWindowsCompatibilityStyles(),
+      'dsh-plugin-desktop: Windows compatibility caption styles',
+    )
+  }
 }

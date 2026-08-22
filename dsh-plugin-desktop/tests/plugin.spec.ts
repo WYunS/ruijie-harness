@@ -61,6 +61,15 @@ function createHarness(platform: DesktopRuntime['platform'] = 'darwin'): PluginH
   const rendererBoot = vi.fn<(report: RendererBootReport) => void>()
   const pickDirectory = vi.fn(async () => null)
   const validateDirectory = vi.fn(async () => true)
+  const ruijieAccount = {
+    account: vi.fn(async () => ({
+      authentication: 'sso' as const,
+      account: { id: 'user-1', email: 'user@ruijie.com.cn' },
+    billing: { currency: 'CNY' as const, total: 100, used: 25, remaining: 75, usedPercent: 25 },
+      fetchedAt: '2026-08-19T00:00:00.000Z',
+    })),
+    close: vi.fn(async () => {}),
+  }
   const routes = new Map<string, WebRoute>()
   const settingsUpdated = new Set<(namespace: unknown, next: unknown) => void>()
   let localePreference: LocaleId | undefined
@@ -124,7 +133,11 @@ function createHarness(platform: DesktopRuntime['platform'] = 'darwin'): PluginH
     },
     settings,
     logger: { warn: vi.fn(), error: vi.fn() },
-    get: vi.fn((key: unknown) => String(key) === 'desktopRuntime' ? runtime : () => {}),
+    get: vi.fn((key: unknown) => {
+      if (String(key) === 'desktopRuntime') return runtime
+      if (String(key) === 'ruijieAccount') return ruijieAccount
+      return () => {}
+    }),
     effect: vi.fn((register: () => unknown) => register()),
     on: vi.fn((event: string, listener: (namespace: unknown, next: unknown) => void) => {
       if (event === 'settings/updated') settingsUpdated.add(listener)
@@ -218,8 +231,8 @@ describe('desktop Host plugin', () => {
     expect(harness.shell()).toEqual(expect.objectContaining({
       mode: 'compatibility',
       url: 'http://127.0.0.1:43120/?dsh-desktop-mode=compatibility&dsh-desktop-platform=darwin',
-      productName: 'DSH Desktop',
-      windowTitle: 'DeepSeek Harness Desktop',
+      productName: '锐捷 Harness',
+      windowTitle: '锐捷 Harness',
       readThemeSource: expect.any(Function),
     }))
     expect(harness.shell()?.iconPath.endsWith(join('build', 'app-icon-mac.png'))).toBe(true)

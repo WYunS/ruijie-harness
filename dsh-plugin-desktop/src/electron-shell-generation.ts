@@ -11,6 +11,7 @@ import {
 import { formatDesktopExitCode } from './desktop-logger.ts'
 import type { ElectronPlatformStrategy } from './electron-platform.ts'
 import type { DesktopShellSpec } from './runtime.ts'
+import { DESKTOP_SIDEBAR_POPUP_CHANNEL } from './sidebar-popup-bridge-contract.ts'
 import { prepareTrayIcon } from './tray-icons.ts'
 import { desktopWindowOptions } from './window-options.ts'
 
@@ -130,6 +131,24 @@ export class ElectronShellGeneration {
         )
       }
     }
+    const attachWebview = (_event: Electron.Event, guest: Electron.WebContents): void => {
+      // Search engines and many content sites open result links with
+      // target=_blank/window.open. Deny the popup here, then ask the owning
+      // renderer tab to perform the navigation after this callback returns.
+      // Navigating the guest synchronously races Electron's deny path and
+      // intermittently aborts with ERR_ABORTED (-3).
+      guest.setWindowOpenHandler(({ url }) => {
+        try {
+          const target = new URL(url)
+          if (target.protocol === 'https:' || target.protocol === 'http:') {
+            window.webContents.send(DESKTOP_SIDEBAR_POPUP_CHANNEL, guest.id, target.href)
+          }
+        } catch {
+          // A malformed target is rejected with the same deny result.
+        }
+        return { action: 'deny' }
+      })
+    }
 
     app.on('activate', show)
     window.on('close', close)
@@ -139,6 +158,7 @@ export class ElectronShellGeneration {
     window.webContents.on('will-redirect', redirect)
     window.webContents.on('render-process-gone', rendererGone)
     window.webContents.on('did-fail-load', loadFailed)
+    window.webContents.on('did-attach-webview', attachWebview)
     window.webContents.setWindowOpenHandler(({ url }) => {
       try {
         const target = new URL(url)
@@ -164,10 +184,17 @@ export class ElectronShellGeneration {
       window.webContents.off('will-redirect', redirect)
       window.webContents.off('render-process-gone', rendererGone)
       window.webContents.off('did-fail-load', loadFailed)
+      window.webContents.off('did-attach-webview', attachWebview)
       tray?.off('click', show)
     }
 
     try {
+      // The loopback Web host serves plugin client bundles at stable URLs.
+      // Discard only Chromium's resource cache before navigation so a newly
+      // installed sidebar/UI bundle cannot be shadowed by an older response.
+      // Cookies, local storage, SSO state, and Harness workspace data are not
+      // part of this cache and remain intact.
+      await window.webContents.session.clearCache()
       await window.loadURL(spec.url)
       tray = new Tray(prepareTrayIcon(spec.trayIcons, platform.platform))
       this.tray = tray

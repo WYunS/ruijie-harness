@@ -50,9 +50,9 @@ function defaultOptions(): MacSmokeVerificationOptions {
   const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
   return {
     distDir: process.argv[2] === undefined
-      ? join(packageRoot, 'dist', 'mac-smoke')
+      ? join(packageRoot, 'dist', 'mac-internal')
       : resolve(process.argv[2]),
-    productName: 'DSH Desktop',
+    productName: '锐捷 Harness',
     listDmgs,
     makeMountPoint: () => mkdtempSync(join(tmpdir(), 'dsh-desktop-dmg-smoke-')),
     run,

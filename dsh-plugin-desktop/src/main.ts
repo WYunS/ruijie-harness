@@ -1,9 +1,9 @@
 /** DSH Desktop executable: minimal Electron bootstrap around the Host Cordis root. */
 
-import { app, crashReporter, dialog } from 'electron'
+import { app, crashReporter, dialog, safeStorage, shell } from 'electron'
 import type { Context } from '@deepseek-ai/cordis'
 import { randomUUID } from 'node:crypto'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   boot,
@@ -84,9 +84,12 @@ import {
 } from './windows-volume-diagnostics.ts'
 import type { RendererBootReport } from './renderer-boot-contract.ts'
 import { desktopLocaleFromLanguageTag } from './tray-locale.ts'
+import { ensureRuijieAuthEnvironment, type RuijieAuthEnvironment } from './ruijie-auth.ts'
+import { RuijieAuthStore } from './ruijie-auth-store.ts'
+import { RuijieLoginWindow } from './ruijie-login-window.ts'
 
 const BIN_NAME = 'dsh-plugin-desktop'
-const PRODUCT_NAME = 'DSH Desktop'
+const PRODUCT_NAME = '锐捷 Harness'
 
 class RendererStartupFailure extends Error {
   constructor(
@@ -204,12 +207,14 @@ async function start(): Promise<void> {
   let removeChildProcessLogging: (() => void) | undefined
   let disposeDshRuntime: (() => void) | undefined
   let disposePnpmRuntime: (() => void) | undefined
+  let ruijieAuth: RuijieAuthEnvironment | undefined
   let fileExporter: FileExporter | undefined
   let runtime!: ElectronDesktopRuntime
   let logSink: LogFileSink | undefined
   let installRecovery: DesktopInstallRecoveryStore | undefined
   let startupRecoveryController: DesktopStartupRecoveryController | undefined
   let startupRecoveryWindow: DesktopStartupRecoveryWindow | undefined
+  let ruijieLoginWindow: RuijieLoginWindow | undefined
   let startupRecoveryConfigurationPaths: DesktopStartupRecoveryConfigurationPaths | undefined
   let verifyingInstall: DesktopInstallRecoveryTransaction | undefined
   let verifiedInstallToClear: DesktopInstallRecoveryTransaction | undefined
@@ -313,6 +318,7 @@ async function start(): Promise<void> {
       } finally {
         disposeDshRuntime?.()
         disposePnpmRuntime?.()
+        await ruijieAuth?.close()
       }
     },
     finalExit,
@@ -380,12 +386,30 @@ async function start(): Promise<void> {
 
   app.on('second-instance', () => {
     if (startupRecoveryWindow !== undefined) startupRecoveryWindow.show()
+    else if (ruijieLoginWindow !== undefined) ruijieLoginWindow.show()
     else runtime.show()
   })
   try {
     await app.whenReady()
+    startupStage = 'runtime-bootstrap'
+    ruijieLoginWindow = new RuijieLoginWindow({ onCancel: () => { requestQuit(0) } })
+    const authenticatedAccount = await ensureRuijieAuthEnvironment({
+      environment: process.env,
+      credentialStore: new RuijieAuthStore(app.getPath('userData'), safeStorage),
+      onStatus: status => {
+        if (status === 'authorization-complete') ruijieLoginWindow?.showStarting()
+      },
+      onError: cause => {
+        electronLogger.error(`${BIN_NAME}: Ruijie OAuth session cleanup failed: ${cause instanceof Error ? cause.message : String(cause)}`)
+      },
+      openExternal: async url => {
+        await ruijieLoginWindow?.open()
+        return await shell.openExternal(url)
+      },
+    })
+    ruijieAuth = authenticatedAccount
     startupStage = 'shell-environment'
-    if (process.platform === 'win32') app.setAppUserModelId('ai.deepseek.dsh.desktop')
+    if (process.platform === 'win32') app.setAppUserModelId('cn.com.ruijie.dsh.desktop')
     if (app.isPackaged && process.cwd() === '/') process.chdir(app.getPath('home'))
     const shellEnvironmentResolution = await resolveDesktopShellEnvironment({
       environment: process.env,
@@ -414,6 +438,7 @@ async function start(): Promise<void> {
       } finally {
         disposeDshRuntime?.()
         disposePnpmRuntime?.()
+        await ruijieAuth?.close()
       }
     })
 
@@ -567,6 +592,7 @@ async function start(): Promise<void> {
         hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, environment)
         hostCtx.provide('desktopRuntime', runtime)
         hostCtx.provide('desktopPnpmBootstrap', desktopPnpmBootstrap)
+        hostCtx.provide('ruijieAccount', authenticatedAccount)
         await hostCtx.plugin(DesktopActionsService, {
           openTerminal: () => { runtime.openTerminal() },
           requestRestart: () => runtime.requestRestart(),
@@ -614,6 +640,12 @@ async function start(): Promise<void> {
     startupStage = 'renderer-startup'
     runtime.beginRendererBootMonitoring()
     await runtime.mountScheduled()
+    // Keep a native-owned window alive across the entire post-OAuth bootstrap.
+    // Closing it earlier leaves a gap where an authorization-success browser
+    // page exists but no Desktop window can take focus (or survive a close).
+    ruijieLoginWindow.close()
+    ruijieLoginWindow = undefined
+    runtime.show()
     const rendererReport = await rendererBoot
     if (rendererReport.status === 'healthy') {
       startupStage = 'health-commit'
@@ -674,6 +706,8 @@ async function start(): Promise<void> {
       )
     }
   } catch (cause) {
+    ruijieLoginWindow?.close()
+    ruijieLoginWindow = undefined
     runtime.stopRendererBootMonitoring()
     electronLogger.errorCause(cause)
     let exitCode = 1
@@ -747,6 +781,10 @@ async function start(): Promise<void> {
 }
 
 async function run(): Promise<void> {
+  const prototypeUserData = process.env.RUIJIE_DSH_USER_DATA_DIR?.trim()
+  if (prototypeUserData !== undefined && prototypeUserData.length > 0) {
+    app.setPath('userData', resolve(prototypeUserData))
+  }
   app.setName(PRODUCT_NAME)
   if (process.argv.includes('--export-diagnostics')) {
     try {

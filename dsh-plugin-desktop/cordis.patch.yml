@@ -7,6 +7,55 @@
         mode: compatibility
     - id: community-market
       name: dsh-community-market
+    - id: attachment-formats
+      name: dsh-attachment-formats
+    - id: vision-router
+      name: dsh-vision-router
+      config:
+        # The wrapper delegates text to the unchanged Ruijie provider. The
+        # desktop presentation merges both rows into one public DeepSeek group.
+        stealth: false
+        wrapperRoute: deepseek-vision
+        autoWrapProviders: false
+        wrappedProviders:
+          - provider: deepseek-official
+            models:
+              - deepseek-v4-flash
+              - deepseek-v4-pro
+        progressiveTools: false
+        desktopScreenshot: false
+        # Use the authenticated Ruijie Luna route directly so image usage is
+        # charged to the currently signed-in SSO account. Anonymous public
+        # fallbacks are disabled for predictable enterprise behaviour.
+        freeFallback: false
+        freeCloudFirst: false
+        provider: vision-http
+        model: ruijie-gptauth/gpt-5.6-luna
+        providers:
+          - provider: vision-http
+            model: ruijie-gptauth/gpt-5.6-luna
+            fallbacks: []
+        httpProviders:
+          - name: ruijie-gptauth
+            # Headless Loader smokes run before OAuth; their unreachable
+            # loopback sentinel is never used for a model request.
+            baseURL: !!js process.env.DEEPSEEK_BASE_URL || 'http://127.0.0.1:9/v1'
+            model: gpt-5.6-luna
+            apiKeyEnv: DEEPSEEK_API_KEY
+            maxTokens: 4096
+    - id: dsh-office-tools
+      name: dsh-office-tools
+    - id: ruijie-web-search
+      name: '@liustack/modsearch'
+      config:
+        # Keep the stable Harness web_search tool and citation cards, but use
+        # the keyless ModSearch/Firecrawl route instead of DeepSeek's native
+        # server-side search, which GPTAuth does not currently expose.
+        searchProvider: true
+        xSearch: false
+        readPage: true
+    - id: ruijie-better-sidebar
+      name: dsh-better-sidebar
     - id: desktop-terminal
       name: dsh-plugin-desktop/terminal
       disabled: !!js process.platform === 'linux'
@@ -18,10 +67,61 @@
       name: dsh-plugin-desktop/profiles
     - id: desktop-updates
       name: dsh-plugin-desktop/updates
+      config:
+        enabled: false
 
 # A desktop launch has no terminal operator waiting for the Web readiness line.
 - id: web-runtime
   config:
+    # Electron already owns the visible surface. Opening the Web URL again
+    # makes dsh-web-app launch process.execPath as Node, which is Electron here
+    # and produces a misleading "Unable to find Electron app" dialog.
+    openBrowser: false
     printUrl: false
     surfaceContext: true
     trustedHosts: []
+
+# GPTAuth's Anthropic compatibility returns a client tool call rather than
+# DeepSeek's native web_search_tool_result blocks. Route the standard Harness
+# web_search tool through the bundled keyless provider instead.
+- id: web
+  config:
+    searchProvider: modsearch
+
+# Ruijie single-machine prototype: keep only the two established DeepSeek V4
+# text routes while routing requests through GPTAuth. Live probes confirm that
+# these aliases currently ignore image input, so declaring image modality here
+# would expose an upload affordance that cannot work. Official V4 reasoning
+# controls stay available; High matches the upstream Harness default while Off
+# remains selectable per conversation.
+- id: llm-deepseek
+  config:
+    apiKeyEnv: DEEPSEEK_API_KEY
+    baseURL: !!js process.env.DEEPSEEK_BASE_URL
+    thinking: enabled
+    reasoningEffort: low
+    defaultContextWindow: 1000000
+    maxTokens: 16384
+    models:
+      - id: deepseek-v4-flash
+        name: DeepSeek-V4-Flash
+        contextWindow: 1000000
+        maxTokens: 16384
+      - id: deepseek-v4-pro
+        name: DeepSeek-V4-Pro
+        contextWindow: 1000000
+        maxTokens: 16384
+
+# Preserve the original image while allowing phone screenshots and scanned
+# pages through rc.8's attachment admission limits. Processing plugins still
+# downscale per request and keep their own resource budgets.
+- id: attachment-local
+  config:
+    maxImageBytes: 20971520
+    maxImagePixels: 100000000
+    maxImageDimension: 10000
+
+- id: agent-default-model
+  config:
+    provider: deepseek-vision
+    model: deepseek-v4-flash

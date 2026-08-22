@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  packageMacSmoke,
-  type MacSmokePackageOptions,
+  packageMacInternal,
+  type MacInternalPackageOptions,
 } from '../scripts/package-mac.ts'
 
 interface CommandCall {
@@ -11,7 +11,7 @@ interface CommandCall {
   readonly env: NodeJS.ProcessEnv
 }
 
-function options(calls: CommandCall[], logs: string[] = []): MacSmokePackageOptions {
+function options(calls: CommandCall[], logs: string[] = []): MacInternalPackageOptions {
   return {
     env: {
       PATH: '/usr/bin:/bin',
@@ -33,7 +33,7 @@ function options(calls: CommandCall[], logs: string[] = []): MacSmokePackageOpti
     nodeVersion: '22.23.2',
     workspaceRoot: '/repo',
     desktopRoot: '/repo/dsh-plugin-desktop',
-    outputDir: '/repo/dsh-plugin-desktop/dist/mac-smoke',
+    outputDir: '/repo/dsh-plugin-desktop/dist/mac-internal',
     resetOutput: () => undefined,
     prepareRuntime: () => undefined,
     builderCli: '/repo/node_modules/electron-builder/cli.js',
@@ -46,12 +46,12 @@ function options(calls: CommandCall[], logs: string[] = []): MacSmokePackageOpti
   }
 }
 
-describe('macOS DMG smoke packaging', () => {
+describe('internal macOS DMG packaging', () => {
   it('checks without credentials, builds an unsigned DMG, then verifies it', () => {
     const calls: CommandCall[] = []
     const logs: string[] = []
 
-    packageMacSmoke(options(calls, logs))
+    packageMacInternal(options(calls, logs))
 
     expect(calls).toHaveLength(3)
     expect(calls[0]).toEqual({
@@ -71,7 +71,7 @@ describe('macOS DMG smoke packaging', () => {
         'never',
         '--config.mac.notarize=false',
         '--config.npmRebuild=false',
-        '--config.directories.output=/repo/dsh-plugin-desktop/dist/mac-smoke',
+        '--config.directories.output=/repo/dsh-plugin-desktop/dist/mac-internal',
       ],
       cwd: '/repo/dsh-plugin-desktop',
       env: {
@@ -84,13 +84,13 @@ describe('macOS DMG smoke packaging', () => {
       command: '/usr/local/bin/node',
       args: [
         '/repo/dsh-plugin-desktop/scripts/verify-mac-smoke.ts',
-        '/repo/dsh-plugin-desktop/dist/mac-smoke',
+        '/repo/dsh-plugin-desktop/dist/mac-internal',
       ],
       cwd: '/repo/dsh-plugin-desktop',
       env: { PATH: '/usr/bin:/bin', SAFE_VALUE: 'kept' },
     })
     expect(logs).toEqual([
-      'Building an unsigned macOS DMG smoke; signing and notarization are release-only steps.',
+      'Building the installable unsigned internal macOS DMG without Apple credentials or notarization.',
     ])
   })
 
@@ -105,7 +105,7 @@ describe('macOS DMG smoke packaging', () => {
       },
     }
 
-    packageMacSmoke(value)
+    packageMacInternal(value)
 
     expect(calls).toHaveLength(2)
     expect(calls[0]?.args).toEqual([
@@ -117,10 +117,10 @@ describe('macOS DMG smoke packaging', () => {
       'never',
       '--config.mac.notarize=false',
       '--config.npmRebuild=false',
-      '--config.directories.output=/repo/dsh-plugin-desktop/dist/mac-smoke',
+      '--config.directories.output=/repo/dsh-plugin-desktop/dist/mac-internal',
     ])
     expect(logs).toEqual([
-      'Building an unsigned macOS DMG smoke; signing and notarization are release-only steps.',
+      'Building the installable unsigned internal macOS DMG without Apple credentials or notarization.',
       'Skipping the macOS package preflight; the CI shared gate already passed.',
     ])
   })
@@ -135,14 +135,14 @@ describe('macOS DMG smoke packaging', () => {
       const calls: CommandCall[] = []
       const value = { ...options(calls), platform, arch, nodeVersion }
 
-      expect(() => packageMacSmoke(value)).toThrow(message)
+      expect(() => packageMacInternal(value)).toThrow(message)
       expect(calls).toEqual([])
     },
   )
 
   it('stops before packaging when the headless check fails', () => {
     const calls: CommandCall[] = []
-    const value: MacSmokePackageOptions = {
+    const value: MacInternalPackageOptions = {
       ...options(calls),
       run: (command, args, cwd, env) => {
         calls.push({ command, args: [...args], cwd, env: { ...env } })
@@ -150,7 +150,7 @@ describe('macOS DMG smoke packaging', () => {
       },
     }
 
-    expect(() => packageMacSmoke(value)).toThrow('headless check failed')
+    expect(() => packageMacInternal(value)).toThrow('headless check failed')
     expect(calls).toHaveLength(1)
   })
 })

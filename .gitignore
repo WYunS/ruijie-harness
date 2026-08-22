@@ -8,6 +8,11 @@
 node_modules/
 *.tsbuildinfo
 .build/
+.local-data/
+
+# Local release verification scratch files (never publish)
+work/
+gen_pdf.py
 
 dsh-plugin-desktop/dist/
 dsh-plugin-desktop/lib/

@@ -1,0 +1,104 @@
+name: Build macOS Internal DMG
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-internal-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DSH_TELEMETRY_DISABLED: '1'
+
+jobs:
+  build-macos-universal:
+    name: Build universal macOS DMG
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.23.2
+
+      - run: corepack enable
+
+      - name: Resolve Yarn cache folder
+        id: yarn-cache
+        shell: bash
+        run: echo "dir=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v6
+        with:
+          path: ${{ steps.yarn-cache.outputs.dir }}
+          key: yarn-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
+
+      - name: Install locked dependencies
+        run: yarn install --immutable
+
+      - name: Run release checks
+        run: yarn check
+
+      - name: Rebuild and verify the vendored sidebar payload
+        run: |
+          yarn workspace dsh-plugin-desktop build:vendor-sidebar
+          test -z "$(git status --porcelain --untracked-files=all -- vendor/dsh-better-sidebar/lib)"
+          yarn workspace dsh-plugin-desktop verify:vendor-sidebar
+
+      - name: Run real Electron sidebar continuity gate
+        run: yarn workspace dsh-plugin-desktop verify:webview-continuity
+
+      - name: Build unsigned universal DMG
+        env:
+          DSH_PACKAGE_CHECK_ALREADY_RAN: '1'
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: yarn workspace dsh-plugin-desktop dist:mac-internal
+
+      - name: Give the distributable a stable name and checksum
+        id: artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          output_dir='dsh-plugin-desktop/dist/mac-internal'
+          shopt -s nullglob
+          dmgs=("$output_dir"/*.dmg)
+          if [[ "${#dmgs[@]}" -ne 1 ]]; then
+            echo "Expected exactly one DMG, found ${#dmgs[@]}" >&2
+            exit 1
+          fi
+          version="$(node -p "require('./dsh-plugin-desktop/package.json').version")"
+          artifact_name="Ruijie-Harness-${version}-macOS-universal"
+          final_dmg="$output_dir/${artifact_name}.dmg"
+          if [[ "${dmgs[0]}" != "$final_dmg" ]]; then
+            mv "${dmgs[0]}" "$final_dmg"
+          fi
+          shasum -a 256 "$final_dmg" | tee "$final_dmg.sha256"
+          {
+            echo "product=Ruijie Harness"
+            echo "version=$version"
+            echo "source_commit=${GITHUB_SHA}"
+            echo "architecture=universal (x86_64 + arm64)"
+            echo "signing=unsigned internal build"
+            echo "notarization=disabled"
+            echo "workflow=${GITHUB_WORKFLOW}"
+          } > "$output_dir/BUILD-MANIFEST.txt"
+          echo "name=$artifact_name" >> "$GITHUB_OUTPUT"
+
+      - name: Upload installable macOS package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.artifact.outputs.name }}
+          path: |
+            dsh-plugin-desktop/dist/mac-internal/*.dmg
+            dsh-plugin-desktop/dist/mac-internal/*.sha256
+            dsh-plugin-desktop/dist/mac-internal/BUILD-MANIFEST.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

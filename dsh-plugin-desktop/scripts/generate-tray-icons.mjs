@@ -1,18 +1,23 @@
-/** Generate native tray bitmaps from the repository-owned brand SVG. */
+/** Generate native tray bitmaps for the Ruijie Harness RJ mark. */
 
-import { readFile } from 'node:fs/promises'
+import { writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
 
 const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const buildRoot = join(packageRoot, 'build')
-const sourcePath = join(buildRoot, 'tray-icon.svg')
-const source = await readFile(sourcePath, 'utf8')
-
 const BRAND_BLUE = '#4D6BFE'
-if (!source.includes(`fill="${BRAND_BLUE}"`) || /<style\b/iu.test(source)) {
-  throw new Error(`generate-tray-icons: tray-icon.svg must use the fixed brand color ${BRAND_BLUE}`)
+
+function traySvg(background, size) {
+  return Buffer.from(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 64 64">
+      <rect x="3" y="3" width="58" height="58" rx="15" fill="${background}"/>
+      <text x="30" y="42" text-anchor="middle" fill="#FFFFFF"
+        font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="800"
+        font-style="italic" letter-spacing="-3">RJ</text>
+    </svg>
+  `.trim())
 }
 
 const variants = [
@@ -25,9 +30,10 @@ const variants = [
 ]
 
 await Promise.all(variants.map(async ([filename, color, size]) => {
-  const rendered = source.replaceAll(BRAND_BLUE, color)
-  await sharp(Buffer.from(rendered))
-    .resize({ width: size, height: size, fit: 'contain' })
-    .png({ compressionLevel: 9 })
+  await sharp(traySvg(color, size), { density: 192 })
+    .resize(size, size)
+    .png({ compressionLevel: 9, palette: false })
     .toFile(join(buildRoot, filename))
 }))
+
+await writeFile(join(buildRoot, 'tray-icon.svg'), traySvg(BRAND_BLUE, 64))

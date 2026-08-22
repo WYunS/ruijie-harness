@@ -1,5 +1,6 @@
 /** DSH Desktop Host plugin: owns the selected native shell generation. */
 
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
@@ -28,6 +29,10 @@ import {
 } from './directory-picker-route.ts'
 import type { DesktopShellMode } from './runtime.ts'
 import type {} from './runtime.ts'
+import type {} from './ruijie-auth.ts'
+import { RUIJIE_ACCOUNT_PATH, RUIJIE_BRAND_WORDMARK_PATH, RUIJIE_LOGOUT_PATH } from './ruijie-account-contract.ts'
+import { handleRuijieAccountRequest, handleRuijieLogoutRequest } from './ruijie-account-route.ts'
+import { WINDOWS_TITLEBAR_HEIGHT } from './window-chrome.ts'
 
 /** Stable Cordis plugin name. */
 export const name = 'desktop-shell'
@@ -41,6 +46,7 @@ export const DESKTOP_SETTINGS_NAMESPACE = settingsNamespace('dsh-desktop')
 
 const UI_THEME_SETTINGS_NAMESPACE = settingsNamespace(THEME_SETTINGS_NAMESPACE)
 const UI_LOCALE_SETTINGS_NAMESPACE = settingsNamespace(LOCALE_SETTINGS_NAMESPACE)
+const RUIJIE_BRAND_WORDMARK = readFileSync(new URL('../build/ruijie-wordmark.png', import.meta.url))
 
 /** Desktop settings presented by the standard settings service. */
 export interface DesktopSettings {
@@ -100,6 +106,9 @@ export function desktopRendererUrl(
   const url = new URL(`http://127.0.0.1:${String(port)}/`)
   url.searchParams.set('dsh-desktop-mode', mode)
   url.searchParams.set('dsh-desktop-platform', platform)
+  if (platform === 'win32') {
+    url.searchParams.set('dsh-desktop-titlebar-overlay-height', String(WINDOWS_TITLEBAR_HEIGHT))
+  }
   return url.href
 }
 
@@ -124,6 +133,10 @@ export function apply(ctx: Context, config: Config): void {
   }
   if (ctx.webServer.host !== '127.0.0.1') {
     throw new Error('dsh-plugin-desktop: desktop shell requires a loopback Web server')
+  }
+  const ruijieAccount = ctx.get('ruijieAccount')
+  if (ruijieAccount === undefined) {
+    throw new Error('dsh-plugin-desktop: the launcher did not provide the Ruijie SSO account service')
   }
   const iconFilename = runtime.platform === 'darwin'
     ? 'app-icon-mac.png'
@@ -158,6 +171,52 @@ export function apply(ctx: Context, config: Config): void {
       ),
     }),
     'dsh-plugin-desktop: renderer boot report route',
+  )
+  ctx.effect(
+    () => ctx.webServer.register({
+      kind: 'exact',
+      path: RUIJIE_ACCOUNT_PATH,
+      handler: (req, res) => handleRuijieAccountRequest(
+        req,
+        res,
+        () => ruijieAccount.account(),
+        cause => {
+          ctx.logger.warn(`dsh-plugin-desktop: failed to load Ruijie account summary: ${cause instanceof Error ? cause.message : String(cause)}`)
+        },
+      ),
+    }),
+    'dsh-plugin-desktop: Ruijie SSO account route',
+  )
+  ctx.effect(
+    () => ctx.webServer.register({
+      kind: 'exact',
+      path: RUIJIE_LOGOUT_PATH,
+      handler: (req, res) => handleRuijieLogoutRequest(
+        req,
+        res,
+        () => ruijieAccount.logout(),
+        () => runtime.requestRestart(),
+        cause => {
+          ctx.logger.warn(`dsh-plugin-desktop: failed to log out Ruijie account: ${cause instanceof Error ? cause.message : String(cause)}`)
+        },
+      ),
+    }),
+    'dsh-plugin-desktop: Ruijie SSO logout route',
+  )
+  ctx.effect(
+    () => ctx.webServer.register({
+      kind: 'exact',
+      path: RUIJIE_BRAND_WORDMARK_PATH,
+      handler: (_req, res) => {
+        res.writeHead(200, {
+          'content-type': 'image/png',
+          'cache-control': 'public, max-age=86400, immutable',
+          'content-length': String(RUIJIE_BRAND_WORDMARK.byteLength),
+        })
+        res.end(RUIJIE_BRAND_WORDMARK)
+      },
+    }),
+    'dsh-plugin-desktop: Ruijie brand wordmark route',
   )
   if (runtime.platform === 'win32') {
     ctx.effect(
@@ -228,8 +287,8 @@ export function apply(ctx: Context, config: Config): void {
     () => runtime.schedule({
       ...config,
       url: desktopRendererUrl(ctx.webServer.port, config.mode, runtime.platform),
-      productName: 'DSH Desktop',
-      windowTitle: 'DeepSeek Harness Desktop',
+      productName: '锐捷 Harness',
+      windowTitle: '锐捷 Harness',
       iconPath,
       trayIcons,
       readLocalePreference: () => {

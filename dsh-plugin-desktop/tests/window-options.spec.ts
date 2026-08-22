@@ -49,12 +49,11 @@ describe('compatibility BrowserWindow options', () => {
         nodeIntegration: false,
         sandbox: true,
         webSecurity: true,
+        webviewTag: true,
       },
     }))
     for (const option of [
       'frame',
-      'titleBarStyle',
-      'titleBarOverlay',
       'trafficLightPosition',
       'transparent',
       'vibrancy',
@@ -67,11 +66,17 @@ describe('compatibility BrowserWindow options', () => {
     }
   })
 
-  it('uses the native Windows caption while hiding the application menu', () => {
+  it('keeps only the native Windows controls in the compatibility caption', () => {
     const options = compatibilityWindowOptions(spec, {} as NativeImage, 'win32', preload)
 
-    expect(options.title).toBe('DeepSeek Harness Desktop')
+    expect(options.title).toBe('')
     expect(options.autoHideMenuBar).toBe(true)
+    expect(options.titleBarStyle).toBe('hidden')
+    expect(options.titleBarOverlay).toEqual({
+      color: '#00000000',
+      symbolColor: '#111318',
+      height: WINDOWS_TITLEBAR_HEIGHT,
+    })
   })
 
   it('rejects an advanced spec before BrowserWindow construction', () => {
@@ -107,6 +112,7 @@ describe('compatibility BrowserWindow options', () => {
     )
 
     expect(options).toEqual(expect.objectContaining({
+      title: '',
       titleBarStyle: 'hidden',
       titleBarOverlay: {
         color: '#00000000',

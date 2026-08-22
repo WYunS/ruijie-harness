@@ -1,0 +1,78 @@
+diff --git a/lib/index.js b/lib/index.js
+index b2cadf0..79ce466 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -410,5 +410,6 @@ async function* translate(payloads) {
+ 		for (const choice of chunk.choices ?? []) {
+ 			const delta = choice.delta;
++			const nativeToolCalls = delta?.tool_calls ?? [];
+ 			const reasoning = delta?.reasoning_content;
+ 			if (typeof reasoning === "string" && reasoning.length > 0) {
+ 				if (!reasoningBlock) {
+@@ -426,7 +427,8 @@ async function* translate(payloads) {
+ 				};
+ 			}
+ 			const content = delta?.content;
+-			if (typeof content === "string" && content.length > 0) {
++			const legacyToolEnvelope = typeof content === "string" && content.trimStart().startsWith("<｜DSML｜tool_calls>");
++			if (typeof content === "string" && content.length > 0 && !legacyToolEnvelope) {
+ 				if (!textBlock) {
+ 					textBlock = open("text");
+ 					yield {
+@@ -442,7 +444,7 @@ async function* translate(payloads) {
+ 					text: content
+ 				};
+ 			}
+-			for (const call of delta?.tool_calls ?? []) {
++			for (const call of nativeToolCalls) {
+ 				let block = toolBlocks.get(call.index);
+ 				if (!block) {
+ 					block = open("tool-call");
+@@ -452,8 +454,8 @@ async function* translate(payloads) {
+ 						blockType: "tool-call"
+ 					};
+ 				}
+-				if (call.id !== void 0) block.callId = call.id;
+-				if (call.function?.name !== void 0) block.name = call.function.name;
++				if (call.id) block.callId = call.id;
++				if (call.function?.name) block.name = call.function.name;
+ 				const fragment = call.function?.arguments ?? "";
+ 				block.text += fragment;
+ 				yield {
+@@ -641,8 +641,34 @@ var DeepSeekAdapter = class extends LlmAdapter {
+ 	providerRetryPolicy(_provider) {
+ 		return this.config.options().retryPolicy;
+ 	}
+-	listModels(provider) {
+-		return Promise.resolve(this.config.options().models.map((model) => modelInfo(provider, model)));
++	async listModels(provider) {
++		const connection = this.config.options();
++		const fallback = () => connection.models.map((model) => modelInfo(provider, model));
++		const endpoint = new URL(`${connection.baseURL.replace(/\/+$/, "")}/models`);
++		endpoint.searchParams.set("tag", "2");
++		const apiKey = await this.config.resolveApiKey(connection);
++		let response;
++		try {
++			response = await fetch(endpoint, {
++				headers: {
++					"authorization": `Bearer ${apiKey}`,
++					"accept": "application/json"
++				}
++			});
++		} catch {
++			return fallback();
++		}
++		if (!response.ok) return fallback();
++		let payload;
++		try {
++			payload = await response.json();
++		} catch {
++			return fallback();
++		}
++		if (payload?.ability_tag !== "2" || !Array.isArray(payload.data)) return fallback();
++		const configured = new Map(connection.models.map((model) => [model.id, model]));
++		const ids = [...new Set(payload.data.map((model) => model?.id).filter((id) => typeof id === "string" && id.length > 0 && id !== "gpt-5.6-luna"))];
++		return ids.length === 0 ? fallback() : ids.map((id) => modelInfo(provider, configured.get(id) ?? { id }));
+ 	}
+ 	resolveModel(provider, model, _signal) {
+ 		const connection = this.config.options();

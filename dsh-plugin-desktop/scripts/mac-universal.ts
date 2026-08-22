@@ -21,6 +21,14 @@ export const MACOS_UNIVERSAL_NATIVE_ENTRIES = [
   },
   {
     arch: 'arm64',
+    path: 'node_modules/@napi-rs/canvas-darwin-arm64/skia.darwin-arm64.node',
+  },
+  {
+    arch: 'arm64',
+    path: 'node_modules/@neplex/vectorizer-darwin-arm64/vectorizer.darwin-arm64.node',
+  },
+  {
+    arch: 'arm64',
     path: 'node_modules/@vscode/ripgrep-darwin-arm64/bin/rg',
   },
   {
@@ -46,6 +54,14 @@ export const MACOS_UNIVERSAL_NATIVE_ENTRIES = [
   {
     arch: 'x86_64',
     path: 'node_modules/@koromix/koffi-darwin-x64/darwin_x64/koffi.node',
+  },
+  {
+    arch: 'x86_64',
+    path: 'node_modules/@napi-rs/canvas-darwin-x64/skia.darwin-x64.node',
+  },
+  {
+    arch: 'x86_64',
+    path: 'node_modules/@neplex/vectorizer-darwin-x64/vectorizer.darwin-x64.node',
   },
   {
     arch: 'x86_64',

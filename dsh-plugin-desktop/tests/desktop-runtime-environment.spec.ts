@@ -21,6 +21,23 @@ import {
 
 const temporaryDirectories: string[] = []
 
+function canCreateFileSymlink(): boolean {
+  const root = mkdtempSync(join(tmpdir(), 'dsh-file-symlink-probe-'))
+  try {
+    const target = join(root, 'target')
+    const link = join(root, 'link')
+    writeFileSync(target, 'probe')
+    symlinkSync(target, link)
+    return lstatSync(link).isSymbolicLink()
+  } catch {
+    return false
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}
+
+const fileSymlinkIt = canCreateFileSymlink() ? it : it.skip
+
 function temporaryDirectory(): string {
   const directory = mkdtempSync(join(tmpdir(), 'dsh-desktop-pnpm-runtime-'))
   temporaryDirectories.push(directory)
@@ -267,7 +284,7 @@ describe('desktop Host pnpm runtime', () => {
     expect(environment.PATH).toBe(`${pathDir}${pathDelimiter}${originalPath}`)
   })
 
-  it('rejects symlinked state directories before changing PATH', () => {
+  fileSymlinkIt('rejects symlinked state directories before changing PATH', () => {
     const root = temporaryDirectory()
     const target = join(root, 'target')
     const stateDir = join(root, 'runtime')
@@ -280,7 +297,7 @@ describe('desktop Host pnpm runtime', () => {
     expect(environment).toEqual({ PATH: '/usr/bin' })
   })
 
-  it('rejects a symlinked generated file before changing PATH', () => {
+  fileSymlinkIt('rejects a symlinked generated file before changing PATH', () => {
     const root = temporaryDirectory()
     const stateDir = join(root, 'runtime')
     const pathDir = join(stateDir, 'bin')

@@ -1,7 +1,17 @@
 /** Compatibility profile composition over the official Web bundle and user plugins. */
 
 import { createRequire, findPackageJSON } from 'node:module'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { evaluate, isJsExpr, type EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
@@ -28,7 +38,7 @@ import FileSettingsProvider, {
   type Config as SettingsFileConfig,
 } from '@deepseek-ai/dsh-settings-file'
 import { parseDocument } from 'yaml'
-import { unpackedAsarPath } from './packaged-runtime-path.ts'
+import { packagedDependencyPath, unpackedAsarPath } from './packaged-runtime-path.ts'
 import type { DesktopShellMode } from './runtime.ts'
 import {
   activeDesktopProfileLayers,
@@ -70,6 +80,61 @@ const DESKTOP_SETTINGS_NAMESPACE = 'dsh-desktop'
 const UI_LAYOUT_PACKAGE = '@deepseek-ai/dsh-client-ui-layout'
 const UI_SIDEBAR_PACKAGE = '@deepseek-ai/dsh-client-ui-sidebar'
 const UI_CONVERSATION_PACKAGE = '@deepseek-ai/dsh-client-ui-conversation'
+const RUIJIE_OFFICE_BUNDLE = '@huanlin/dsh-plugin-better-sidebar-plugin-office'
+const RUIJIE_EXPERIENCE_VERSION = 2
+const DEFAULT_MARKET_SOURCE = {
+  sourceRecordId: '10241024-1024-4024-8024-102410241024',
+  registrationKind: 'built-in',
+  adapterId: 'market.dsh-1024store-v1',
+  providerId: 'com.deepseek1024.catalog',
+  builtInProviderKey: 'dsh-1024store',
+  enabled: true,
+  order: 0,
+} as const
+const DESKTOP_OWNED_PACKAGES = ['dsh-better-sidebar'] as const
+
+/** Keep one app-owned package link pointed at the package shipped with this build. */
+function ensureDesktopPackageLink(link: string, target: string): void {
+  let stat
+  try {
+    stat = lstatSync(link)
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code !== 'ENOENT') throw cause
+  }
+  if (stat !== undefined) {
+    if (!stat.isSymbolicLink()) {
+      rmSync(link, { recursive: stat.isDirectory(), force: true })
+    } else {
+      try {
+        if (realpathSync(link) === realpathSync(target)) return
+      } catch {
+        // Replace a broken or unreadable app-owned dependency link below.
+      }
+      unlinkSync(link)
+    }
+  }
+  symlinkSync(target, link, process.platform === 'win32' ? 'junction' : 'dir')
+}
+
+/**
+ * Ensure product-owned packages cannot be shadowed by stale profile installs.
+ * Other profile dependencies remain untouched and continue to resolve from
+ * the profile normally.
+ */
+export function ensureDesktopModuleResolutionAnchor(
+  profileDir: string,
+  moduleUrl: string = import.meta.url,
+): string {
+  const modules = join(profileDir, 'node_modules')
+  mkdirSync(modules, { recursive: true })
+  for (const packageName of DESKTOP_OWNED_PACKAGES) {
+    const link = join(modules, ...packageName.split('/'))
+    mkdirSync(dirname(link), { recursive: true })
+    const target = dirname(packagedDependencyPath(moduleUrl, `${packageName}/package.json`))
+    ensureDesktopPackageLink(link, target)
+  }
+  return join(profileDir, 'package.json')
+}
 
 /**
  * Parse desktop presentation state and reject corrupted values.
@@ -166,6 +231,46 @@ function requiredWebBundles(): string[] {
   return [...bundles]
 }
 
+/** Seed the branded first-run experience without copying machine-local credentials or caches. */
+export function ensureRuijieExperienceDefaults(home: string): void {
+  const settingsPath = join(home, 'settings.yaml')
+  let text = ''
+  try {
+    text = readFileSync(settingsPath, 'utf8')
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code !== 'ENOENT') throw cause
+  }
+  const document = parseDocument(text, { prettyErrors: true })
+  if (document.errors.length > 0) {
+    throw new Error(`${BIN_NAME}: invalid settings document at ${settingsPath}: ${document.errors.map(error => error.message).join('; ')}`)
+  }
+  const currentVersion = document.getIn(['ruijie-desktop', 'experienceVersion'])
+  if (currentVersion === RUIJIE_EXPERIENCE_VERSION) return
+
+  document.setIn(['ui-onboarding', 'welcomeNoticeVersion'], '2026-08-13.1')
+  if (document.getIn(['agent-default-model', 'provider']) === undefined) {
+    document.setIn(['agent-default-model', 'provider'], 'deepseek-vision')
+  }
+  if (document.getIn(['agent-default-model', 'model']) === undefined) {
+    document.setIn(['agent-default-model', 'model'], 'deepseek-v4-flash')
+  }
+  if (document.getIn(['agent-default-model', 'reasoningEffort']) === undefined) {
+    document.setIn(['agent-default-model', 'reasoningEffort'], 'low')
+  }
+  document.setIn(['agent-presets', 'default'], 'standard')
+  document.setIn(['permission', 'defaultPreset'], 'danger-full-access')
+  document.setIn(['vision-router', 'onboardingSeen'], true)
+  document.setIn(['vision-router', 'freeFallback'], false)
+  document.setIn(['vision-router', 'freeCloudFirst'], false)
+  document.setIn(['dsh-better-sidebar', 'browserInterceptLinks'], true)
+  document.setIn(['dsh-better-sidebar', 'browserInterceptHttps'], true)
+  if (document.getIn(['dsh-community-market', 'sources']) === undefined) {
+    document.setIn(['dsh-community-market', 'sources'], [{ ...DEFAULT_MARKET_SOURCE }])
+  }
+  document.setIn(['ruijie-desktop', 'experienceVersion'], RUIJIE_EXPERIENCE_VERSION)
+  writeFileSync(settingsPath, document.toString({ lineWidth: 0 }))
+}
+
 /** Prepared profile inputs consumed by app-boot. */
 export interface PreparedDesktopProfile {
   /** Harness home shared by the launcher and generated command environment. */
@@ -226,7 +331,9 @@ export function ensureDesktopProfile(home: string = resolveDshHome()): string {
     throw new Error(`${BIN_NAME}: dsh.profile.bundles must be an array of package names`)
   }
   const current = rawBundles === undefined ? [] : rawBundles as string[]
-  const bundles = desktopBundleList(current)
+  const bundles = desktopBundleList(current.includes(RUIJIE_OFFICE_BUNDLE)
+    ? current
+    : [...current, RUIJIE_OFFICE_BUNDLE])
   if (!sameList(current, bundles)) {
     writeProfileManifest(dir, {
       ...manifest,
@@ -420,6 +527,7 @@ export function prepareDesktopProfile(
   const profileDir = profileName === DESKTOP_PROFILE_NAME
     ? ensureDesktopProfile(home)
     : resolveProfileDir(profileName, home)
+  ensureRuijieExperienceDefaults(home)
   healProfilesModuleFallback(INSTALL_ANCHOR, home)
   const disabledBundles = pluginStatePath === undefined
     ? new Set<string>()
@@ -431,7 +539,7 @@ export function prepareDesktopProfile(
     disabledBundles,
   )
   const rootConfig = join(profileDir, DESKTOP_PROFILE_ROOT)
-  const bareModuleBaseUrl = pathToFileURL(join(profile.dir, 'package.json')).href
+  const bareModuleBaseUrl = pathToFileURL(ensureDesktopModuleResolutionAnchor(profile.dir)).href
   writeFileSync(rootConfig, '[]\n')
 
   const desktopPatches = loadOverlayPatches(BIN_NAME, DESKTOP_PATCH_PATH)

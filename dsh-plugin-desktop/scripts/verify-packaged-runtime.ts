@@ -53,6 +53,10 @@ export const REQUIRED_PACKAGED_RUNTIME_ENTRIES = [
   'node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html',
   'node_modules/@deepseek-ai/dsh-app-boot/lib/index.js',
   'node_modules/pnpm/bin/pnpm.mjs',
+  'node_modules/@huanlin/dsh-plugin-better-sidebar-plugin-office/lib/client.js',
+  'node_modules/dsh-better-sidebar/lib/client.js',
+  'node_modules/@liustack/modsearch/dsh/index.js',
+  'node_modules/@liustack/modsearch/dist/main.js',
 ] as const
 
 /** Physical entries required because profile fallback symlinks cannot target ASAR paths. */
@@ -117,6 +121,9 @@ export const REQUIRED_UNPACKED_PACKAGE_SPECIFIERS = [
   'dsh-plugin-desktop/package.json',
   '@deepseek-ai/dsh-base/package.json',
   '@deepseek-ai/dsh-web-app/package.json',
+  '@huanlin/dsh-plugin-better-sidebar-plugin-office/package.json',
+  'dsh-better-sidebar/package.json',
+  '@liustack/modsearch/package.json',
 ] as const
 
 /** Injectable archive listing seam used by focused tests. */

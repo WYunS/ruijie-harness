@@ -29,6 +29,7 @@ function options(calls: CommandCall[], logs: string[] = []): WindowsPackageOptio
     desktopRoot: 'C:\\repo\\dsh-plugin-desktop',
     commandShell: 'C:\\Windows\\System32\\cmd.exe',
     builderCli: 'C:\\repo\\node_modules\\electron-builder\\cli.js',
+    electronDist: 'C:\\repo\\node_modules\\electron\\dist',
     verifier: 'C:\\repo\\dsh-plugin-desktop\\scripts\\verify-win-installer.ts',
     nodeExecutable: 'C:\\Program Files\\nodejs\\node.exe',
     run: (command, args, cwd, env) => {
@@ -68,6 +69,7 @@ describe('Windows x64 installer packaging', () => {
         'never',
         '--config.win.signExecutable=false',
         '--config.npmRebuild=false',
+        '--config.electronDist=C:\\repo\\node_modules\\electron\\dist',
       ],
       cwd: 'C:\\repo\\dsh-plugin-desktop',
       env: {
@@ -106,6 +108,7 @@ describe('Windows x64 installer packaging', () => {
       'never',
       '--config.win.signExecutable=false',
       '--config.npmRebuild=false',
+      '--config.electronDist=C:\\repo\\node_modules\\electron\\dist',
     ])
     expect(calls[2]?.args).toEqual([
       'C:\\repo\\dsh-plugin-desktop\\scripts\\verify-win-portable.ts',
@@ -138,6 +141,7 @@ describe('Windows x64 installer packaging', () => {
       'never',
       '--config.win.signExecutable=false',
       '--config.npmRebuild=false',
+      '--config.electronDist=C:\\repo\\node_modules\\electron\\dist',
     ])
     expect(logs).toEqual([
       'Building an unsigned Windows x64 installer; Authenticode is a separate release step.',

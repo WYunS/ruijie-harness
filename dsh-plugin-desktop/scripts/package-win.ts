@@ -32,6 +32,8 @@ export interface WindowsPackageOptions {
   readonly commandShell: string
   /** Absolute electron-builder CLI module. */
   readonly builderCli: string
+  /** Installed Electron distribution reused without a release-network download. */
+  readonly electronDist: string
   /** Absolute packaged-installer verification script. */
   readonly verifier: string
   /** Node executable used to run package-local scripts. */
@@ -81,6 +83,7 @@ export function createWindowsPackageOptions(verifier = './verify-win-installer.t
   const desktopRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
   const workspaceRoot = resolve(desktopRoot, '..')
   const require = createRequire(import.meta.url)
+  const electronDist = join(dirname(require.resolve('electron/package.json')), 'dist')
   const windowsRoot = process.env.SystemRoot ?? process.env.WINDIR
   return {
     env: process.env,
@@ -93,6 +96,7 @@ export function createWindowsPackageOptions(verifier = './verify-win-installer.t
       ? 'cmd.exe'
       : join(windowsRoot, 'System32', 'cmd.exe'),
     builderCli: require.resolve('electron-builder/cli.js'),
+    electronDist,
     verifier: fileURLToPath(new URL(verifier, import.meta.url)),
     nodeExecutable: process.execPath,
     run,
@@ -154,6 +158,7 @@ export function packageWindowsArtifact(
       'never',
       '--config.win.signExecutable=false',
       '--config.npmRebuild=false',
+      `--config.electronDist=${options.electronDist}`,
     ],
     options.desktopRoot,
     {

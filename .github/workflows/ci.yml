@@ -117,10 +117,9 @@ jobs:
           DSH_PACKAGE_CHECK_ALREADY_RAN: '1'
         run: yarn workspace dsh-plugin-desktop dist:win-portable
 
-  # macOS-only universal packaging smoke on a real macOS runner: the signed
-  # release is built manually on a credentialed machine, so an unsigned DMG
-  # here catches Intel and Apple Silicon packaging regressions before a manual
-  # release. No signing secrets ever reach this job.
+  # Build the installable unsigned internal DMG on a real macOS runner. It uses
+  # the same product payload for Intel and Apple Silicon; no Apple credentials
+  # or notarization secrets ever reach this job.
   desktop-macos:
     needs: changes
     if: needs.changes.outputs.product == 'true'
@@ -144,10 +143,12 @@ jobs:
           key: yarn-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
       - run: yarn install --immutable
       - run: yarn check
-      - name: Build macOS smoke artifact
+      - name: Run real Electron sidebar continuity gate
+        run: yarn workspace dsh-plugin-desktop verify:webview-continuity
+      - name: Build macOS internal DMG
         env:
           DSH_PACKAGE_CHECK_ALREADY_RAN: '1'
-        run: yarn workspace dsh-plugin-desktop dist:mac-smoke
+        run: yarn workspace dsh-plugin-desktop dist:mac-internal
 
   # Upstream toolchain smoke: the portable-shell scripts must resolve the
   # pinned submodule's own Yarn/pnpm release on Windows.

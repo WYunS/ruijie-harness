@@ -35,6 +35,23 @@ interface Harness {
 
 const roots: string[] = []
 
+function canCreateFileSymlink(): boolean {
+  const root = mkdtempSync(join(tmpdir(), 'dsh-file-symlink-probe-'))
+  try {
+    const target = join(root, 'target')
+    const link = join(root, 'link')
+    writeFileSync(target, 'probe')
+    symlinkSync(target, link)
+    return lstatSync(link).isSymbolicLink()
+  } catch {
+    return false
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}
+
+const fileSymlinksAvailable = canCreateFileSymlink()
+
 afterEach(() => {
   for (const root of roots.splice(0)) {
     try { chmodSync(root, 0o700) } catch {}
@@ -465,11 +482,13 @@ describe('desktop direct bundle management', () => {
     writeFileSync(options.statePath, 'x'.repeat(64 * 1024 + 1))
     expect(() => readDesktopDisabledBundles(options.statePath, 'desktop')).toThrow('too large')
 
-    rmSync(options.statePath)
-    const target = join(root, 'real-state.json')
-    writeFileSync(target, JSON.stringify({ version: 1, profiles: [] }))
-    symlinkSync(target, options.statePath)
-    expect(() => readDesktopDisabledBundles(options.statePath, 'desktop')).toThrow('regular file')
+    if (fileSymlinksAvailable) {
+      rmSync(options.statePath)
+      const target = join(root, 'real-state.json')
+      writeFileSync(target, JSON.stringify({ version: 1, profiles: [] }))
+      symlinkSync(target, options.statePath)
+      expect(() => readDesktopDisabledBundles(options.statePath, 'desktop')).toThrow('regular file')
+    }
 
     rmSync(options.statePath)
     const parentFile = join(root, 'not-a-directory')

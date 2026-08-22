@@ -118,6 +118,17 @@ try {
       })
       host.provide('webRuntime', {})
       host.provide('appExit', () => {})
+      host.provide('ruijieAccount', {
+        async account() {
+          return {
+            authentication: 'sso',
+            account: { id: 'loader-smoke' },
+            billing: { currency: 'CNY', total: 1, used: 0, remaining: 1, usedPercent: 0 },
+            fetchedAt: new Date(0).toISOString(),
+          }
+        },
+        async close() {},
+      })
       host.provide('settings', {
         register() {
           return {

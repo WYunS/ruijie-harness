@@ -119,6 +119,17 @@ try {
     async (host) => {
       host.provide(DSH_LAUNCH_ENVIRONMENT_KEY, createLaunchEnvironmentSnapshot([]))
       host.provide('desktopRuntime', runtime)
+      host.provide('ruijieAccount', {
+        async account() {
+          return {
+            authentication: 'sso',
+            account: { id: 'profile-smoke' },
+            billing: { currency: 'CNY', total: 1, used: 0, remaining: 1, usedPercent: 0 },
+            fetchedAt: new Date(0).toISOString(),
+          }
+        },
+        async close() {},
+      })
       host.provide('desktopPnpmBootstrap', {
         activeProfileName: 'desktop',
         activeProfileDir: prepared.profile.dir,
@@ -200,7 +211,7 @@ try {
     throw new Error(`assembled Windows browse picker listed ${listing.path} instead of ${home}`)
   }
 
-  const expectedUrl = `http://127.0.0.1:${String(ctx.webServer.port)}/?dsh-desktop-mode=advanced&dsh-desktop-platform=win32`
+  const expectedUrl = `http://127.0.0.1:${String(ctx.webServer.port)}/?dsh-desktop-mode=advanced&dsh-desktop-platform=win32&dsh-desktop-titlebar-overlay-height=32`
   if (mountedSpec?.url !== expectedUrl) {
     throw new Error(`desktop plugin produced an unexpected renderer URL: ${String(mountedSpec?.url)}`)
   }

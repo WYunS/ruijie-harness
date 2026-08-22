@@ -21,7 +21,7 @@ export function compatibilityWindowOptions(
     throw new Error(`dsh-plugin-desktop: unsupported compatibility window mode ${spec.mode}`)
   }
   const options: BrowserWindowConstructorOptions = {
-    title: platform === 'win32' ? spec.windowTitle : '',
+    title: '',
     width: spec.width,
     height: spec.height,
     minWidth: spec.minWidth,
@@ -34,9 +34,18 @@ export function compatibilityWindowOptions(
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
+      webviewTag: true,
     },
   }
-  if (platform === 'win32') options.autoHideMenuBar = true
+  if (platform === 'win32') {
+    options.autoHideMenuBar = true
+    options.titleBarStyle = 'hidden'
+    options.titleBarOverlay = {
+      color: '#00000000',
+      symbolColor: '#111318',
+      height: WINDOWS_TITLEBAR_HEIGHT,
+    }
+  }
   return options
 }
 
@@ -57,7 +66,9 @@ export function advancedWindowOptions(
     throw new Error(`dsh-plugin-desktop: unsupported advanced window mode ${spec.mode}`)
   }
   const options: BrowserWindowConstructorOptions = {
-    title: platform === 'win32' ? spec.windowTitle : '',
+    // Keep the native caption accessible without painting duplicate product
+    // branding beside the Windows controls in the custom title-bar overlay.
+    title: '',
     width: spec.width,
     height: spec.height,
     minWidth: spec.minWidth,
@@ -70,6 +81,7 @@ export function advancedWindowOptions(
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
+      webviewTag: true,
     },
   }
   if (platform === 'darwin') {

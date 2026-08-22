@@ -65,6 +65,7 @@ const electron = vi.hoisted(() => {
   const browserWindows: BrowserWindow[] = []
   const browserWindowOn = vi.fn()
   const browserWindowOff = vi.fn()
+  const clearCache = vi.fn(async () => {})
   const loadURL = vi.fn(async (_url: string) => {})
   const menuTemplates: unknown[][] = []
   const notifications: Notification[] = []
@@ -88,9 +89,11 @@ const electron = vi.hoisted(() => {
     setTemplateImage: vi.fn(),
   }
   const webContents = {
+    session: { clearCache },
     getZoomLevel: vi.fn(() => zoomLevel),
     on: vi.fn(),
     off: vi.fn(),
+    send: vi.fn(),
     setZoomLevel: vi.fn((level: number) => { zoomLevel = level }),
     setWindowOpenHandler: vi.fn(),
   }
@@ -175,6 +178,7 @@ const electron = vi.hoisted(() => {
     browserWindows,
     browserWindowOff,
     browserWindowOn,
+    clearCache,
     loadURL,
     dialog,
     Menu: {
@@ -258,6 +262,8 @@ describe('Electron desktop runtime', () => {
     updater.resolve.mockReset()
     updater.resolve.mockResolvedValue(undefined)
     diagnostics.export.mockReset()
+    electron.clearCache.mockReset()
+    electron.clearCache.mockResolvedValue(undefined)
     electron.loadURL.mockReset()
     electron.loadURL.mockResolvedValue(undefined)
     electron.dialog.showMessageBox.mockResolvedValue({ response: 0, checkboxChecked: false })
@@ -271,6 +277,19 @@ describe('Electron desktop runtime', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
+  })
+
+  it('clears stale renderer resources before loading the local UI', async () => {
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const runtime = new ElectronDesktopRuntime(async () => {})
+    const release = runtime.schedule(spec)
+
+    await runtime.mountScheduled()
+
+    expect(electron.clearCache).toHaveBeenCalledOnce()
+    expect(electron.clearCache.mock.invocationCallOrder[0])
+      .toBeLessThan(electron.loadURL.mock.invocationCallOrder[0]!)
+    await release()
   })
 
   it('uses the native macOS frame, Dock icon, and template tray image', async () => {
@@ -290,11 +309,12 @@ describe('Electron desktop runtime', () => {
       height: 840,
       show: false,
       webPreferences: {
-        preload: expect.stringMatching(/preload\.cjs$/),
+        preload: expect.stringMatching(/preload\.(?:cjs|ts|js)$/),
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
         webSecurity: true,
+        webviewTag: true,
       },
     }))
     expect(options).not.toHaveProperty('autoHideMenuBar')
@@ -334,7 +354,7 @@ describe('Electron desktop runtime', () => {
     expect(electron.trays[0]?.off).toHaveBeenCalledWith('click', expect.any(Function))
   })
 
-  it('uses the Windows caption, hidden menu bar, removed menu, and fixed blue tray image', async () => {
+  it('uses controls-only Windows chrome, a hidden menu, and the fixed blue tray image', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
     const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
     const runtime = new ElectronDesktopRuntime(async () => {})
@@ -343,8 +363,14 @@ describe('Electron desktop runtime', () => {
     await runtime.mountScheduled()
 
     expect(electron.browserWindowOptions[0]).toEqual(expect.objectContaining({
-      title: 'DeepSeek Harness Desktop',
+      title: '',
       autoHideMenuBar: true,
+      titleBarStyle: 'hidden',
+      titleBarOverlay: {
+        color: '#00000000',
+        symbolColor: '#111318',
+        height: 32,
+      },
     }))
     expect(electron.browserWindows[0]?.accessibleTitle).toBe('DeepSeek Harness Desktop')
     expect(electron.browserWindows[0]?.removeMenu).toHaveBeenCalledOnce()
@@ -710,6 +736,42 @@ describe('Electron desktop runtime', () => {
     await release()
   })
 
+  it('keeps target-blank links inside an attached sidebar webview', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const runtime = new ElectronDesktopRuntime(async () => {})
+    const release = runtime.schedule(spec)
+
+    await runtime.mountScheduled()
+
+    const didAttach = electron.webContents.on.mock.calls
+      .find(([event]) => event === 'did-attach-webview')?.[1]
+    expect(didAttach).toEqual(expect.any(Function))
+    const guest = {
+      id: 73,
+      loadURL: vi.fn(async () => {}),
+      setWindowOpenHandler: vi.fn(),
+    }
+    didAttach({}, guest)
+    const popupHandler = guest.setWindowOpenHandler.mock.calls[0]?.[0]
+    expect(popupHandler).toEqual(expect.any(Function))
+
+    expect(popupHandler({ url: 'https://example.com/result-2' })).toEqual({ action: 'deny' })
+    expect(guest.loadURL).not.toHaveBeenCalled()
+    expect(electron.webContents.send).toHaveBeenCalledWith(
+      'dsh-desktop:sidebar-popup',
+      73,
+      'https://example.com/result-2',
+    )
+
+    expect(popupHandler({ url: 'javascript:alert(1)' })).toEqual({ action: 'deny' })
+    expect(guest.loadURL).not.toHaveBeenCalled()
+    expect(electron.webContents.send).toHaveBeenCalledTimes(1)
+
+    await release()
+    expect(electron.webContents.off).toHaveBeenCalledWith('did-attach-webview', didAttach)
+  })
+
   it('protects the main-frame origin across redirects while leaving iframe redirects alone', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
     const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
@@ -980,7 +1042,7 @@ describe('Electron desktop runtime', () => {
         appExecutable: process.execPath,
         electronVersion: '43.4.0',
         profileName: 'desktop',
-        productVersion: '2.0.1',
+        productVersion: '2.0.6',
         profileDir: expect.stringMatching(/profiles[\\/]+desktop$/u),
         homeDir: expect.stringContaining('dsh-desktop-user-data'),
         installRecoveryStatePath: expect.stringMatching(/[\\/]plugin-install-recovery[\\/]state\.json$/u),
@@ -1017,7 +1079,7 @@ describe('Electron desktop runtime', () => {
     expect(diagnostics.export).toHaveBeenCalledWith(
       expect.stringContaining('dsh-desktop-user-data'),
       expect.objectContaining({
-        appVersion: '2.0.1',
+        appVersion: '2.0.6',
         crashDumpsDir: expect.stringMatching(/[\\/]Crashpad$/u),
       }),
     )
@@ -1232,7 +1294,7 @@ describe('Electron desktop runtime', () => {
     expect(runtime.updates).toMatchObject({
       isPackaged: false,
       canDownload: false,
-      currentVersion: '2.0.1',
+      currentVersion: '2.0.6',
       statePath: join('/tmp/dsh-desktop-user-data', 'updates', 'state.json'),
     })
     electron.app.isPackaged = true

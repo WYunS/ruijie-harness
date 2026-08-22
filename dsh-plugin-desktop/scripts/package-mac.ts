@@ -1,4 +1,4 @@
-/** Build an unsigned macOS DMG smoke artifact on a native macOS host. */
+/** Build the unsigned internal macOS DMG on a native macOS host. */
 
 import { spawnSync } from 'node:child_process'
 import { rmSync } from 'node:fs'
@@ -9,7 +9,7 @@ import { withoutMacReleaseSecrets } from './release-preflight.ts'
 import { prepareInstalledMacUniversalRuntime } from './mac-universal.ts'
 
 /** Injectable native macOS packaging boundary used by focused tests. */
-export interface MacSmokePackageOptions {
+export interface MacInternalPackageOptions {
   /** Environment inherited by the packaging command. */
   readonly env: NodeJS.ProcessEnv
   /** Platform executing the package build. */
@@ -22,7 +22,7 @@ export interface MacSmokePackageOptions {
   readonly workspaceRoot: string
   /** Desktop package root containing electron-builder configuration. */
   readonly desktopRoot: string
-  /** Dedicated smoke output directory, isolated from signed release artifacts. */
+  /** Dedicated internal output directory, isolated from signed release artifacts. */
   readonly outputDir: string
   /** Remove only the dedicated generated smoke output before packaging. */
   readonly resetOutput: () => void
@@ -58,11 +58,11 @@ function run(
   }
 }
 
-function defaultOptions(): MacSmokePackageOptions {
+function defaultOptions(): MacInternalPackageOptions {
   const desktopRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
   const workspaceRoot = resolve(desktopRoot, '..')
   const require = createRequire(import.meta.url)
-  const outputDir = resolve(desktopRoot, 'dist', 'mac-smoke')
+  const outputDir = resolve(desktopRoot, 'dist', 'mac-internal')
   return {
     env: process.env,
     platform: process.platform,
@@ -82,32 +82,32 @@ function defaultOptions(): MacSmokePackageOptions {
 }
 
 /**
- * Run the headless release gates and package one unsigned macOS DMG smoke.
+ * Run the headless release gates and package one installable unsigned macOS DMG.
  *
  * The signed and notarized release stays a manual step on a credentialed
- * machine; this smoke exists so macOS packaging regressions fail in CI before
- * a manual release. The universal target exercises both Intel and Apple
- * Silicon packaging in one artifact.
+ * machine. This internal distribution deliberately omits Apple credentials
+ * while retaining the same application payload and universal Intel/Apple
+ * Silicon runtime used by the product.
  * @param options - Injectable process and command boundaries.
  */
-export function packageMacSmoke(options: MacSmokePackageOptions = defaultOptions()): void {
+export function packageMacInternal(options: MacInternalPackageOptions = defaultOptions()): void {
   if (options.platform !== 'darwin') {
-    throw new Error('macOS DMG smoke must be built on a native macOS host')
+    throw new Error('internal macOS DMG must be built on a native macOS host')
   }
   if (options.arch !== 'x64' && options.arch !== 'arm64') {
-    throw new Error(`macOS DMG smoke requires x64 or arm64 Node; received ${options.arch}`)
+    throw new Error(`internal macOS DMG requires x64 or arm64 Node; received ${options.arch}`)
   }
   const versionMatch = /^(\d+)\.(\d+)\./u.exec(options.nodeVersion)
   const major = Number(versionMatch?.[1])
   const minor = Number(versionMatch?.[2])
   if (!((major === 22 && minor >= 19) || major === 24)) {
     throw new Error(
-      `macOS DMG smoke requires Node 22.19+ or Node 24.x with bundled Corepack; received ${options.nodeVersion}`,
+      `internal macOS DMG requires Node 22.19+ or Node 24.x with bundled Corepack; received ${options.nodeVersion}`,
     )
   }
 
   const cleanEnvironment = withoutMacReleaseSecrets(options.env)
-  options.log('Building an unsigned macOS DMG smoke; signing and notarization are release-only steps.')
+  options.log('Building the installable unsigned internal macOS DMG without Apple credentials or notarization.')
   if (options.env.DSH_PACKAGE_CHECK_ALREADY_RAN !== '1') {
     options.run(
       'corepack',
@@ -150,7 +150,7 @@ export function packageMacSmoke(options: MacSmokePackageOptions = defaultOptions
 const invokedPath = process.argv[1]
 if (invokedPath !== undefined && resolve(invokedPath) === fileURLToPath(import.meta.url)) {
   try {
-    packageMacSmoke()
+    packageMacInternal()
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error))
     process.exitCode = 1

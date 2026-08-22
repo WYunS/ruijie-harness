@@ -1,8 +1,10 @@
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
+import { parse } from 'yaml'
 import { composeEntries, initProfile, PROFILE_TEMPLATES } from '@deepseek-ai/dsh-app-boot'
 import {
   DESKTOP_PACKAGE_NAME,
@@ -117,6 +119,147 @@ describe('desktop profile composition', {
     ])
   })
 
+  it('gives a clean installation the same Ruijie experience as the validated local profile', () => {
+    const home = temporaryHome()
+
+    prepareDesktopProfile(undefined, home, 'win32')
+
+    const manifest = JSON.parse(readFileSync(join(home, 'profiles', 'desktop', 'package.json'), 'utf8')) as {
+      dsh: { profile: { bundles: string[] } }
+    }
+    expect(manifest.dsh.profile.bundles).toContain(
+      '@huanlin/dsh-plugin-better-sidebar-plugin-office',
+    )
+
+    const settings = parse(readFileSync(join(home, 'settings.yaml'), 'utf8')) as Record<string, unknown>
+    expect(settings).toMatchObject({
+      'ui-onboarding': { welcomeNoticeVersion: '2026-08-13.1' },
+      'agent-default-model': {
+        provider: 'deepseek-vision',
+        model: 'deepseek-v4-flash',
+        reasoningEffort: 'low',
+      },
+      'agent-presets': { default: 'standard' },
+      permission: { defaultPreset: 'danger-full-access' },
+      'vision-router': {
+        onboardingSeen: true,
+        freeFallback: false,
+        freeCloudFirst: false,
+      },
+      'dsh-better-sidebar': {
+        browserInterceptLinks: true,
+        browserInterceptHttps: true,
+      },
+      'dsh-community-market': {
+        sources: [{
+          sourceRecordId: '10241024-1024-4024-8024-102410241024',
+          registrationKind: 'built-in',
+          adapterId: 'market.dsh-1024store-v1',
+          providerId: 'com.deepseek1024.catalog',
+          builtInProviderKey: 'dsh-1024store',
+          enabled: true,
+          order: 0,
+        }],
+      },
+    })
+  })
+
+  it('recreates a deleted DSH home on the next launch', () => {
+    const home = temporaryHome()
+    prepareDesktopProfile(undefined, home, 'win32')
+    rmSync(home, { recursive: true, force: true })
+
+    const prepared = prepareDesktopProfile(undefined, home, 'win32')
+
+    expect(prepared.homeDir).toBe(home)
+    expect(readFileSync(join(home, 'profiles', 'desktop', 'package.json'), 'utf8')).toContain('dsh-web-app')
+    expect(parse(readFileSync(join(home, 'settings.yaml'), 'utf8'))).toMatchObject({
+      'agent-default-model': { model: 'deepseek-v4-flash', reasoningEffort: 'low' },
+      'dsh-community-market': { sources: [expect.objectContaining({ builtInProviderKey: 'dsh-1024store' })] },
+    })
+  })
+
+  it('preserves installed plugins, market receipts, and custom sources across an upgrade launch', () => {
+    const home = temporaryHome()
+    const profileDir = ensureDesktopProfile(home)
+    const manifestPath = join(profileDir, 'package.json')
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+      dependencies?: Record<string, string>
+      dsh: { profile: { bundles: string[] } }
+    }
+    manifest.dependencies = { ...manifest.dependencies, 'user-market-plugin': '1.2.3' }
+    manifest.dsh.profile.bundles.push('user-market-plugin')
+    writeFileSync(manifestPath, JSON.stringify(manifest, undefined, 2) + '\n')
+    const installedPackage = join(profileDir, 'node_modules', 'user-market-plugin', 'package.json')
+    mkdirSync(dirname(installedPackage), { recursive: true })
+    writeFileSync(installedPackage, JSON.stringify({
+      name: 'user-market-plugin',
+      version: '1.2.3',
+      dsh: { bundle: { patch: './cordis.patch.yml' } },
+    }) + '\n')
+    writeFileSync(join(dirname(installedPackage), 'cordis.patch.yml'), '[]\n')
+    writeFileSync(join(home, 'settings.yaml'), [
+      'dsh-community-market:',
+      '  sources:',
+      '    - sourceRecordId: custom-source',
+      '      registrationKind: user-added',
+      '      adapterId: market.standard-http-v1',
+      '      providerId: example.catalog',
+      '      manifestUrl: https://example.com/manifest.json',
+      '      enabled: true',
+      '      order: 0',
+      '  installReceipts:',
+      '    - receiptId: receipt-1',
+      '      packageName: user-market-plugin',
+      'ruijie-desktop:',
+      '  experienceVersion: 1',
+      '',
+    ].join('\n'))
+
+    prepareDesktopProfile(undefined, home, 'win32')
+
+    const upgraded = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+      dependencies: Record<string, string>
+      dsh: { profile: { bundles: string[] } }
+    }
+    const settings = parse(readFileSync(join(home, 'settings.yaml'), 'utf8')) as Record<string, unknown>
+    expect(upgraded.dependencies['user-market-plugin']).toBe('1.2.3')
+    expect(upgraded.dsh.profile.bundles).toContain('user-market-plugin')
+    expect(readFileSync(installedPackage, 'utf8')).toContain('1.2.3')
+    expect(settings).toMatchObject({
+      'dsh-community-market': {
+        sources: [{ sourceRecordId: 'custom-source', providerId: 'example.catalog' }],
+        installReceipts: [{ receiptId: 'receipt-1', packageName: 'user-market-plugin' }],
+      },
+    })
+  })
+
+  it('keeps an existing user model choice while applying newer experience defaults', () => {
+    const home = temporaryHome()
+    writeFileSync(join(home, 'settings.yaml'), [
+      'agent-default-model:',
+      '  provider: deepseek-vision',
+      '  model: deepseek-v4-pro',
+      '  reasoningEffort: max',
+      'ruijie-desktop:',
+      '  experienceVersion: 0',
+      '',
+    ].join('\n'))
+
+    prepareDesktopProfile(undefined, home, 'win32')
+
+    const settings = parse(readFileSync(join(home, 'settings.yaml'), 'utf8')) as Record<string, unknown>
+    expect(settings).toMatchObject({
+      'agent-default-model': {
+        provider: 'deepseek-vision',
+        model: 'deepseek-v4-pro',
+        reasoningEffort: 'max',
+      },
+      'agent-presets': { default: 'standard' },
+      permission: { defaultPreset: 'danger-full-access' },
+    })
+  })
+
   it('repairs a base-only CLI profile without replacing dependencies', () => {
     const home = temporaryHome()
     const dir = ensureDesktopProfile(home)
@@ -139,9 +282,29 @@ describe('desktop profile composition', {
       '@deepseek-ai/dsh-base',
       '@deepseek-ai/dsh-web-app',
       'third-party-plugin',
+      '@huanlin/dsh-plugin-better-sidebar-plugin-office',
     ])
     expect(repaired.dependencies).toEqual({ 'third-party-plugin': '^1.2.3' })
     expect(repaired.custom.preserved).toBe(true)
+  })
+
+  it('resolves the bundled sidebar ahead of a stale profile-local copy', () => {
+    const home = temporaryHome()
+    const profileDir = ensureDesktopProfile(home)
+    const staleDir = join(profileDir, 'node_modules', 'dsh-better-sidebar')
+    mkdirSync(staleDir, { recursive: true })
+    writeFileSync(join(staleDir, 'package.json'), JSON.stringify({
+      name: 'dsh-better-sidebar',
+      version: '0.0.0-stale',
+      exports: { './package.json': './package.json' },
+    }) + '\n')
+
+    const prepared = prepareDesktopProfile(undefined, home, 'win32')
+    const resolved = createRequire(prepared.bareModuleBaseUrl).resolve('dsh-better-sidebar/package.json')
+    const bundled = fileURLToPath(import.meta.resolve('dsh-better-sidebar/package.json'))
+
+    expect(realpathSync(resolved)).toBe(realpathSync(bundled))
+    expect(fileURLToPath(prepared.bareModuleBaseUrl)).toBe(join(profileDir, 'package.json'))
   })
 
   it('migrates the obsolete Desktop bundle before loading a historical profile', () => {
@@ -169,6 +332,7 @@ describe('desktop profile composition', {
     expect(repaired.dsh.profile.bundles).toEqual([
       '@deepseek-ai/dsh-base',
       '@deepseek-ai/dsh-web-app',
+      '@huanlin/dsh-plugin-better-sidebar-plugin-office',
     ])
   })
 

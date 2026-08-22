@@ -1,4 +1,4 @@
 # Bilingual-pair consistency record. Both languages carry equal authority.
 # Update both files and record their Git blob hashes after editing either side.
-market-shell.md: cd8847c08939bdace51f1bcd226de375449bb8ef
-market-shell.zh.md: 37e12da7676da14e214c799f3b13d256fd20e750
+market-shell.md: 281e44fd9e69f5d56eb4151e6795bbf2be54333a
+market-shell.zh.md: d4346e0163823c5e4a77d2cdba52bcfef86e6f32
