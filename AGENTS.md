@@ -10,8 +10,9 @@ This repository owns the desktop product around an unmodified DeepSeek Harness c
 
 ## Build, run, and verify
 
-- For any Windows packaging, installer, EXE, release, or installed-app validation task, read `WINDOWS_RELEASE_RUNBOOK.md` completely before changing files or running a build.
-- For any macOS packaging, DMG, universal binary, GitHub Actions Mac build, or Mac release task, read `MACOS_INTERNAL_RELEASE_RUNBOOK.md` completely before changing files, pushing, or triggering a workflow.
+- For any Windows packaging, installer, EXE, release, or installed-app validation task, read `发布交付指南/01-Windows打包指导.md` completely before changing files or running a build.
+- For any macOS packaging, DMG, universal binary, GitHub Actions Mac build, or Mac release task, read `发布交付指南/02-macOS打包指导.md` completely before changing files, pushing, or triggering a workflow.
+- For any macOS candidate acceptance, human test, Office/PDF/image check, browser/WebSearch check, or release verdict, read `发布交付指南/03-macOS真人验收测试指导.md` completely before testing or declaring a result.
 - Start the desktop development workflow with `corepack yarn dev`.
 - Build the desktop package with `corepack yarn build`.
 - Run unit tests with `corepack yarn test`.
