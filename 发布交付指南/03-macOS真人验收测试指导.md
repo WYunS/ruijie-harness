@@ -78,6 +78,7 @@ GitHub macOS runner 会挂载 DMG、复制最终 `.app`，在隔离的 `DSH_HOME
 6. Browser 要在文件标签占满可见区域前验证；完成后显式重新激活 Files，再逐个验证文档。不能依赖标签的偶然排列或可见性。
 7. 地址栏定位必须覆盖产品实际占位符 `Search or enter an address`，以及当前仍受支持的中英文变体；不能凭记忆编造文本。
 8. Settings 可能是 `role="button"` 而非原生 `<button>`。通用点击器必须覆盖受控语义角色；进入对话框后，再用更窄的选择器寻找语言选项。
+   左侧栏为窄模式时 Settings 触发器只显示图标，不渲染“Settings/设置”文字；自动验收应定位可见的 `button[aria-haspopup="dialog"]` 并等待 `[role="dialog"]`，不能用按钮文字作为唯一定位依据。
 9. Puppeteer 连接 Electron 时使用 `defaultViewport: null`，并核对 `window.innerWidth` 与真实内容宽度，避免测试工具把窗口强制成 800×600 后制造布局假故障。
 10. 首次失败立即保存失败步骤、截图、DOM snapshot、stdout、stderr、候选 DMG 标识和 run ID。修复前必须从这些证据解释根因，禁止靠增加任意 sleep 或盲目重跑掩盖竞态。
 11. 动态新增用例先在最小夹具上验证定位器和完成条件，再并入固定流水线。断言应描述用户可见结果，不依赖 DOM 层级、元素序号、动画时长或只在某次构建存在的文本。

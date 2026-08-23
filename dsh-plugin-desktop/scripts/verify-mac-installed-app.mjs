@@ -328,7 +328,20 @@ async function exerciseBrowser(browser, page) {
 }
 
 async function switchLanguageToChinese(page) {
-  await clickNamed(page, ['Settings', '设置'])
+  await waitUntil(async () => await page.evaluate(() => {
+    const trigger = [...document.querySelectorAll('button[aria-haspopup="dialog"]')]
+      .find((candidate) => {
+        const style = getComputedStyle(candidate)
+        const rect = candidate.getBoundingClientRect()
+        if (style.visibility === 'hidden' || style.display === 'none' || rect.width <= 0 || rect.height <= 0) return false
+        if (rect.right <= 0 || rect.bottom <= 0 || rect.left >= window.innerWidth || rect.top >= window.innerHeight) return false
+        const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+        return hit !== null && (hit === candidate || candidate.contains(hit))
+      })
+    if (!(trigger instanceof HTMLButtonElement)) return false
+    trigger.click()
+    return true
+  }), 'visible Settings dialog trigger did not open')
   await waitUntil(async () => await page.evaluate(() => document.querySelector('[role="dialog"]') !== null), 'settings dialog did not open')
   await waitForNamed(page, ['English', '中文'], { selector: 'button' })
   const current = await page.evaluate(() => document.documentElement.lang)
