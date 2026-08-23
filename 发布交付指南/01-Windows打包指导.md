@@ -386,18 +386,18 @@ Get-Item -LiteralPath $exe |
 
 只生成 EXE、不验证安装后的真实功能，不算完成发布。
 
-## 12. Windows 历史产物快照（2026-08-22，仅用于追溯）
+## 12. Windows 历史产物快照（2026-08-23，仅用于追溯）
 
 发布目录：`D:\ChatGPT\RuijieDSH\dsh-plugin-desktop\dist`
 
 | 用途 | 文件 | bytes | MiB | SHA-256 | Authenticode |
 |---|---|---:|---:|---|---|
-| 上版备份 | `Ruijie-Harness-2.0.6-x64-Setup.exe` | 344273900 | 328.33 | `EDAFE070FAE5F2B992F61B59882DE93F5BFFBE53FCB9FD7C2A5BCC3EFE408CFA` | `NotSigned` |
-| 当前最新版 | `Ruijie-Harness-2.0.7-x64-Setup.exe` | 344285426 | 328.34 | `875576C9A857D9B96EE913CDF27A94DF905110C44E8338398B74C652F8A731E3` | `NotSigned` |
+| 上版备份 | `Ruijie-Harness-2.0.7-x64-Setup.exe` | 344285426 | 328.34 | `875576C9A857D9B96EE913CDF27A94DF905110C44E8338398B74C652F8A731E3` | `NotSigned` |
+| 当前最新版 | `Ruijie-Harness-2.0.8-x64-Setup.exe` | 344287016 | 328.34 | `697EC1ECA5010CDC98521DC97DF24D70FB62626DF5E0710D48C15BAE69292691` | `NotSigned` |
 
-`node scripts/verify-win-installer.ts` 已对 2.0.7 通过验证。此快照只证明构建产物结构与发布门禁通过；安装后的联网、登录、侧栏、Office、搜索和 PDF 仍须按第 10 节在真实安装环境验收。
+`node scripts/verify-win-installer.ts` 已对 2.0.8 通过验证。该安装包包含 profile 框架单例修复，产品源码 commit 为 `5d90929a86d99a871e18497be3bed37a319b2dad`。此快照只证明构建产物结构、打包内容检查与发布门禁通过；由于本轮没有安装授权，安装后的联网、登录、侧栏、Office、搜索、PDF 和真实保留数据升级仍须按第 10 节验收。
 
-`2.0.7` EXE 生成于本次 OCR 文件正式纳入 Git 与重新安装 file dependency 之前，因此不能宣称它已内置离线中英文 OCR。该 EXE 仍可继续使用；若离线扫描 PDF OCR 属于交付要求，应提升版本并按本手册重新打包，而不是覆盖同名 `2.0.7`。
+`2.0.7` EXE 生成于 OCR 文件正式纳入 Git 与重新安装 file dependency 之前，因此不能宣称它已内置离线中英文 OCR。该 EXE 继续作为上版保留，不得因生成 2.0.8 而删除。
 
 ## 13. 每次使用结束后的按需优化
 
