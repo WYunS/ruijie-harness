@@ -18,6 +18,8 @@
 
 Windows 与 macOS 共用 `main` 上的业务源码。不要复制一套长期的 Windows 源码目录，也不要从所谓 `win branch` 猜测最新版。平台差异应保留在 `process.platform` 分支、Windows 专属模块和 `scripts/package-win.ts` 中。共享运行时或资源变化后，先判断两个平台是否都受影响；需要双平台重发时提升版本号，不能让内容不同的 EXE 与 DMG 共用同一版本号。
 
+同步完成条件不是“几个目录看起来都更新了”，而是本地 `main` 与 `ruijie/main` 指向同一提交。不存在需要额外同步的长期 Win/Mac 分支；若临时分支存在，只能作为短期工作分支，合入 `main` 后删除或归档，不能把它当发布事实来源。
+
 ## 2. 本机双版本隔离
 
 本地开发版与正式安装版允许共存，但入口和持久化目录必须保持如下分工：
@@ -345,7 +347,7 @@ Get-Item -LiteralPath $exe |
 - 文件非空，SHA-256 已记录。
 - 当前内部版签名状态为 `NotSigned`。
 
-最后只清理 `win-unpacked`、`builder-debug.yml`、`latest.yml`、临时 `.nsis.zip` 等中间产物。保留用户在本次任务中明确指定的历史正式 Setup EXE 和本次最新版；未取得明确授权不得根据旧手册中的版本号删除正式产物。删除前必须解析并核对每个目标都位于准确的 `dsh-plugin-desktop\dist` 内；不得递归删除仓库根目录、用户目录或通过未解析变量构造的路径。
+最后只清理 `win-unpacked`、`builder-debug.yml`、`latest.yml`、临时 `.nsis.zip` 等中间产物。保留用户在本次任务中明确指定的历史正式 Setup EXE 和本次最新版；未取得明确授权不得根据旧手册中的版本号删除正式产物。Mac 的正式 DMG、哈希、构建清单和验收证据不属于 Windows 清理范围。删除前必须先列出每个候选的绝对路径、版本和类型，解析并核对目标位于准确的 `dsh-plugin-desktop\dist` 内，再使用 `Remove-Item -LiteralPath` 精确删除；不得递归删除仓库根目录、用户目录或通过未解析变量构造的路径。
 
 ## 10. 安装后真机验收
 
