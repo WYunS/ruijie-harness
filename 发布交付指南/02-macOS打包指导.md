@@ -90,6 +90,8 @@ git diff --check
 
 Mac runner 上 `file:` 依赖可能因宿主 archive 元数据产生哈希差异。工作流允许一次刷新后必须立即再次执行 `yarn install --immutable`，证明依赖图稳定；不能删除第二次校验，也不能在 Mac runner 重建 Windows 生成的 sidebar bundle。
 
+`verify:profile` 必须保留历史 profile 回归夹具：第三方插件在 profile 中实体化 `@deepseek-ai/cordis`、`dsh-scope`、`dsh-system-prompt` 等框架依赖时，启动应自动改用当前 `.app` 内的唯一框架实例，同时保留插件自身。出现 `duplicate deployment:persona`、旧会话无法打开、模型选择无响应、新建会话或工作区选择无响应，均视为产品/打包阻断问题，不能要求用户删除 `~/.dsh` 规避。
+
 完成条件：所有命令退出码为 0，工作树只含本轮明确改动，没有旧 bundle、缺失 OCR 数据或未提交生成物。
 
 ## 5. 提交与上传
@@ -216,6 +218,8 @@ xattr -dr com.apple.quarantine "/Applications/锐捷 Harness.app"
 最终记录必须包含：源码 commit、GitHub run 链接、Artifact 名、DMG 绝对路径、bytes/MiB、SHA-256、架构、签名/公证状态、本地门禁、自动安装验收、真人验收状态和未执行项。
 
 旧构建快照只用于追溯，版本、路径和哈希必须从本次产物动态读取，不能复制旧值。
+
+安装、替换 `/Applications` 中的现有应用以及删除真实 `~/.dsh` 均需用户在本轮明确授权。只要求构建 DMG 时，不得把真人验收章节当成安装或清理授权；应交付候选包并明确列出未执行的真人项目。
 
 ## 10. 每次使用结束后的按需优化
 

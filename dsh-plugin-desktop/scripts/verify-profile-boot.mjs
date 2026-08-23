@@ -35,6 +35,27 @@ try {
     '  default: minimal',
     '',
   ].join('\n'))
+  // Reproduce an upgrade profile whose third-party dependency tree has
+  // materialized framework peers locally. Loading any of these copies would
+  // split Cordis/DSH process-global registries from the Desktop runtime.
+  for (const packageName of [
+    '@deepseek-ai/cordis',
+    '@deepseek-ai/dsh-scope',
+    '@deepseek-ai/dsh-system-prompt',
+  ]) {
+    const stalePackageDir = join(home, 'profiles', 'desktop', 'node_modules', ...packageName.split('/'))
+    mkdirSync(stalePackageDir, { recursive: true })
+    writeFileSync(join(stalePackageDir, 'package.json'), JSON.stringify({
+      name: packageName,
+      version: '0.0.0-stale',
+      type: 'module',
+      exports: './index.js',
+    }) + '\n')
+    writeFileSync(
+      join(stalePackageDir, 'index.js'),
+      `throw new Error(${JSON.stringify(`stale profile framework copy loaded: ${packageName}`)})\n`,
+    )
+  }
   const prepared = prepareDesktopProfile('1', home, 'win32')
   const hostServicePluginDir = join(
     prepared.profile.dir,

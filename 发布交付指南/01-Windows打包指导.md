@@ -117,6 +117,8 @@ Get-FileHash -Algorithm SHA256 -LiteralPath `
 
 开发 profile 还可能残留旧的 `profiles\desktop\node_modules\dsh-better-sidebar` 实体副本。启动准备阶段必须把它修复为指向当前 `dsh-plugin-desktop\node_modules\dsh-better-sidebar` 的 Junction；否则源码和打包依赖即使已经更新，实际 UI 仍会继续加载旧侧栏。
 
+第三方插件也可能把 `@deepseek-ai/cordis`、`dsh-scope`、`dsh-system-prompt` 等框架包实体化到 `profiles\desktop\node_modules`。这些包即使版本和文件哈希相同，两份物理模块实例仍会分裂进程级注册表，典型报错是 `duplicate deployment:persona`。启动准备必须把安装闭包内的 `@deepseek-ai/*` 框架包修复为指向当前程序副本，同时保留第三方插件自身、manifest、配置和数据；禁止通过删除整个 `.dsh` 掩盖问题。`verify:profile` 必须包含带重复框架依赖的历史 profile 夹具并完成真实 Host 启动。
+
 ## 6. 上线前功能门禁
 
 ### 6.1 固定基线 + 动态生成当次验收标准
@@ -180,7 +182,8 @@ corepack yarn workspace dsh-community-market vitest run tests/contracts.spec.ts 
 - 应用关闭后，在专用测试账户中删除整个 `%USERPROFILE%\.dsh` 再启动：应用自动重建 profile 与 `settings.yaml`，无需手工建目录。
 - 全新 profile 的插件市场默认已有并启用 `DSH 1024Store`；用户仍可切换当前来源、添加标准 manifest 来源、禁用或移除来源。
 - 若用户已经配置过 `dsh-community-market.sources`，升级迁移不得重置、追加或覆盖该列表；空数组也代表用户的明确选择。
-- 安装插件后保留 `.dsh` 升级，`profiles\desktop\package.json` 中的第三方依赖和对应 `node_modules` 内容必须继续存在；只允许桌面端自有的 `dsh-better-sidebar` 链接被修复到新版程序副本。
+- 安装插件后保留 `.dsh` 升级，`profiles\desktop\package.json` 中的第三方依赖和对应 `node_modules` 内容必须继续存在；只允许桌面端自有的 `dsh-better-sidebar` 与安装闭包内的 `@deepseek-ai/*` 框架包被修复为新版程序链接。
+- 用一个历史 profile 夹具让第三方插件带入重复的 `@deepseek-ai/cordis`、`dsh-scope`、`dsh-system-prompt`，升级启动后必须自动改用当前程序中的同一套框架实例，第三方插件仍保留。日志不得出现 `duplicate deployment:persona`；已有会话可打开、模型选择器可操作、新建对话和工作区选择有响应。
 
 完成条件：首次安装有可用默认市场，用户仍拥有来源和安装决定权；保留 `.dsh` 能无损升级，删除 `.dsh` 能自动恢复到可用初始状态。
 
@@ -351,12 +354,12 @@ Get-Item -LiteralPath $exe |
 
 ## 10. 安装后真机验收
 
-不要只测 `win-unpacked`，必须用最终 EXE 安装。
+完整发布验收不能只测 `win-unpacked`，应使用最终 EXE 安装；但安装、卸载、覆盖当前程序或删除真实 `%USERPROFILE%\.dsh` 都是独立的状态变更，只有用户在本轮明确授权后才能执行。若用户只要求“打包”，应停在非侵入式安装器验证并把真机安装项明确记为未执行，不能把本节当成额外授权。
 
-1. 在测试电脑卸载旧版，避免旧进程仍在运行。
+1. 在已获明确授权的专用测试电脑或测试账户卸载旧版，避免旧进程仍在运行；不得卸载用户正在使用的版本。
 2. 用新的 Windows 用户账户优先完成首次启动测试；需要保留旧数据时，再单独做升级安装测试。
 3. 重复第 6 节的首次启动、Office、侧栏、浏览器、两种搜索和 PDF 用例。
-4. 升级测试必须保留 `%USERPROFILE%\.dsh`：确认登录、历史会话、用户已选模型/推理强度、市场来源、安装回执和用户安装的插件不丢失；同时确认 `profiles\desktop\node_modules\dsh-better-sidebar` 已被修复为指向新版程序依赖的 Junction，旧实体副本不能继续加载。
+4. 升级测试必须保留 `%USERPROFILE%\.dsh`：确认登录、历史会话、用户已选模型/推理强度、市场来源、安装回执和用户安装的插件不丢失；同时确认 `profiles\desktop\node_modules\dsh-better-sidebar` 以及安装闭包内的 `@deepseek-ai/*` 框架包已被修复为指向新版程序依赖，旧实体副本不能继续加载。至少打开一个历史会话、操作模型选择器、新建对话并选择工作区，日志中不得出现 `duplicate deployment:persona`。
 5. 在专用测试账户关闭应用并删除整个 `%USERPROFILE%\.dsh`，再次启动应自动完成初始化；新 profile 默认启用 `DSH 1024Store`，且仍可添加、切换、禁用或移除来源。
 6. 新建无上下文对话与打开已有上下文对话都要确认沿用用户最后保存的模型选择；只有没有模型设置的新 profile 使用 `deepseek-v4-flash / low`。
 7. 记录 Windows 版本、网络类型、代理/PAC 状态、安装包 SHA-256和失败时间。

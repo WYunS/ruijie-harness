@@ -288,22 +288,41 @@ describe('desktop profile composition', {
     expect(repaired.custom.preserved).toBe(true)
   })
 
-  it('resolves the bundled sidebar ahead of a stale profile-local copy', () => {
+  it('resolves bundled framework singletons ahead of stale profile-local copies', () => {
     const home = temporaryHome()
     const profileDir = ensureDesktopProfile(home)
-    const staleDir = join(profileDir, 'node_modules', 'dsh-better-sidebar')
-    mkdirSync(staleDir, { recursive: true })
-    writeFileSync(join(staleDir, 'package.json'), JSON.stringify({
-      name: 'dsh-better-sidebar',
-      version: '0.0.0-stale',
-      exports: { './package.json': './package.json' },
+    const singletonPackages = [
+      'dsh-better-sidebar',
+      '@deepseek-ai/cordis',
+      '@deepseek-ai/dsh-scope',
+      '@deepseek-ai/dsh-system-prompt',
+    ]
+    for (const packageName of singletonPackages) {
+      const staleDir = join(profileDir, 'node_modules', ...packageName.split('/'))
+      mkdirSync(staleDir, { recursive: true })
+      writeFileSync(join(staleDir, 'package.json'), JSON.stringify({
+        name: packageName,
+        version: '0.0.0-stale',
+        exports: { './package.json': './package.json' },
+      }) + '\n')
+    }
+    const userPluginManifest = join(profileDir, 'node_modules', 'user-plugin', 'package.json')
+    mkdirSync(dirname(userPluginManifest), { recursive: true })
+    writeFileSync(userPluginManifest, JSON.stringify({
+      name: 'user-plugin',
+      version: '1.2.3',
     }) + '\n')
 
     const prepared = prepareDesktopProfile(undefined, home, 'win32')
-    const resolved = createRequire(prepared.bareModuleBaseUrl).resolve('dsh-better-sidebar/package.json')
-    const bundled = fileURLToPath(import.meta.resolve('dsh-better-sidebar/package.json'))
-
-    expect(realpathSync(resolved)).toBe(realpathSync(bundled))
+    for (const packageName of singletonPackages) {
+      const resolved = createRequire(prepared.bareModuleBaseUrl).resolve(`${packageName}/package.json`)
+      const bundled = fileURLToPath(import.meta.resolve(`${packageName}/package.json`))
+      expect(realpathSync(resolved)).toBe(realpathSync(bundled))
+    }
+    expect(JSON.parse(readFileSync(userPluginManifest, 'utf8'))).toMatchObject({
+      name: 'user-plugin',
+      version: '1.2.3',
+    })
     expect(fileURLToPath(prepared.bareModuleBaseUrl)).toBe(join(profileDir, 'package.json'))
   })
 

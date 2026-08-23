@@ -5,6 +5,7 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -93,6 +94,24 @@ const DEFAULT_MARKET_SOURCE = {
 } as const
 const DESKTOP_OWNED_PACKAGES = ['dsh-better-sidebar'] as const
 
+/**
+ * Framework packages share process-global registries and therefore must come
+ * from one physical installation. A profile plugin may declare the same
+ * packages as peers; package managers can materialize those peers inside the
+ * profile and otherwise shadow the Desktop copy with a second module instance.
+ */
+function desktopSingletonPackages(moduleUrl: string): string[] {
+  const scopeRoot = dirname(dirname(packagedDependencyPath(
+    moduleUrl,
+    '@deepseek-ai/cordis/package.json',
+  )))
+  const frameworkPackages = readdirSync(scopeRoot)
+    .filter(name => existsSync(join(scopeRoot, name, 'package.json')))
+    .map(name => `@deepseek-ai/${name}`)
+    .sort()
+  return [...DESKTOP_OWNED_PACKAGES, ...frameworkPackages]
+}
+
 /** Keep one app-owned package link pointed at the package shipped with this build. */
 function ensureDesktopPackageLink(link: string, target: string): void {
   let stat
@@ -117,9 +136,9 @@ function ensureDesktopPackageLink(link: string, target: string): void {
 }
 
 /**
- * Ensure product-owned packages cannot be shadowed by stale profile installs.
- * Other profile dependencies remain untouched and continue to resolve from
- * the profile normally.
+ * Ensure product-owned packages and process-global framework singletons cannot
+ * be shadowed by stale profile installs. Other profile dependencies remain
+ * untouched and continue to resolve from the profile normally.
  */
 export function ensureDesktopModuleResolutionAnchor(
   profileDir: string,
@@ -127,7 +146,7 @@ export function ensureDesktopModuleResolutionAnchor(
 ): string {
   const modules = join(profileDir, 'node_modules')
   mkdirSync(modules, { recursive: true })
-  for (const packageName of DESKTOP_OWNED_PACKAGES) {
+  for (const packageName of desktopSingletonPackages(moduleUrl)) {
     const link = join(modules, ...packageName.split('/'))
     mkdirSync(dirname(link), { recursive: true })
     const target = dirname(packagedDependencyPath(moduleUrl, `${packageName}/package.json`))
