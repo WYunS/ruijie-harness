@@ -74,6 +74,10 @@ jobs:
         if: ${{ inputs.candidate_run_id == '' && inputs.skip_release_checks != true }}
         run: yarn workspace dsh-plugin-desktop verify:webview-continuity
 
+      - name: Build package inputs without repeating passed checks
+        if: ${{ inputs.candidate_run_id == '' && inputs.skip_release_checks == true }}
+        run: yarn build
+
       - name: Build candidate DMG
         if: ${{ inputs.candidate_run_id == '' }}
         env:
