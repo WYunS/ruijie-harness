@@ -8,6 +8,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   readdirSync,
   rmSync,
   statSync,
@@ -146,8 +147,11 @@ function minimalPdf(text) {
 }
 
 async function prepareAcceptanceWorkspace(dshHome, root) {
-  const workspace = join(root, 'Acceptance Workspace')
-  mkdirSync(workspace)
+  const workspaceLink = join(root, 'Acceptance Workspace')
+  mkdirSync(workspaceLink)
+  // macOS exposes /var as a symlink to /private/var. Persist the canonical
+  // path so the product's workspace containment check sees the same cwd.
+  const workspace = realpathSync(workspaceLink)
   await createOfficeFixtures(workspace)
   writeFileSync(join(workspace, 'sample.pdf'), minimalPdf('MAC_ACCEPTANCE_PDF_208'))
   writeFileSync(join(workspace, 'sample.png'), Buffer.from(
