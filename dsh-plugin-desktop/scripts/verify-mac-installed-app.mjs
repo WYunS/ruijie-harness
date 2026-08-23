@@ -261,6 +261,15 @@ async function exerciseDocumentViewers(page, workspace) {
   }
 }
 
+async function activateFilesTab(page) {
+  await waitUntil(async () => await page.evaluate(() => {
+    const tab = document.querySelector('[title="Files"],[title="文件"]')
+    if (!(tab instanceof HTMLElement)) return false
+    tab.click()
+    return true
+  }), 'Files sidebar tab was not available after browser validation')
+}
+
 async function exerciseBrowser(browser, page) {
   await clickNamed(page, ['New tab', '新建标签页'])
   await waitForNamed(page, ['Browser', '浏览器'])
@@ -300,8 +309,9 @@ async function exerciseFirstLaunch({ browser, page, workspace, evidenceDir }) {
   await chooseAcceptanceWorkspace(page)
   const model = await inspectModelAndReasoning(page)
   await exerciseSidebar(page)
-  await exerciseDocumentViewers(page, workspace)
   await exerciseBrowser(browser, page)
+  await activateFilesTab(page)
+  await exerciseDocumentViewers(page, workspace)
   const language = await switchLanguageToChinese(page)
   await screenshot(page, evidenceDir, 'first-launch-exercised')
   return { model, language }
