@@ -225,8 +225,8 @@ async function exerciseSidebar(page) {
   if (!closed) throw new Error('could not close the Files sidebar tab through its visible close button')
   await waitForNamed(page, ['New tab', '新建标签页'])
   await clickNamed(page, ['New tab', '新建标签页'])
-  await waitForNamed(page, ['Explorer', '资源管理器'])
-  await clickNamed(page, ['Explorer', '资源管理器'])
+  await waitForNamed(page, ['Files', '文件', 'Explorer', '资源管理器'])
+  await clickNamed(page, ['Files', '文件', 'Explorer', '资源管理器'])
   await waitUntil(async () => await page.evaluate(() =>
     [...document.querySelectorAll('[title]')].some(element => ['Files', '文件'].includes(element.getAttribute('title') ?? ''))
   ), 'Files sidebar tab did not reopen')
