@@ -129,9 +129,9 @@ gh run watch <run-id> --repo WYunS/ruijie-harness --exit-status
 
 | 模式 | Action 输入 | 适用条件 | 完成条件 |
 |---|---|---|---|
-| 全量新候选 | 三项输入均留空 | 产品源码、依赖、vendor、打包配置或版本发生变化 | 完整门禁通过，生成并保存新的 candidate Artifact，最终安装后自动验收通过 |
-| 省略已通过的发布门禁 | `skip_release_checks=true`，其他留空 | 同一产品源码范围内只改验收工具，且本轮仍需重新生成候选 DMG | 必须执行 `yarn build` 生成 `lib/`，保存新 candidate，最终自动验收通过 |
-| 复用候选并续验 | `candidate_run_id=<候选 run>`；只有已有可靠基线证据时才加 `acceptance_resume_run_id=<证据 run>` | DMG、产品源码、依赖、vendor 与打包配置均未变化，失败仅来自验收脚本或后续阶段 | 下载的是同一候选 DMG；只延续有截图、日志和报告证明已通过的阶段；最终 Artifact 上传成功 |
+| 全量新候选 | 三项输入均留空 | 产品源码、依赖、vendor、打包配置或版本发生变化 | 完整门禁通过，生成并保存新的 candidate Artifact，自动验收形成完整证据和阶段判定 |
+| 省略已通过的发布门禁 | `skip_release_checks=true`，其他留空 | 同一产品源码范围内只改验收工具，且本轮仍需重新生成候选 DMG | 必须执行 `yarn build` 生成 `lib/`，保存新 candidate，自动验收形成完整证据和阶段判定 |
+| 复用候选并续验 | `candidate_run_id=<候选 run>`；只有已有可靠基线证据时才加 `acceptance_resume_run_id=<证据 run>` | DMG、产品源码、依赖、vendor 与打包配置均未变化，失败仅来自验收脚本或后续阶段 | 下载的是同一候选 DMG；从最近可信断点续验，最终形成完整证据和阶段判定 |
 
 命令行示例：
 
@@ -160,7 +160,7 @@ gh workflow run macos-internal-build.yml --repo WYunS/ruijie-harness --ref main 
 6. 挂载 DMG、复制最终 `.app`，运行动态安装后验收。
 7. 上传自动验收矩阵、截图、日志、报告、DMG、SHA-256 和构建清单。
 
-工作流会先上传 `Ruijie-Harness-macOS-candidate-<run-id>`，再执行安装后验收。候选上传必须发生在验收之前：即使后续脚本失败，DMG 仍可复用，不得让一次 UI 定位错误迫使完整重打。最终成功后还会上传稳定命名的 `Ruijie-Harness-<version>-macOS-universal` Artifact；candidate 是可复用的原始候选，最终 Artifact 才包含 DMG、SHA-256、构建清单和完整验收证据，两者用途不同。
+工作流会先上传 `Ruijie-Harness-macOS-candidate-<run-id>`，再执行安装后验收。候选上传必须发生在验收之前：即使后续脚本失败，DMG 仍可复用，不得让一次 UI 定位错误迫使完整重打。自动流程走完后按验收指导第 5 节作两态判定；只有判定“允许进入下一步”才把 candidate 作为待交付候选。稳定命名的 `Ruijie-Harness-<version>-macOS-universal` Artifact 通常在工作流成功时产生；若工作流因低影响例外未产生稳定 Artifact，可交付经哈希确认的 candidate，同时连同完整验收报告说明例外。candidate 是可复用的原始候选，稳定 Artifact 则额外汇集 SHA-256、构建清单和验收证据。
 
 若产品源码、依赖和打包配置未变，只有验收脚本需要修正，不要重新构建或重跑已经通过的 release checks。只要产品源码、依赖、vendor bundle 或打包配置发生变化，就不得跳过这些门禁，也不得复用旧 DMG。
 
@@ -170,9 +170,14 @@ gh workflow run macos-internal-build.yml --repo WYunS/ruijie-harness --ref main 
 gh run view <run-id> --repo WYunS/ruijie-harness --log-failed
 ```
 
-先下载 `Ruijie-Harness-macOS-acceptance-<run-id>` 中的首个失败截图、DOM snapshot、stdout、stderr 和报告，再区分产品缺陷、打包缺陷、验收脚本缺陷与环境问题。明确根因、完成最小修复、本地门禁通过后只重跑必要阶段；禁止不看证据连续触发新 run。构建耗时较长或 Artifact 下载暂时无输出不等于失败，网页显示 Action 成功且 Artifact 已生成时可直接由人工下载，不需要启动另一个构建。
+先下载轻量的验收证据，依据首个失败截图、DOM snapshot、stdout、stderr 和报告区分产品缺陷、打包缺陷、验收脚本缺陷与环境问题。验收器问题完成最小修正并通过本地测试后，从最近可信断点续验；产品源码或打包问题则先完成报告并等待用户决定下一轮，不能在本轮擅自修改。禁止不看证据连续触发新 run。构建耗时较长或 Artifact 下载暂时无输出不等于失败，网页显示 Artifact 已生成时不需要启动另一个构建。
 
-## 7. 产物下载与机器校验
+## 7. 判定后的产物下载与机器校验
+
+下载完整 DMG 前必须先完成验收报告，并按 `03-macOS真人验收测试指导.md` 第 5 节给出两态判定：
+
+- **允许进入下一步**：下载稳定 Artifact；若只有 candidate，则下载 candidate、校验文件与完整验收证据。完成本地哈希核验后交给真人测试。
+- **阻断，不进入下一步**：保留 GitHub 上的 candidate、run 链接和证据，不下载 DMG 作交付。先向用户提交验收报告、阻断问题和建议的下一轮工作，等待用户决定是否修复源码并重新打包。
 
 Artifact 必须包含：
 
@@ -201,7 +206,9 @@ Get-Item -LiteralPath $dmg | Select-Object FullName,Length,LastWriteTime
 Get-Content -LiteralPath (Join-Path $download 'BUILD-MANIFEST.txt')
 ```
 
-自动验收通过后仍只能称为“Mac 候选包”。随后完整执行 `03-macOS真人验收测试指导.md`；真人验收通过后才能称为“Mac 内部可用版”。
+如果大文件下载持续无进度或速度明显低于用户从 GitHub 页面手动下载，不要让下载阻塞整项任务。安全停止下载进程，但保留已完成的构建和云端 Artifact；先完成报告、指导更新、提交推送、证据整理和仓库状态检查等所有不依赖本地 DMG 的工作。随后一次性告诉用户：GitHub run 链接、应下载的准确 Artifact 名、其中必须包含的文件、目标绝对目录，以及下载完成后的核验动作。用户反馈完成后再继续本地哈希与清单核验；若没有本地核验需求，交接说明发出后即可结束任务。
+
+阶段判定允许进入下一步后仍只能称为“Mac 候选包”。随后完整执行 `03-macOS真人验收测试指导.md`；真人验收作出“允许内部上线/发布”判定后才能称为“Mac 内部可用版”。
 
 ## 8. 未签名内部版
 
@@ -215,7 +222,7 @@ xattr -dr com.apple.quarantine "/Applications/锐捷 Harness.app"
 
 ## 9. 交付记录
 
-最终记录必须包含：源码 commit、GitHub run 链接、Artifact 名、DMG 绝对路径、bytes/MiB、SHA-256、架构、签名/公证状态、本地门禁、自动安装验收、真人验收状态和未执行项。
+最终记录必须包含：源码 commit、GitHub run 链接、Artifact 名、DMG 绝对路径或云端位置、bytes/MiB、SHA-256、架构、签名/公证状态、本地门禁、自动安装验收、通过/失败/阻塞/未执行数量、两态阶段判定、判定理由、真人验收状态和未执行项。
 
 旧构建快照只用于追溯，版本、路径和哈希必须从本次产物动态读取，不能复制旧值。
 
