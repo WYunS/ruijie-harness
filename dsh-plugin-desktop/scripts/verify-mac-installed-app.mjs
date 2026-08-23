@@ -100,6 +100,37 @@ async function waitForNamed(page, names, options = {}) {
   }, names, options), `timed out waiting for visible control: ${names.join(' / ')}`)
 }
 
+async function selectNewTabOption(page, names) {
+  await waitUntil(async () => await page.evaluate((candidateNames) => {
+    const normalizedNames = candidateNames.map(value => value.trim().toLocaleLowerCase())
+    const visible = element => {
+      const style = getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      if (style.visibility === 'hidden' || style.display === 'none' || rect.width <= 0 || rect.height <= 0) return false
+      if (rect.right <= 0 || rect.bottom <= 0 || rect.left >= window.innerWidth || rect.top >= window.innerHeight) return false
+      const x = Math.min(window.innerWidth - 1, Math.max(0, rect.left + rect.width / 2))
+      const y = Math.min(window.innerHeight - 1, Math.max(0, rect.top + rect.height / 2))
+      const hit = document.elementFromPoint(x, y)
+      return hit !== null && (hit === element || element.contains(hit))
+    }
+    const option = [...document.querySelectorAll('[role="menuitem"],[role="menuitemradio"]')]
+      .find((candidate) => visible(candidate) && normalizedNames.includes((candidate.textContent ?? '').trim().toLocaleLowerCase()))
+    if (option instanceof HTMLElement) {
+      option.click()
+      return true
+    }
+    const plus = [...document.querySelectorAll('button')].find((candidate) => {
+      if (!visible(candidate)) return false
+      const values = [candidate.getAttribute('aria-label'), candidate.getAttribute('title')]
+        .filter(value => value !== null)
+        .map(value => value.trim().toLocaleLowerCase())
+      return values.some(value => ['new tab', '新建标签页'].includes(value))
+    })
+    if (plus instanceof HTMLElement) plus.click()
+    return false
+  }, names), `could not select new-tab option: ${names.join(' / ')}`)
+}
+
 async function screenshot(page, evidenceDir, name) {
   await page.screenshot({ path: join(evidenceDir, `${name}.png`), fullPage: false })
   return `${name}.png`
@@ -233,10 +264,7 @@ async function exerciseSidebar(page) {
     return false
   })
   if (!closed) throw new Error('could not close the Files sidebar tab through its visible close button')
-  await waitForNamed(page, ['New tab', '新建标签页'])
-  await clickNamed(page, ['New tab', '新建标签页'])
-  await waitForNamed(page, ['Files', '文件', 'Explorer', '资源管理器'])
-  await clickNamed(page, ['Files', '文件', 'Explorer', '资源管理器'])
+  await selectNewTabOption(page, ['Files', '文件', 'Explorer', '资源管理器'])
   await waitUntil(async () => await page.evaluate(() =>
     [...document.querySelectorAll('[title]')].some(element => ['Files', '文件'].includes(element.getAttribute('title') ?? ''))
   ), 'Files sidebar tab did not reopen')
@@ -281,9 +309,7 @@ async function activateFilesTab(page) {
 }
 
 async function exerciseBrowser(browser, page) {
-  await clickNamed(page, ['New tab', '新建标签页'])
-  await waitForNamed(page, ['Browser', '浏览器'])
-  await clickNamed(page, ['Browser', '浏览器'])
+  await selectNewTabOption(page, ['Browser', '浏览器'])
   const address = await waitUntil(async () => await page.$('input[placeholder="Search or enter address"],input[placeholder="搜索或输入网址"]'),
     'built-in browser address bar did not appear')
   await address.click({ clickCount: 3 })
