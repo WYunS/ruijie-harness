@@ -54,7 +54,12 @@ async function clickNamed(page, names, options = {}) {
     const visible = element => {
       const style = getComputedStyle(element)
       const rect = element.getBoundingClientRect()
-      return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0
+      if (style.visibility === 'hidden' || style.display === 'none' || rect.width <= 0 || rect.height <= 0) return false
+      const x = Math.min(window.innerWidth - 1, Math.max(0, rect.left + rect.width / 2))
+      const y = Math.min(window.innerHeight - 1, Math.max(0, rect.top + rect.height / 2))
+      if (rect.right <= 0 || rect.bottom <= 0 || rect.left >= window.innerWidth || rect.top >= window.innerHeight) return false
+      const hit = document.elementFromPoint(x, y)
+      return hit !== null && (hit === element || element.contains(hit))
     }
     const element = candidates.find((candidate) => {
       if (!visible(candidate)) return false
@@ -79,7 +84,12 @@ async function waitForNamed(page, names, options = {}) {
       .some((candidate) => {
         const style = getComputedStyle(candidate)
         const rect = candidate.getBoundingClientRect()
-        if (style.visibility === 'hidden' || style.display === 'none' || rect.width === 0 || rect.height === 0) return false
+        if (style.visibility === 'hidden' || style.display === 'none' || rect.width <= 0 || rect.height <= 0) return false
+        if (rect.right <= 0 || rect.bottom <= 0 || rect.left >= window.innerWidth || rect.top >= window.innerHeight) return false
+        const x = Math.min(window.innerWidth - 1, Math.max(0, rect.left + rect.width / 2))
+        const y = Math.min(window.innerHeight - 1, Math.max(0, rect.top + rect.height / 2))
+        const hit = document.elementFromPoint(x, y)
+        if (hit === null || (hit !== candidate && !candidate.contains(hit))) return false
         const values = [candidate.getAttribute('aria-label'), candidate.getAttribute('title'), candidate.textContent]
           .filter(value => value !== null)
           .map(value => value.trim().toLocaleLowerCase())
