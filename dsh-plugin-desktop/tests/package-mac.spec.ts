@@ -139,6 +139,23 @@ describe('internal macOS DMG packaging', () => {
     ])
   })
 
+  it('can preserve a candidate DMG for a separate installed-app acceptance job', () => {
+    const calls: CommandCall[] = []
+    const logs: string[] = []
+    const value = options(calls, logs)
+    value.env.DSH_PACKAGE_CHECK_ALREADY_RAN = '1'
+    value.env.DSH_SKIP_INSTALLED_ACCEPTANCE = '1'
+
+    packageMacInternal(value)
+
+    expect(calls).toHaveLength(2)
+    expect(calls.at(-1)?.args).toEqual([
+      '/repo/dsh-plugin-desktop/scripts/verify-mac-smoke.ts',
+      '/repo/dsh-plugin-desktop/dist/mac-internal',
+    ])
+    expect(logs).toContain('Skipping installed-app acceptance so CI can preserve and reuse the candidate DMG.')
+  })
+
   it.each([
     ['win32', 'arm64', '22.23.2', 'native macOS host'],
     ['darwin', 'ia32', '22.23.2', 'requires x64 or arm64 Node'],

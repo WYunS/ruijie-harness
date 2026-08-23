@@ -310,7 +310,7 @@ async function activateFilesTab(page) {
 
 async function exerciseBrowser(browser, page) {
   await selectNewTabOption(page, ['Browser', '浏览器'])
-  const address = await waitUntil(async () => await page.$('input[placeholder="Search or enter address"],input[placeholder="搜索或输入网址"]'),
+  const address = await waitUntil(async () => await page.$('input[placeholder="Search or enter an address"],input[placeholder="Search or enter address"],input[placeholder="搜索或输入网址"]'),
     'built-in browser address bar did not appear')
   await address.click({ clickCount: 3 })
   await address.type('https://example.com/')

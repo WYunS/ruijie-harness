@@ -2,8 +2,19 @@ name: Build macOS Internal DMG
 
 on:
   workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: 'Reuse the candidate DMG artifact from this run ID; leave empty to rebuild'
+        required: false
+        type: string
+      skip_release_checks:
+        description: 'Skip previously passed release checks when only acceptance tooling changed'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -49,22 +60,57 @@ jobs:
           yarn install --immutable
 
       - name: Run release checks
+        if: ${{ inputs.candidate_run_id == '' && inputs.skip_release_checks != true }}
         run: yarn check
 
       # The committed browser bundle is produced and audited by the Windows
       # release gate. Rebuilding it on macOS changes source-map path bytes even
       # though runtime code is equivalent, so verify the exact packaged copy.
       - name: Verify the vendored sidebar payload
+        if: ${{ inputs.candidate_run_id == '' && inputs.skip_release_checks != true }}
         run: yarn workspace dsh-plugin-desktop verify:vendor-sidebar
 
       - name: Run real Electron sidebar continuity gate
+        if: ${{ inputs.candidate_run_id == '' && inputs.skip_release_checks != true }}
         run: yarn workspace dsh-plugin-desktop verify:webview-continuity
 
-      - name: Build DMG and run installed-app acceptance
+      - name: Build candidate DMG
+        if: ${{ inputs.candidate_run_id == '' }}
         env:
           DSH_PACKAGE_CHECK_ALREADY_RAN: '1'
+          DSH_SKIP_INSTALLED_ACCEPTANCE: '1'
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: yarn workspace dsh-plugin-desktop dist:mac-internal
+
+      - name: Record candidate source
+        if: ${{ inputs.candidate_run_id == '' }}
+        shell: bash
+        run: echo "source_commit=${GITHUB_SHA}" > dsh-plugin-desktop/dist/mac-internal/CANDIDATE-MANIFEST.txt
+
+      - name: Preserve reusable candidate DMG
+        if: ${{ inputs.candidate_run_id == '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ruijie-Harness-macOS-candidate-${{ github.run_id }}
+          path: |
+            dsh-plugin-desktop/dist/mac-internal/*.dmg
+            dsh-plugin-desktop/dist/mac-internal/CANDIDATE-MANIFEST.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Download reusable candidate DMG
+        if: ${{ inputs.candidate_run_id != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.candidate_run_id }}
+          name: Ruijie-Harness-macOS-candidate-${{ inputs.candidate_run_id }}
+          path: dsh-plugin-desktop/dist/mac-internal
+
+      - name: Run installed-app acceptance
+        run: yarn workspace dsh-plugin-desktop accept:mac-installed dist/mac-internal
 
       - name: Upload macOS installed-app acceptance evidence
         if: always()
@@ -97,7 +143,9 @@ jobs:
           {
             echo "product=Ruijie Harness"
             echo "version=$version"
-            echo "source_commit=${GITHUB_SHA}"
+            candidate_commit="$(sed -n 's/^source_commit=//p' "$output_dir/CANDIDATE-MANIFEST.txt")"
+            echo "source_commit=${candidate_commit:-$GITHUB_SHA}"
+            echo "acceptance_commit=${GITHUB_SHA}"
             echo "architecture=universal (x86_64 + arm64)"
             echo "signing=unsigned internal build"
             echo "notarization=disabled"

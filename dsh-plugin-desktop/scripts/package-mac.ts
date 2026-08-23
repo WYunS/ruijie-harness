@@ -148,12 +148,16 @@ export function packageMacInternal(options: MacInternalPackageOptions = defaultO
     options.desktopRoot,
     cleanEnvironment,
   )
-  options.run(
-    options.nodeExecutable,
-    [options.acceptanceVerifier, options.outputDir],
-    options.desktopRoot,
-    cleanEnvironment,
-  )
+  if (options.env.DSH_SKIP_INSTALLED_ACCEPTANCE === '1') {
+    options.log('Skipping installed-app acceptance so CI can preserve and reuse the candidate DMG.')
+  } else {
+    options.run(
+      options.nodeExecutable,
+      [options.acceptanceVerifier, options.outputDir],
+      options.desktopRoot,
+      cleanEnvironment,
+    )
+  }
 }
 
 const invokedPath = process.argv[1]
