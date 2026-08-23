@@ -131,7 +131,7 @@ gh run watch <run-id> --repo WYunS/ruijie-harness --exit-status
 6. 挂载 DMG、复制最终 `.app`，运行动态安装后验收。
 7. 上传自动验收矩阵、截图、日志、报告、DMG、SHA-256 和构建清单。
 
-工作流会先上传 `Ruijie-Harness-macOS-candidate-<run-id>`，再执行安装后验收。若产品源码、依赖和打包配置未变，只有验收脚本需要修正，不要重新构建或重跑已经通过的 release checks；在 Actions 手动运行页把 `candidate_run_id` 填为产生候选 DMG 的旧 run ID，工作流会下载并复用完全相同的 DMG，只运行安装后验收。首次生成新候选包但本轮只有验收工具变化时，可勾选 `skip_release_checks`；此模式仍会生成打包必需的 `lib/`，但不会重复类型检查、单元测试和连续性门禁。只要产品源码、依赖、vendor bundle 或打包配置发生变化，就不得跳过这些门禁，也不得复用旧 DMG。
+工作流会先上传 `Ruijie-Harness-macOS-candidate-<run-id>`，再执行安装后验收。若产品源码、依赖和打包配置未变，只有验收脚本需要修正，不要重新构建或重跑已经通过的 release checks；在 Actions 手动运行页把 `candidate_run_id` 填为产生候选 DMG 的旧 run ID，工作流会下载并复用完全相同的 DMG，只运行安装后验收。若该 run 已用截图证明侧栏、Browser 与文档预览通过，可同时把 `acceptance_resume_run_id` 填为同一 run ID，从语言持久化阶段继续。首次生成新候选包但本轮只有验收工具变化时，可勾选 `skip_release_checks`；此模式仍会生成打包必需的 `lib/`，但不会重复类型检查、单元测试和连续性门禁。只要产品源码、依赖、vendor bundle 或打包配置发生变化，就不得跳过这些门禁，也不得复用旧 DMG。
 
 一次只运行一个目标构建。失败后先执行：
 

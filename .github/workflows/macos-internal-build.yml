@@ -12,6 +12,10 @@ on:
         required: false
         default: false
         type: boolean
+      acceptance_resume_run_id:
+        description: 'Carry forward completed UI baseline evidence from this run ID and resume at language persistence'
+        required: false
+        type: string
 
 permissions:
   actions: read
@@ -114,6 +118,8 @@ jobs:
           path: dsh-plugin-desktop/dist/mac-internal
 
       - name: Run installed-app acceptance
+        env:
+          DSH_MAC_ACCEPTANCE_RESUME_RUN_ID: ${{ inputs.acceptance_resume_run_id }}
         run: yarn workspace dsh-plugin-desktop accept:mac-installed dist/mac-internal
 
       - name: Upload macOS installed-app acceptance evidence

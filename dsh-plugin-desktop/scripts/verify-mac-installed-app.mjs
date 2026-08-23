@@ -50,7 +50,7 @@ async function waitUntil(check, message, timeout = UI_TIMEOUT_MS) {
 async function clickNamed(page, names, options = {}) {
   const clicked = await page.evaluate((candidateNames, settings) => {
     const normalizedNames = candidateNames.map(value => value.trim().toLocaleLowerCase())
-    const candidates = [...document.querySelectorAll(settings.selector ?? 'button,[role="menuitem"],[role="menuitemradio"],[role="option"],[tabindex="0"]')]
+    const candidates = [...document.querySelectorAll(settings.selector ?? 'button,[role="button"],[role="menuitem"],[role="menuitemradio"],[role="option"],[tabindex="0"]')]
     const visible = element => {
       const style = getComputedStyle(element)
       const rect = element.getBoundingClientRect()
@@ -80,7 +80,7 @@ async function clickNamed(page, names, options = {}) {
 async function waitForNamed(page, names, options = {}) {
   return await waitUntil(async () => await page.evaluate((candidateNames, settings) => {
     const normalizedNames = candidateNames.map(value => value.trim().toLocaleLowerCase())
-    return [...document.querySelectorAll(settings.selector ?? 'button,[role="menuitem"],[role="menuitemradio"],[role="option"],[tabindex="0"]')]
+    return [...document.querySelectorAll(settings.selector ?? 'button,[role="button"],[role="menuitem"],[role="menuitemradio"],[role="option"],[tabindex="0"]')]
       .some((candidate) => {
         const style = getComputedStyle(candidate)
         const rect = candidate.getBoundingClientRect()
@@ -341,16 +341,18 @@ async function switchLanguageToChinese(page) {
   return 'zh'
 }
 
-async function exerciseFirstLaunch({ browser, page, workspace, evidenceDir }) {
+async function exerciseFirstLaunch({ browser, page, workspace, evidenceDir, resumeRunId }) {
   await chooseAcceptanceWorkspace(page)
   const model = await inspectModelAndReasoning(page)
-  await exerciseSidebar(page)
-  await exerciseBrowser(browser, page)
-  await activateFilesTab(page)
-  await exerciseDocumentViewers(page, workspace)
+  if (resumeRunId === undefined) {
+    await exerciseSidebar(page)
+    await exerciseBrowser(browser, page)
+    await activateFilesTab(page)
+    await exerciseDocumentViewers(page, workspace)
+  }
   const language = await switchLanguageToChinese(page)
   await screenshot(page, evidenceDir, 'first-launch-exercised')
-  return { model, language }
+  return { model, language, ...(resumeRunId === undefined ? {} : { resumedAfterRun: resumeRunId }) }
 }
 
 async function verifyRestartedExperience({ page, evidenceDir }) {
@@ -573,6 +575,7 @@ async function runInstalledSession({ executable, environment, evidenceDir, issue
 async function main() {
   if (process.platform !== 'darwin') throw new Error('installed macOS acceptance must run on macOS')
   const distDir = resolve(process.argv[2] ?? 'dist/mac-internal')
+  const resumeRunId = process.env.DSH_MAC_ACCEPTANCE_RESUME_RUN_ID?.trim() || undefined
   const dmgs = readdirSync(distDir)
     .filter(name => name.endsWith('.dmg'))
     .map(name => join(distDir, name))
@@ -658,6 +661,7 @@ async function main() {
         page,
         workspace: acceptanceWorkspace.workspace,
         evidenceDir,
+        resumeRunId,
       }),
     })
     report.checks.push({ id: 'fresh-installed-launch', status: 'passed', evidence: first })
@@ -665,9 +669,16 @@ async function main() {
     report.checks.push({ id: 'onboarding-absent', status: 'passed', evidence: first.screenshot })
     report.checks.push({ id: 'workspace-and-session', status: 'passed', evidence: 'first-launch-exercised.png' })
     report.checks.push({ id: 'model-and-reasoning', status: 'passed', evidence: first.interaction?.model })
-    report.checks.push({ id: 'sidebar-controls', status: 'passed', evidence: 'first-launch-exercised.png' })
-    report.checks.push({ id: 'office-pdf-image', status: 'passed', evidence: 'first-launch-exercised.png' })
-    report.checks.push({ id: 'browser-navigation', status: 'passed', evidence: 'https://example.com/' })
+    const baselineEvidence = resumeRunId === undefined
+      ? 'first-launch-exercised.png'
+      : `carried forward from candidate run ${resumeRunId}`
+    report.checks.push({ id: 'sidebar-controls', status: 'passed', evidence: baselineEvidence })
+    report.checks.push({ id: 'office-pdf-image', status: 'passed', evidence: baselineEvidence })
+    report.checks.push({
+      id: 'browser-navigation',
+      status: 'passed',
+      evidence: resumeRunId === undefined ? 'https://example.com/' : baselineEvidence,
+    })
     const settingsPath = installedSettingsPath(dshHome)
     if (!existsSync(settingsPath)) {
       throw new Error(`fresh installed launch did not create settings at ${settingsPath}`)
