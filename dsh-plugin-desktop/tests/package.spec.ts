@@ -53,6 +53,20 @@ const macInternalWorkflow = readFileSync(
 )
 
 describe('published package surface', () => {
+  it('bundles the unified IM settings surface while leaving every channel unconfigured', () => {
+    const requireFromDesktop = createRequire(new URL('package.json', packageRoot))
+    const imManifestPath = requireFromDesktop.resolve('@xmanrui/dsh-im/package.json')
+    const imRoot = dirname(imManifestPath)
+    const clientSource = readFileSync(join(imRoot, 'plugin-src', 'client', 'index.js'), 'utf8')
+    for (const channel of [
+      '微信', '飞书', '钉钉', '企业微信', 'QQ', 'Slack', 'Telegram', 'Discord', 'WhatsApp',
+    ]) {
+      expect(clientSource).toContain(`label: '${channel}'`)
+    }
+    const profilePatch = readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8')
+    expect(profilePatch).toContain("- id: im-channels\n      name: '@xmanrui/dsh-im'")
+  })
+
   it('runs desktop and community market typechecks from the root command', () => {
     expect(workspaceManifest.scripts?.typecheck)
       .toBe('yarn workspace dsh-plugin-desktop typecheck && yarn workspace dsh-community-market typecheck')
@@ -105,6 +119,10 @@ describe('published package surface', () => {
       types: './lib/types/updates.d.ts',
       default: './lib/updates.js',
     })
+    expect(manifest.exports).toHaveProperty('./search-recovery', {
+      types: './lib/types/search-recovery.d.ts',
+      default: './lib/search-recovery.js',
+    })
     expect(manifest.exports).not.toHaveProperty('./windows-acl-runner')
     expect(manifest.exports).not.toHaveProperty('./desktop-cli')
     expect(manifest.exports).not.toHaveProperty('./desktop-runtime-environment')
@@ -120,8 +138,27 @@ describe('published package surface', () => {
         '@deepseek-ai/dsh-client-ui-theme',
       ],
     })
+    expect(manifest.dependencies?.['@deepseek-ai/dsh-time-context']).toBe('0.1.0-rc.8')
+    expect(manifest.dependencies?.['dsh-ui-appearance']).toBe('0.1.4')
+    expect(manifest.dependencies?.['@xmanrui/dsh-im']).toBe('2.0.0')
+    expect(manifest.dependencies?.['https-proxy-agent']).toBe('7.0.6')
+    expect(manifest.dependencies).not.toHaveProperty('dsh-lark-channel')
     expect(readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8')).toContain('name: dsh-plugin-desktop')
+    expect(readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8'))
+      .toContain("name: '@deepseek-ai/dsh-time-context'")
+    expect(readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8'))
+      .toContain('name: dsh-plugin-desktop/search-recovery')
+    expect(readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8'))
+      .toContain("name: 'dsh-ui-appearance'")
+    expect(readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8'))
+      .toContain("name: '@xmanrui/dsh-im'")
+    expect(readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8'))
+      .not.toContain("name: 'dsh-lark-channel'")
     expect(readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8')).toContain('name: dsh-community-market')
+    expect(readFileSync(new URL('scripts/verify-licenses.mjs', packageRoot), 'utf8'))
+      .toContain("['qrcode-terminal', 'Apache-2.0']")
+    expect(readFileSync(new URL('scripts/verify-licenses.mjs', packageRoot), 'utf8'))
+      .toContain("'@tencent-connect/qqbot-connector'")
     expect(readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8')).toContain('name: dsh-plugin-desktop/terminal')
     expect(readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8')).toContain('name: dsh-plugin-desktop/pnpm')
     expect(readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8')).toContain('name: dsh-plugin-desktop/profiles')

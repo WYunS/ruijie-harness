@@ -134,11 +134,13 @@ git diff --stat <上次已验收提交>..HEAD
 
 同时读取用户直接说明的“本版新增、修改、修复了什么”。Git diff 与用户说明取并集；一方没有提到的变化不能被另一方覆盖。必须阅读变更文件、对应测试、配置、数据迁移与依赖变化，不能只根据 commit 标题生成清单。矩阵写入当次构建记录或最终交付说明，每行至少包含：`编号 / 功能或风险 / 变更依据 / 测试环境 / 操作 / 预期结果 / 证据 / 结果`。
 
+本地开发版的当前源码行为是本次安装包的功能对照基线，但“本地能用”本身不等于已经交付。打包模型必须为每项新增能力追踪完整链路：源码与配置进入发布 commit → 直接依赖和 `yarn.lock` 完整 → Loader/profile 实际挂载 → packaged-runtime 闭包包含所需文件与 export → 最终 Setup EXE 安装出的应用按同一用户操作得到一致结果。任一环只在开发目录成立，都应判为安装包尚未具备该功能。
+
 当次矩阵必须同时覆盖：
 
 1. **历史回归**：本节最低基线全部执行，确认此前正常功能在新安装包中仍然正常。
 2. **本次增量**：每个新增、修改或修复点覆盖正常路径、关键异常路径、重启与升级持久化；bug 修复必须复现旧失败条件。
-3. **相邻影响**：按依赖和调用关系扩展验证。例如 sidebar 改动要同时回归 Office、PDF、浏览器、Files 与关闭/收起；模型适配器改动要同时回归普通对话、工具调用、已有上下文、新对话和推理模式；安装/数据目录改动要同时回归全新安装、升级、卸载和开发版隔离。
+3. **相邻影响**：按依赖和调用关系扩展验证。例如 sidebar 改动要同时回归 Office、PDF、浏览器、Files 与关闭/收起；模型适配器改动要同时回归普通对话、工具调用、已有上下文、新对话和推理模式；时间、时区或其他模型可见运行时上下文改动要同时回归直接问答、基于“今天”的搜索词、新旧会话、跨重启和最终安装包闭包；安装/数据目录改动要同时回归全新安装、升级、卸载和开发版隔离。
 
 功能删除或行为变化必须有用户明确授权，并在矩阵中记录新预期。不能删除旧验收项来掩盖回归。打包前冻结矩阵，打包后在最终 Setup EXE 安装出的应用上逐项执行；开发版或 `win-unpacked` 结果不能替代最终安装包验收。若无法追溯上次已验收 commit，则按全部最低基线加全部可见变更验收，并明确记录基线不确定性。
 
@@ -153,7 +155,7 @@ corepack yarn check
 
 ```powershell
 Set-Location -LiteralPath 'D:\ChatGPT\RuijieDSH\dsh-plugin-desktop'
-corepack yarn vitest run tests/native-sidebar-browser.spec.ts tests/electron-runtime.spec.ts tests/office-document-plugins.spec.ts tests/profile.spec.ts tests/desktop-plugins.spec.ts tests/sidebar-produced-files.spec.ts
+corepack yarn vitest run tests/native-sidebar-browser.spec.ts tests/electron-runtime.spec.ts tests/office-document-plugins.spec.ts tests/profile.spec.ts tests/package.spec.ts tests/verify-packaged-runtime.spec.ts tests/desktop-plugins.spec.ts tests/sidebar-produced-files.spec.ts tests/ruijie-auth.spec.ts tests/ruijie-login-window.spec.ts tests/time-context-runtime-patch.spec.ts tests/ui-appearance-runtime-patch.spec.ts tests/appearance-compatibility.spec.ts tests/dsh-im-runtime-patch.spec.ts tests/sidebar-shortcuts.spec.ts tests/system-proxy.spec.ts tests/search-recovery.spec.ts tests/search-recovery-presentation.spec.ts
 Set-Location -LiteralPath 'D:\ChatGPT\RuijieDSH'
 corepack yarn workspace dsh-community-market vitest run tests/contracts.spec.ts tests/market-install.spec.ts tests/market-settings-persistence.spec.ts
 ```
@@ -263,7 +265,45 @@ PDF 有两条不同链路，必须分开验收：
 
 ### 6.7 登录授权回调
 
-首次登录完成后，系统浏览器的 `/auth/callback` 必须显示锐捷 Harness 品牌完成页，并明确提示用户可以关闭页面、返回应用。浏览器可能拒绝脚本自动关闭，因此不得使用隐藏空白页作为唯一成功反馈；同时确认桌面登录窗口继续显示启动进度。
+首次登录完成后，系统浏览器的 `/auth/callback` 必须显示锐捷 Harness 品牌完成页，并明确提示用户可以关闭页面、返回应用。RJ 标记、完成勾和进度强调色必须使用与应用图标一致的蓝紫渐变（`#6682FF → #3D57DA`），不得退回旧红色。浏览器可能拒绝脚本自动关闭，因此不得使用隐藏空白页作为唯一成功反馈。
+
+退出登录并重新启动授权后，在**专用测试账户**中不点击浏览器授权而直接关闭浏览器：Windows 无边框等待窗右上角必须有可聚焦的“关闭并退出”按钮。点击后必须由 Electron 主进程原生关闭等待窗、结束本次启动且不得再次弹出授权；不能只检查页面存在 `window.close()` 字符串，也不能以按钮 hover 变色代替真实关闭。取消授权不得清除此前安全存储中的其他账号资料。正常完成回调时，等待窗应先显示“正在验证账号”，账号网络超过 8 秒显示中性的网络/代理提示；账号验证完成后才显示“认证已完成”，工作台加载超过 8 秒再显示组件初始化提示。令牌交换、刷新和模型接口验证必须有 30 秒超时，不能无限停留或过早宣称认证完成。记录慢阶段文字、网络/代理/PAC、测试环境和耗时，用它区分账号服务慢与 Host/profile/renderer 启动慢；用户可见文案不得针对某类硬件或运行环境下结论。
+
+### 6.8 当前日期、时区与“今天”搜索
+
+时间感知属于每版固定基线。源码组合测试必须证明 desktop layer 中恰好存在一个已启用的 `@deepseek-ai/dsh-time-context` row；`dsh-plugin-desktop/package.json` 必须把它声明为直接生产依赖；packaged-runtime gate 必须从最终 `app.asar.unpacked` 物理树解析 `@deepseek-ai/dsh-time-context/package.json`。桌面构建还必须执行 `patch-dsh-time-context-runtime.mjs`，并断言最终运行文件包含“权威当前日期/时间、相对日期与搜索参数必须采用该时间、不得沿用训练数据或早先消息中的冲突年份”三层约束。只看到源码包存在、依赖被其他包间接带入或开发环境能解析，都不能替代这些门禁。
+
+分别在本地开发版和最终 Setup EXE 安装版的新会话中执行：
+
+1. 直接询问“今天是几月几日、星期几？”，答案必须与 Windows 当前本地日期和星期一致，不能回答不知道、从新闻推断日期或使用模型训练年份。
+2. 询问“搜索今天 AI 圈发生的大事”，检查实际 `web_search`、`browser_search` 等工具参数和最终来源：查询必须使用当前年份及当天/近期语义，不能退回 2025、2024 等旧年份；来源发布时间应与“今天”请求相符。不能只看最终回答碰巧写对日期。
+3. 在一个曾经出现过错误旧年份的已有会话连续执行三次相对日期搜索，再新建无上下文会话重复三次，所有实际工具参数都必须正确；完全退出并重启后再测一次，确认 Loader row 在新 generation 中生效且不会被旧会话年份锚定。
+4. 记录操作系统时区、提问、模型回答、可见搜索参数/日志和截图。浏览器请求只有一个经 Host 校验的 IANA 时区时应采用该时区；来源缺失或混合时允许要求用户澄清，但不得静默猜测。
+
+当前正在运行的 generation 不会热挂载新增 Loader row。验收源码变更时必须在保留认证安全的前提下选择可重启窗口；认证服务异常、退出后可能无法重新登录时，不得为了完成本项擅自退出日常使用实例，应记录阻塞并等待安全验收时机。
+
+### 6.9 内置外观与多平台会话控制
+
+`dsh-ui-appearance@0.1.4` 与 `@xmanrui/dsh-im@2.0.0` 是桌面版固定生产依赖，不是要求员工另行从插件市场安装的可选项。源码组合测试必须分别证明 `ui-appearance`、`im-channels` row 恰好存在一次且已启用；`package.json` 必须声明精确版本；packaged-runtime gate 必须能从最终 `app.asar.unpacked` 物理树解析两个包的 `package.json`。旧的 `dsh-lark-channel` 不得同时残留，避免两套飞书连接器重复初始化。
+
+`@tencent-connect/qqbot-connector@1.2.0` 的 npm 元数据为 `UNLICENSED`。本项目只允许针对这个准确包名的业务批准例外，并在 `THIRD_PARTY_NOTICES.md` 如实记录；不得把它伪装成 MIT、不得把 `UNLICENSED` 加入全局许可证白名单，也不得让例外自动覆盖新包或新版本。
+
+最终 Setup EXE 安装版必须完成以下验收：
+
+1. 全新 profile 不进入插件市场、不执行安装即可在“通用设置”顶部看到“界面外观（颜色、壁纸与透明度）”。该行收起时也必须始终显示“一键恢复默认”；先修改多项颜色、背景、透明度和侧栏效果，再点击恢复，必须一次清除全部外观自定义并回到原版界面，同时不影响登录、账号、会话、工作区或 IM 配置。左侧栏底部从上到下应为账号/额度、“IM机器人”、设置；“IM机器人”与原生“设置”文字同色、行高与左边界一致，机器人图标和齿轮图标视觉尺寸一致，点击后必须直达“插件 → IM机器人”，不得打开插件市场。修改主题、背景或界面透明度后立即生效并在完全退出重启后保持，但用户消息气泡必须维持原版浅色，不得跟随主题强调色变成深蓝或高饱和色。
+2. 全新 profile 启动并静置至少 60 秒，不打开设置：微信、飞书、钉钉、企业微信、QQ、Slack、Telegram、Discord、WhatsApp 均不得打开浏览器、弹出授权窗或二维码，也不得反复提示缺少凭据；外部网络抓包中不得出现这些渠道的连接。安装包内置但默认休眠。
+3. 用户主动进入“设置 → 插件 → IM机器人”，选择具体渠道并点击添加/接入后，才允许出现该渠道的扫码、Token 或应用凭据配置。关闭配置页或取消流程不得自动重开；未配置的其他渠道继续休眠。真实 Secret、个人账号和测试凭据不得写进源码、安装包、日志或截图。
+4. 使用专用账号至少完整验证飞书，并按发布范围抽测其余渠道：完成主动接入、连接测试、发送消息、接续 Harness 会话、停用/删除连接。飞书还应验证 `/new`、`/sessions`、`/sessions <关键词>`、点击切换历史会话、`/status`、`/ws`、`/cd` 与 `/stop`，并确认不同聊天/工作区不会串会话。
+5. 触发一次模型提问、计划或工具授权卡片，确认只允许预期用户处理。生产部署必须配置平台应用可用范围并收紧发送者、群组、审批者和工作区边界；不得把“能控制 Harness 会话”描述为能任意编辑或删除聊天平台的历史消息。
+6. WhatsApp 的代理构造器不得引用上游压缩 bundle 的临时变量名；`https-proxy-agent@7.0.6` 必须是 desktop deploy root 的直接生产依赖，packaged-runtime gate 必须从最终 `app.asar.unpacked` 物理树解析其 `package.json`。在 Windows 开启系统 HTTP/HTTPS 代理且不设置 `HTTP_PROXY`/`HTTPS_PROXY` 环境变量，用户主动接入 WhatsApp 后应尽量生成可扫码二维码；显式环境变量存在时不得覆盖。无论网络、代理或二维码服务是否成功，点击“生成二维码”都不得让桌面进程退出或重启。失败必须留在 IM 页面并显示可读的网络/代理说明，不能暴露 `ReferenceError`、`invalid_union`、`invalid_value` 等内部异常或 RPC 校验 JSON。代理解析失败不得阻止桌面应用启动。
+
+完成条件：员工无需自行安装这两个插件；外观能力开箱可用，IM 能力由用户按渠道主动启用；未启用时绝不打扰，启用后能正常使用；安装包内置版本、profile row、物理依赖闭包和真实交互四层一致。
+
+### 6.10 搜索失败恢复与主界面降噪
+
+用可控夹具令主搜索源连续失败两次以上，并让备用搜索随后成功。智能体必须停止用相同参数重复调用同一失败工具，主动切换不同搜索/浏览方式，并继续完成用户任务。再对 Pwsh、文件渲染等非搜索工具构造“前一步失败、后续替代步骤成功”的用例。主界面在同一用户请求中最多保留一条黄色“正在切换”或“已自动切换”提示，重复中间错误折叠；原始错误仍可展开或在日志中查看。只有所有合理替代路径均失败并导致整个回合终止时，才显示醒目的红色终局错误。
+
+不得用简单隐藏所有错误、吞掉工具结果或把错误伪装成成功来通过。至少回归：主源失败后备用成功、非搜索工具失败后替代步骤成功、所有合理路径失败、下一条用户消息重新计组。
 
 ## 7. 当前已知故障与发布判定
 

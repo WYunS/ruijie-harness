@@ -211,6 +211,7 @@ describe('packaged desktop runtime verification', () => {
     'lib/diagnostic-export-worker.js',
     'lib/pnpm.js',
     'lib/update-download.js',
+    'lib/search-recovery.js',
     'lib/windows-agent-presets.js',
   ])('fails loud when required runtime entry %s is absent', (missing) => {
     const entries = completeArchiveEntries().filter(entry => entry !== `/${missing}`)
@@ -281,6 +282,13 @@ describe('packaged desktop runtime verification', () => {
     )).toThrow(
       `packaged runtime at ${unpackedRoot} cannot resolve required package export dsh-plugin-desktop/profiles`,
     )
+  })
+
+  it('requires both built-in employee plugins from the physical packaged tree', () => {
+    expect(REQUIRED_UNPACKED_PACKAGE_SPECIFIERS).toContain('dsh-ui-appearance/package.json')
+    expect(REQUIRED_UNPACKED_PACKAGE_SPECIFIERS).toContain('@xmanrui/dsh-im/package.json')
+    expect(REQUIRED_UNPACKED_PACKAGE_SPECIFIERS).toContain('https-proxy-agent/package.json')
+    expect(REQUIRED_UNPACKED_PACKAGE_SPECIFIERS).not.toContain('dsh-lark-channel/package.json')
   })
 
   it('fails loud when a required package export escapes app.asar.unpacked', () => {

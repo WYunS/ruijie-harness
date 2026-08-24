@@ -390,6 +390,19 @@ describe('desktop profile composition', {
     expect(prepared.mode).toBe('compatibility')
 
     const rows = composeEntries([prepared.patches])
+    expect(rows.filter(row => row.id === 'time-context')).toEqual([{
+      id: 'time-context',
+      name: '@deepseek-ai/dsh-time-context',
+    }])
+    expect(rows.filter(row => row.id === 'ui-appearance')).toEqual([{
+      id: 'ui-appearance',
+      name: 'dsh-ui-appearance',
+    }])
+    expect(rows.filter(row => row.id === 'im-channels')).toEqual([{
+      id: 'im-channels',
+      name: '@xmanrui/dsh-im',
+    }])
+    expect(rows.some(row => row.name === 'dsh-lark-channel')).toBe(false)
     for (const [id, name] of [
       ['ui-layout', '@deepseek-ai/dsh-client-ui-layout'],
       ['ui-sidebar', '@deepseek-ai/dsh-client-ui-sidebar'],

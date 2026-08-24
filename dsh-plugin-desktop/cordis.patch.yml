@@ -5,6 +5,17 @@
       name: dsh-plugin-desktop
       config:
         mode: compatibility
+    - id: time-context
+      name: '@deepseek-ai/dsh-time-context'
+    - id: search-recovery
+      name: dsh-plugin-desktop/search-recovery
+    - id: ui-appearance
+      name: 'dsh-ui-appearance'
+    # The bundle registers settings and local supervisors only. With no user-
+    # created channel account, every external connector stays dormant: no
+    # platform connection, browser, QR code, login prompt, or credential nag.
+    - id: im-channels
+      name: '@xmanrui/dsh-im'
     - id: community-market
       name: dsh-community-market
     - id: attachment-formats

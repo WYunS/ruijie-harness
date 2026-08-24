@@ -16,6 +16,7 @@ const DEFAULT_CALLBACK_PORT = 1455
 const CALLBACK_HOST = 'localhost'
 const CALLBACK_PATH = '/auth/callback'
 const LOGIN_TIMEOUT_MS = 10 * 60 * 1000
+const AUTH_REQUEST_TIMEOUT_MS = 30_000
 const TOKEN_REFRESH_SKEW_MS = 60 * 1000
 const LOGOUT_REVOKE_TIMEOUT_MS = 2_000
 const MAX_PROXY_BODY_BYTES = 32 * 1024 * 1024
@@ -47,10 +48,13 @@ export interface RuijieAuthOptions {
   readonly credentialStore?: RuijieOAuthCredentialStore
   /** Report non-fatal cleanup and revocation failures without exposing credentials. */
   readonly onError?: (cause: unknown) => void
+  /** Bound account-service calls after the browser callback; overridable by deterministic tests. */
+  readonly requestTimeoutMs?: number
 }
 
 export type RuijieAuthStatus =
   | 'authorization-required'
+  | 'authorization-processing'
   | 'authorization-complete'
 
 export interface RuijieOAuthTokens {
@@ -75,6 +79,22 @@ class OAuthSessionRejectedError extends Error {}
 function requiredText(value: unknown, message: string): string {
   if (typeof value !== 'string' || value.length === 0) throw new Error(message)
   return value
+}
+
+async function fetchAccountService(
+  input: URL,
+  init: RequestInit,
+  requestTimeoutMs: number,
+  operation: string,
+): Promise<Response> {
+  try {
+    return await fetch(input, { ...init, signal: AbortSignal.timeout(requestTimeoutMs) })
+  } catch (cause) {
+    if (cause instanceof Error && (cause.name === 'TimeoutError' || cause.name === 'AbortError')) {
+      throw new Error(`${operation}超时，请检查网络或代理后重试。`, { cause })
+    }
+    throw cause
+  }
 }
 
 function callbackPort(environment: NodeJS.ProcessEnv): number {
@@ -126,7 +146,7 @@ function successPage(response: ServerResponse): void {
   response.end(`<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>授权完成 · 锐捷 Harness</title><style>
-:root{color-scheme:light;font:15px/1.6 "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:#17191d;background:#f5f6f8}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px}.card{width:min(460px,100%);padding:34px;border:1px solid #e5e7eb;border-radius:24px;background:#fff;box-shadow:0 20px 55px #20242d1f}.brand{display:flex;align-items:center;gap:10px;margin-bottom:36px}.mark{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;color:#fff;background:#d71920;font-size:13px;font-style:italic;font-weight:800;letter-spacing:-.06em}.brand strong{font-size:16px}.check{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;margin-bottom:18px;color:#fff;background:#d71920;font-size:25px}h1{margin:0 0 8px;font-size:25px;line-height:1.25;letter-spacing:-.025em}p{margin:0;color:#737981}.hint{margin-top:20px;padding-top:18px;border-top:1px solid #eef0f3;font-size:13px;color:#9297a0}
+:root{color-scheme:light;font:15px/1.6 "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:#17191d;background:#f5f6f8}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px}.card{width:min(460px,100%);padding:34px;border:1px solid #e5e7eb;border-radius:24px;background:#fff;box-shadow:0 20px 55px #20242d1f}.brand{display:flex;align-items:center;gap:10px;margin-bottom:36px}.mark{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;color:#fff;background:linear-gradient(145deg,#6682ff 0%,#3d57da 100%);font-size:13px;font-style:italic;font-weight:800;letter-spacing:-.06em}.brand strong{font-size:16px}.check{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;margin-bottom:18px;color:#fff;background:linear-gradient(145deg,#6682ff 0%,#3d57da 100%);box-shadow:0 10px 24px #3d57da38;font-size:25px}h1{margin:0 0 8px;font-size:25px;line-height:1.25;letter-spacing:-.025em}p{margin:0;color:#737981}.hint{margin-top:20px;padding-top:18px;border-top:1px solid #eef0f3;font-size:13px;color:#9297a0}
 </style></head><body><main class="card"><header class="brand"><span class="mark">RJ</span><strong>锐捷 Harness</strong></header><div class="check" aria-hidden="true">✓</div><h1>授权已完成</h1><p>锐捷 Harness 正在继续启动。</p><p class="hint">现在可以关闭此页面，返回锐捷 Harness。</p></main>
 <script>history.replaceState(null,'','/auth/callback');const closePage=()=>{window.open('','_self');window.close()};setTimeout(closePage,450);</script></body></html>`)
 }
@@ -205,8 +225,9 @@ async function exchangeAuthorizationCode(
   redirectUri: string,
   code: string,
   verifier: string,
+  requestTimeoutMs: number,
 ): Promise<RuijieOAuthTokens> {
-  const response = await fetch(new URL('/oauth/token', issuerUrl), {
+  const response = await fetchAccountService(new URL('/oauth/token', issuerUrl), {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -216,7 +237,7 @@ async function exchangeAuthorizationCode(
       client_id: client,
       code_verifier: verifier,
     }),
-  })
+  }, requestTimeoutMs, 'GPTAuth 令牌交换')
   if (!response.ok) throw new Error(`GPTAuth 令牌交换失败（HTTP ${String(response.status)}）。`)
   const payload = await response.json() as Record<string, unknown>
   return {
@@ -330,12 +351,13 @@ function createOAuthMemory(
   initialTokens: RuijieOAuthTokens,
   credentialStore: RuijieOAuthCredentialStore | undefined,
   reportError: (cause: unknown) => void,
+  requestTimeoutMs: number,
 ): OAuthMemory {
   let accessToken = initialTokens.accessToken
   let refreshToken = initialTokens.refreshToken
   let refreshTask: Promise<string> | undefined
   const refresh = async (): Promise<string> => {
-    const response = await fetch(new URL('/oauth/token', issuerUrl), {
+    const response = await fetchAccountService(new URL('/oauth/token', issuerUrl), {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -343,7 +365,7 @@ function createOAuthMemory(
         refresh_token: refreshToken,
         client_id: client,
       }),
-    })
+    }, requestTimeoutMs, 'GPTAuth OAuth 刷新')
     if (!response.ok) {
       const message = `GPTAuth OAuth 刷新失败（HTTP ${String(response.status)}）。`
       if ([400, 401, 403].includes(response.status)) throw new OAuthSessionRejectedError(message)
@@ -494,14 +516,15 @@ export async function ensureRuijieAuthEnvironment(options: RuijieAuthOptions): P
   const port = callbackPort(options.environment)
   const redirectUri = `http://${CALLBACK_HOST}:${String(port)}${CALLBACK_PATH}`
   const reportError = options.onError ?? (() => {})
+  const requestTimeoutMs = options.requestTimeoutMs ?? AUTH_REQUEST_TIMEOUT_MS
   const establishEnvironment = async (tokens: RuijieOAuthTokens): Promise<RuijieAuthEnvironment> => {
-    const oauthMemory = createOAuthMemory(issuerUrl, client, tokens, options.credentialStore, reportError)
+    const oauthMemory = createOAuthMemory(issuerUrl, client, tokens, options.credentialStore, reportError, requestTimeoutMs)
     const localProxyKey = randomBytes(32).toString('base64url')
     const proxy = await startLocalOAuthProxy(issuerUrl, localProxyKey, oauthMemory)
     try {
-      const response = await fetch(`${proxy.baseURL}/models`, {
+      const response = await fetchAccountService(new URL(`${proxy.baseURL}/models`), {
         headers: { authorization: `Bearer ${localProxyKey}` },
-      })
+      }, requestTimeoutMs, 'GPTAuth 模型接口验证')
       if (!response.ok) {
         const message = `GPTAuth 模型接口验证失败（HTTP ${String(response.status)}）。`
         if ([401, 403].includes(response.status)) throw new OAuthSessionRejectedError(message)
@@ -554,8 +577,10 @@ export async function ensureRuijieAuthEnvironment(options: RuijieAuthOptions): P
     state,
   }).toString()
   const code = await receiveAuthorizationCode(state, authorize.toString(), redirectUri, port, options.openExternal)
-  options.onStatus?.('authorization-complete')
-  const tokens = await exchangeAuthorizationCode(issuerUrl, client, redirectUri, code, verifier)
+  options.onStatus?.('authorization-processing')
+  const tokens = await exchangeAuthorizationCode(issuerUrl, client, redirectUri, code, verifier, requestTimeoutMs)
   await options.credentialStore?.save(tokens)
-  return await establishEnvironment(tokens)
+  const authenticated = await establishEnvironment(tokens)
+  options.onStatus?.('authorization-complete')
+  return authenticated
 }

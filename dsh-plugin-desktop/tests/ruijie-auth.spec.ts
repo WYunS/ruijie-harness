@@ -54,6 +54,39 @@ describe('Ruijie desktop authentication module', () => {
     }
   })
 
+  it('times out a stalled post-login model validation instead of waiting indefinitely', async () => {
+    const server = createServer(() => {
+      // Intentionally never respond: this reproduces a network stall after OAuth.
+    })
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(0, '127.0.0.1', resolve)
+    })
+    const address = server.address()
+    if (address === null || typeof address === 'string') throw new Error('fixture has no TCP address')
+    const tokens = {
+      accessToken: unsignedJwt({ exp: Math.floor(Date.now() / 1000) + 3600 }),
+      refreshToken: 'stalled-refresh-token',
+    }
+    const startedAt = Date.now()
+    try {
+      await expect(ensureRuijieAuthEnvironment({
+        environment: { RUIJIE_DSH_OAUTH_ISSUER: `http://127.0.0.1:${String(address.port)}` },
+        credentialStore: {
+          load: async () => tokens,
+          save: async () => undefined,
+          clear: async () => undefined,
+        },
+        requestTimeoutMs: 50,
+        openExternal: async () => { throw new Error('interactive authorization must not run') },
+      })).rejects.toThrow('GPTAuth 模型接口验证超时')
+      expect(Date.now() - startedAt).toBeLessThan(2_000)
+    } finally {
+      server.closeAllConnections()
+      await new Promise<void>(resolve => { server.close(() => { resolve() }) })
+    }
+  })
+
   it('rejects a non-loopback HTTP issuer before opening a browser', async () => {
     const openExternal = async (): Promise<never> => {
       throw new Error('browser must not open for an insecure issuer')
@@ -91,7 +124,23 @@ describe('Ruijie desktop authentication module', () => {
     expect(authSource).toContain('<title>授权完成 · 锐捷 Harness</title>')
     expect(authSource).toContain('<h1>授权已完成</h1>')
     expect(authSource).toContain('现在可以关闭此页面')
-    expect(authSource).toContain('#d71920')
+    expect(authSource).toContain('#6682ff')
+    expect(authSource).toContain('#3d57da')
+    expect(authSource).not.toContain('#d71920')
+  })
+
+  it('bounds post-callback account network requests and reports their real phase', () => {
+    expect(authSource).toContain('AUTH_REQUEST_TIMEOUT_MS = 30_000')
+    expect(authSource).toContain('AbortSignal.timeout(requestTimeoutMs)')
+    const code = authSource.indexOf('await receiveAuthorizationCode')
+    const processing = authSource.indexOf("options.onStatus?.('authorization-processing')", code)
+    const exchange = authSource.indexOf('await exchangeAuthorizationCode', processing)
+    const establish = authSource.indexOf('const authenticated = await establishEnvironment(tokens)', exchange)
+    const complete = authSource.indexOf("options.onStatus?.('authorization-complete')", establish)
+    expect(processing).toBeGreaterThan(code)
+    expect(exchange).toBeGreaterThan(processing)
+    expect(establish).toBeGreaterThan(exchange)
+    expect(complete).toBeGreaterThan(establish)
   })
 
   it('preserves V4 reasoning controls and removes them from generic routes', () => {

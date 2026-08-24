@@ -6,33 +6,43 @@ import { fileURLToPath } from 'node:url'
 
 const LOGIN_ICON_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'build', 'app-icon.png')
 const SLOW_START_NOTICE_MS = 8_000
+const CANCEL_NAVIGATION_URL = 'ruijie-harness://cancel-authorization/'
 
-type LoginPhase = 'authorize' | 'starting' | 'slow-start'
+type LoginPhase = 'authorize' | 'verifying' | 'slow-verifying' | 'starting' | 'slow-start'
 
 function loginCopy(phase: LoginPhase): { readonly title: string; readonly detail: string } {
   if (phase === 'authorize') {
     return { title: '请在浏览器确认授权', detail: '确认后会直接返回 Harness。' }
   }
+  if (phase === 'verifying') {
+    return { title: '正在验证账号', detail: '正在连接账号服务，通常只需几秒。' }
+  }
+  if (phase === 'slow-verifying') {
+    return { title: '账号服务响应较慢', detail: '请检查网络或代理，或稍后重试。' }
+  }
   if (phase === 'starting') {
     return { title: '认证已完成', detail: '正在打开工作台，通常只需几秒。' }
   }
-  return { title: '正在准备工作台', detail: '首次启动需要加载组件，请再稍候。' }
+  return { title: '正在准备工作台', detail: '首次启动或组件初始化可能需要更久。' }
 }
 
-function loginHtml(phase: LoginPhase): string {
+function loginHtml(phase: LoginPhase, macOS: boolean): string {
   const copy = loginCopy(phase)
+  const closeControl = macOS
+    ? ''
+    : '<button class="close" id="close-window" type="button" title="关闭并退出" aria-label="关闭并退出">×</button>'
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>锐捷 Harness</title>
   <style>
-    :root{color-scheme:light;font:14px/1.5 "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:#17191d;background:transparent}*{box-sizing:border-box}body{margin:0;height:100vh;overflow:hidden;padding:14px}.shell{position:relative;width:100%;height:100%;padding:24px 26px;border:1px solid #e5e7eb;border-radius:22px;background:#fff;box-shadow:0 20px 55px #20242d24;display:flex;flex-direction:column}.brand{display:flex;align-items:center;gap:10px;-webkit-app-region:drag;user-select:none}.mark{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;background:#d71920;font-size:12px;font-style:italic;font-weight:800;letter-spacing:-.06em}.brand strong{font-size:15px;letter-spacing:.01em}.copy{margin:auto 0}h1{margin:0 0 7px;font-size:22px;line-height:1.25;letter-spacing:-.025em;font-weight:650}p{margin:0;color:#737981}.progress{height:2px;margin-top:auto;background:#eef0f3;overflow:hidden}.progress::after{content:"";display:block;width:34%;height:100%;background:#d71920;animation:signal 1.25s cubic-bezier(.4,0,.2,1) infinite alternate}@keyframes signal{to{transform:translateX(194%)}}@media(prefers-reduced-motion:reduce){.progress::after{animation:none;transform:translateX(96%)}}
+    :root{color-scheme:light;font:14px/1.5 "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:#17191d;background:transparent}*{box-sizing:border-box}body{margin:0;height:100vh;overflow:hidden;padding:14px}.shell{position:relative;width:100%;height:100%;padding:24px 26px;border:1px solid #e5e7eb;border-radius:22px;background:#fff;box-shadow:0 20px 55px #20242d24;display:flex;flex-direction:column}.shell.macos{padding-top:42px}.brand{display:flex;align-items:center;gap:10px;-webkit-app-region:drag;user-select:none}.mark{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;background:linear-gradient(145deg,#6682ff 0%,#3d57da 100%);font-size:12px;font-style:italic;font-weight:800;letter-spacing:-.06em}.brand strong{font-size:15px;letter-spacing:.01em}.close{position:absolute;z-index:2;top:15px;right:16px;width:32px;height:32px;padding:0;border:0;border-radius:10px;color:#737981;background:transparent;font:400 23px/30px "Segoe UI",sans-serif;cursor:pointer;-webkit-app-region:no-drag}.close:hover{color:#fff;background:#3d57da}.close:focus-visible{outline:3px solid #6682ff66;outline-offset:2px}.copy{margin:auto 0}h1{margin:0 0 7px;font-size:22px;line-height:1.25;letter-spacing:-.025em;font-weight:650}p{margin:0;color:#737981}.progress{height:2px;margin-top:auto;background:#eef0f3;overflow:hidden}.progress::after{content:"";display:block;width:34%;height:100%;background:linear-gradient(90deg,#6682ff,#3d57da);animation:signal 1.25s cubic-bezier(.4,0,.2,1) infinite alternate}@keyframes signal{to{transform:translateX(194%)}}@media(prefers-reduced-motion:reduce){.progress::after{animation:none;transform:translateX(96%)}}
   </style>
 </head>
-<body><main class="shell"><header class="brand"><span class="mark">RJ</span><strong>锐捷 Harness</strong></header><div class="copy"><h1>${copy.title}</h1><p>${copy.detail}</p></div><div class="progress" aria-hidden="true"></div></main></body>
+<body><main class="shell${macOS ? ' macos' : ''}">${closeControl}<header class="brand"><span class="mark">RJ</span><strong>锐捷 Harness</strong></header><div class="copy"><h1>${copy.title}</h1><p>${copy.detail}</p></div><div class="progress" aria-hidden="true"></div></main><script>document.getElementById('close-window')?.addEventListener('click',()=>{window.location.href='ruijie-harness://cancel-authorization/'})</script></body>
 </html>`
 }
 
@@ -48,16 +58,21 @@ export class RuijieLoginWindow {
   constructor(private readonly options: RuijieLoginWindowOptions) {}
 
   async open(): Promise<void> {
+    const macOS = process.platform === 'darwin'
     const window = new BrowserWindow({
       title: '锐捷 Harness',
       width: 440,
-      height: 260,
+      height: macOS ? 280 : 260,
       show: false,
-      closable: false,
+      closable: true,
       resizable: false,
       maximizable: false,
       minimizable: false,
-      frame: false,
+      frame: macOS,
+      ...(macOS ? {
+        titleBarStyle: 'hiddenInset',
+        trafficLightPosition: { x: 24, y: 22 },
+      } : {}),
       transparent: true,
       hasShadow: true,
       roundedCorners: true,
@@ -78,7 +93,10 @@ export class RuijieLoginWindow {
     window.center()
     window.removeMenu()
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-    window.webContents.on('will-navigate', event => { event.preventDefault() })
+    window.webContents.on('will-navigate', (event, url) => {
+      event.preventDefault()
+      if (url === CANCEL_NAVIGATION_URL) window.close()
+    })
     const show = (): void => {
       if (window.isMinimized()) window.restore()
       window.show()
@@ -91,19 +109,30 @@ export class RuijieLoginWindow {
       this.window = undefined
       if (!this.completed) this.options.onCancel()
     })
-    await window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(loginHtml('authorize'))}`)
+    await window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(loginHtml('authorize', macOS))}`)
   }
 
-  /** Replace the authorization prompt with honest progress until the main window is mounted. */
-  showStarting(): void {
+  private showPhase(phase: LoginPhase, slowPhase: LoginPhase): void {
     const window = this.window
     if (window === undefined || window.isDestroyed()) return
-    void window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(loginHtml('starting'))}`).catch(() => {})
+    if (this.slowStartNotice !== undefined) clearTimeout(this.slowStartNotice)
+    const macOS = process.platform === 'darwin'
+    void window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(loginHtml(phase, macOS))}`).catch(() => {})
     this.slowStartNotice = setTimeout(() => {
       const current = this.window
       if (current === undefined || current.isDestroyed()) return
-      void current.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(loginHtml('slow-start'))}`).catch(() => {})
+      void current.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(loginHtml(slowPhase, macOS))}`).catch(() => {})
     }, SLOW_START_NOTICE_MS)
+  }
+
+  /** Distinguish post-callback account-service traffic from application startup. */
+  showVerifying(): void {
+    this.showPhase('verifying', 'slow-verifying')
+  }
+
+  /** Replace account verification with honest progress until the main window is mounted. */
+  showStarting(): void {
+    this.showPhase('starting', 'slow-start')
   }
 
   show(): void {

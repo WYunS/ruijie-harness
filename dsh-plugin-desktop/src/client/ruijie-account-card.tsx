@@ -9,6 +9,7 @@ import {
   RUIJIE_LOGOUT_PATH,
   type RuijieAccountSummary,
 } from '../ruijie-account-contract.ts'
+import { openImSettings } from './sidebar-shortcuts.tsx'
 
 const REFRESH_INTERVAL_MS = 60_000
 
@@ -49,6 +50,15 @@ function accountLabel(summary: RuijieAccountSummary | undefined): string {
 
 function RuijieMark({ size }: { size: number }) {
   return <span className="ruijieMarkInitials" style={{ fontSize: Math.max(8, size * 0.43) }} aria-hidden="true">RJ</span>
+}
+
+function RobotMark() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 3h6M12 3v3M7 7h10a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-6a3 3 0 0 1 3-3Z" />
+      <path d="M8 13h.01M16 13h.01M9 16h6" />
+    </svg>
+  )
 }
 
 type AccountCardProps = PropsRuntime<'sidebar.footer.action'>
@@ -154,6 +164,17 @@ export function RuijieAccountCard({ wide }: AccountCardProps) {
           </>
         )}
       </button>
+      <button
+        type="button"
+        className="ruijieImShortcut"
+        data-wide={wide || undefined}
+        aria-label="IM机器人"
+        title="IM机器人"
+        onClick={openImSettings}
+      >
+        <span><RobotMark /></span>
+        {wide && <strong>IM机器人</strong>}
+      </button>
       {open && (
         <section className="ruijieAccountPopover" data-wide={wide || undefined} aria-label="锐捷账号与额度">
           <header>
@@ -184,7 +205,7 @@ export function RuijieAccountCard({ wide }: AccountCardProps) {
 
 const ACCOUNT_STYLES = `
 *:has(> .ruijieAccountSeat) { flex-direction: column; gap: 4px; }
-.ruijieAccountSeat { position: relative; box-sizing: border-box; flex: none; width: 100%; min-width: 0; padding: 0 2px 4px; }
+.ruijieAccountSeat { position: relative; box-sizing: border-box; flex: none; width: 100%; min-width: 0; padding: 0 2px; display: flex; flex-direction: column; gap: 2px; }
 .ruijieAccountTrigger { box-sizing: border-box; width: 36px; height: 36px; padding: 0; border: 1px solid transparent; border-radius: 11px; color: var(--dsw-alias-label-primary); background: transparent; display: flex; align-items: center; cursor: pointer; font: inherit; text-align: left; }
 .ruijieAccountTrigger:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .ruijieAccountTrigger:focus-visible { outline: 2px solid #4d6bfe; outline-offset: 2px; }
@@ -200,6 +221,12 @@ const ACCOUNT_STYLES = `
 .ruijieAccountBalance small { color: var(--dsw-alias-label-tertiary); font-size: 10px; }
 .ruijieAccountBalance strong { margin-top: 4px; max-width: 92px; color: #4d6bfe; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ruijieAccountTrigger[data-error] .ruijieAccountBalance strong { color: #c43c3c; }
+.ruijieImShortcut { box-sizing: border-box; width: calc(100% + 9px); height: 42px; margin: 0 -2px; padding: 0 10px 0 8px; border: 1px solid transparent; border-radius: 12px; color: var(--dsw-alias-label-primary); background: transparent; display: flex; align-items: center; gap: 8px; cursor: pointer; font: inherit; font-size: 14px; line-height: 22px; text-align: left; transform: translateX(-5px); }
+.ruijieImShortcut > span { width: 16px; height: 16px; flex: none; display: grid; place-items: center; }
+.ruijieImShortcut > strong { min-width: 0; font: inherit; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ruijieImShortcut:not([data-wide]) { width: 36px; height: 36px; margin: 0; padding: 0; border-radius: 50%; justify-content: center; gap: 0; }
+.ruijieImShortcut:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
+.ruijieImShortcut:focus-visible { outline: 2px solid #4d6bfe; outline-offset: 1px; }
 .ruijieAccountPopover { position: fixed; z-index: 1200; left: 68px; bottom: 72px; box-sizing: border-box; width: 286px; padding: 16px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 16px; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-base); box-shadow: 0 18px 50px rgba(15, 24, 48, .18); }
 .ruijieAccountPopover[data-wide] { left: 14px; }
 .ruijieAccountPopover header { display: flex; align-items: center; gap: 11px; padding-bottom: 13px; border-bottom: 1px solid var(--dsw-alias-border-l2); }
@@ -234,7 +261,7 @@ function installAccountStyles(): () => void {
 
 /** Register the account card into the official sidebar without replacing upstream UI. */
 export function applyRuijieAccountCard(ctx: ClientContext): void {
-  ctx.effect(() => installAccountStyles(), 'dsh-plugin-desktop: Ruijie account styles')
+  ctx.effect(() => installAccountStyles(), 'dsh-plugin-desktop: Ruijie account and sidebar shortcuts')
   ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
     name: 'sidebar.footer.action',
     id: 'ruijie-sso-account',

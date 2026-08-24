@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-desktop",
-  "version": "2.0.8",
+  "version": "2.0.9",
   "description": "DSH Desktop: an Electron shell composed as a DeepSeek Harness Cordis plugin",
   "license": "MIT",
   "publishConfig": {
@@ -67,6 +67,10 @@
       "types": "./lib/types/updates.d.ts",
       "default": "./lib/updates.js"
     },
+    "./search-recovery": {
+      "types": "./lib/types/search-recovery.d.ts",
+      "default": "./lib/search-recovery.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -103,7 +107,7 @@
   "scripts": {
     "build:vendor-sidebar": "tsdown --config scripts/tsdown-vendor-sidebar.config.ts",
     "verify:vendor-sidebar": "node scripts/verify-vendor-sidebar.mjs",
-    "build": "node scripts/generate-ruijie-app-icon.mjs && node scripts/generate-mac-app-icon.mjs && node scripts/generate-tray-icons.mjs && node scripts/clean.mjs && tsdown && tsc -p tsconfig.json --emitDeclarationOnly && tsc -p tsconfig.client.json --emitDeclarationOnly",
+    "build": "node scripts/patch-dsh-im-runtime.mjs && node scripts/patch-dsh-ui-appearance-runtime.mjs && node scripts/patch-dsh-time-context-runtime.mjs && node scripts/generate-ruijie-app-icon.mjs && node scripts/generate-mac-app-icon.mjs && node scripts/generate-tray-icons.mjs && node scripts/clean.mjs && tsdown && tsc -p tsconfig.json --emitDeclarationOnly && tsc -p tsconfig.client.json --emitDeclarationOnly",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit && tsc -p tsconfig.tests.json --noEmit && tsc -p tsconfig.tests.client.json --noEmit",
     "test": "vitest run",
     "verify:closure": "node --test scripts/runtime-closure.spec.mjs && node scripts/verify-runtime-closure.mjs",
@@ -219,6 +223,7 @@
     "@deepseek-ai/dsh-subprocess": "0.1.0-rc.8",
     "@deepseek-ai/dsh-system-prompt": "0.1.0-rc.8",
     "@deepseek-ai/dsh-terminal": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-time-context": "0.1.0-rc.8",
     "@deepseek-ai/dsh-timeout": "0.1.0-rc.8",
     "@deepseek-ai/dsh-token-meter": "0.1.0-rc.8",
     "@deepseek-ai/dsh-tool-todo": "0.1.0-rc.8",
@@ -234,12 +239,15 @@
     "@deepseek-ai/schemastery": "^3.18.1",
     "@huanlin/dsh-plugin-better-sidebar-plugin-office": "patch:@huanlin/dsh-plugin-better-sidebar-plugin-office@npm%3A0.1.0#~/.yarn/patches/@huanlin-dsh-plugin-better-sidebar-plugin-office-npm-0.1.0-642d62b369.patch",
     "@liustack/modsearch": "file:../vendor/modsearch",
+    "@xmanrui/dsh-im": "2.0.0",
     "adm-zip": "^0.6.0",
     "dsh-attachment-formats": "file:../vendor/dsh-attachment-formats",
     "dsh-better-sidebar": "file:../vendor/dsh-better-sidebar",
     "dsh-community-market": "0.1.0-dev.0",
     "dsh-office-tools": "0.1.0",
+    "dsh-ui-appearance": "0.1.4",
     "dsh-vision-router": "file:../vendor/dsh-vision-router",
+    "https-proxy-agent": "7.0.6",
     "koffi": "3.1.5",
     "node-addon-require-builtin": "^0.1.4",
     "pnpm": "11.7.0",

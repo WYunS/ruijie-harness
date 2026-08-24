@@ -13,6 +13,7 @@ import { installWorkspaceFolderDrop } from './workspace-folder-drop.ts'
 import { applyRuijieAccountCard } from './ruijie-account-card.tsx'
 import { applyRuijieBrand } from './ruijie-brand.ts'
 import { applyRuijieUnifiedModelDirectory } from './ruijie-model-directory.ts'
+import { installSearchRecoveryPresentation } from './search-recovery-presentation.ts'
 import { installWindowsCompatibilityStyles } from './styles.ts'
 
 export { applyAdvancedShell } from './advanced-shell.ts'
@@ -57,6 +58,10 @@ export function apply(ctx: ClientContext): void {
       startSession: workspaceId => { ctx.workspaces.startSession(workspaceId) },
     }),
     'dsh-plugin-desktop: workspace folder drop',
+  )
+  ctx.effect(
+    () => installSearchRecoveryPresentation(),
+    'dsh-plugin-desktop: recoverable search failure presentation',
   )
   if (environment.platform === 'win32') {
     ctx.effect(

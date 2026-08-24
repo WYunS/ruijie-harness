@@ -39,11 +39,19 @@ const ALLOWED_LICENSES = new Set([
   '(MPL-2.0 OR Apache-2.0)',
 ])
 
-// The 15-year-old buffers@0.1.1 tarball predates npm license metadata and
-// omits the upstream MIT file. Keep the exception package-scoped so another
-// metadata-free dependency still fails closed.
+// Keep metadata repairs package-scoped so malformed or missing declarations
+// on any other dependency still fail closed. qrcode-terminal ships the full
+// Apache License 2.0 text but uses the old, non-SPDX `Apache 2.0` spelling.
 const KNOWN_LICENSE_OVERRIDES = new Map([
   ['buffers', 'MIT'],
+  ['qrcode-terminal', 'Apache-2.0'],
+])
+
+// Exact, business-approved packaging exception for the QQ connector pulled by
+// @xmanrui/dsh-im@2.0.0. Its npm metadata says UNLICENSED; do not mislabel it
+// as permissive and do not widen this exception to a license category.
+const BUSINESS_APPROVED_REDISTRIBUTION_EXCEPTIONS = new Set([
+  '@tencent-connect/qqbot-connector',
 ])
 
 /**
@@ -115,10 +123,16 @@ for (let index = 0; index < queue.length; index += 1) {
       if (!hasLicenseFile) {
         failures.push(`${current.name}: license refers to ${JSON.stringify(license)} but no LICENSE file is shipped`)
       }
-    } else if (license !== undefined && !ALLOWED_LICENSES.has(license) && !NOTICE_LICENSES.has(license)) {
+    } else if (license !== undefined
+      && !ALLOWED_LICENSES.has(license)
+      && !NOTICE_LICENSES.has(license)
+      && !BUSINESS_APPROVED_REDISTRIBUTION_EXCEPTIONS.has(current.name)) {
       failures.push(`${current.name}: license ${JSON.stringify(license)} is not on the redistribution allowlist`)
     }
-    manifests.push({ name: current.name, version: manifest.version, license: license ?? 'SEE LICENSE FILE' })
+    const recordedLicense = BUSINESS_APPROVED_REDISTRIBUTION_EXCEPTIONS.has(current.name)
+      ? `${license ?? 'UNDECLARED'} (business-approved exception)`
+      : license ?? 'SEE LICENSE FILE'
+    manifests.push({ name: current.name, version: manifest.version, license: recordedLicense })
   }
 
   const requireFrom = createRequire(current.manifestPath)

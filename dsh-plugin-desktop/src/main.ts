@@ -1,6 +1,6 @@
 /** DSH Desktop executable: minimal Electron bootstrap around the Host Cordis root. */
 
-import { app, crashReporter, dialog, safeStorage, shell } from 'electron'
+import { app, crashReporter, dialog, safeStorage, session, shell } from 'electron'
 import type { Context } from '@deepseek-ai/cordis'
 import { randomUUID } from 'node:crypto'
 import { join, resolve } from 'node:path'
@@ -87,6 +87,7 @@ import { desktopLocaleFromLanguageTag } from './tray-locale.ts'
 import { ensureRuijieAuthEnvironment, type RuijieAuthEnvironment } from './ruijie-auth.ts'
 import { RuijieAuthStore } from './ruijie-auth-store.ts'
 import { RuijieLoginWindow } from './ruijie-login-window.ts'
+import { applyResolvedSystemProxy } from './system-proxy.ts'
 
 const BIN_NAME = 'dsh-plugin-desktop'
 const PRODUCT_NAME = '锐捷 Harness'
@@ -391,12 +392,26 @@ async function start(): Promise<void> {
   })
   try {
     await app.whenReady()
+    // A proxy lookup is a compatibility aid for Node-based integrations. It
+    // must never turn a transient OS proxy-service problem into an app startup
+    // failure.
+    try {
+      applyResolvedSystemProxy(
+        process.env,
+        await session.defaultSession.resolveProxy('https://web.whatsapp.com'),
+      )
+    } catch (cause) {
+      electronLogger.error(
+        `${BIN_NAME}: system proxy resolution unavailable: ${cause instanceof Error ? cause.message : String(cause)}`,
+      )
+    }
     startupStage = 'runtime-bootstrap'
     ruijieLoginWindow = new RuijieLoginWindow({ onCancel: () => { requestQuit(0) } })
     const authenticatedAccount = await ensureRuijieAuthEnvironment({
       environment: process.env,
       credentialStore: new RuijieAuthStore(app.getPath('userData'), safeStorage),
       onStatus: status => {
+        if (status === 'authorization-processing') ruijieLoginWindow?.showVerifying()
         if (status === 'authorization-complete') ruijieLoginWindow?.showStarting()
       },
       onError: cause => {

@@ -23,6 +23,8 @@ Windows 与 macOS 共用 `main` 上的业务源码。平台差异放入 `process
 
 每次必须执行：确认唯一仓库与分支、检查工作树和子模块、安装锁定依赖、验证 vendor、完整 `yarn check`、Mac 专项测试、universal 原生依赖检查、DMG 构建、最终 `.app` 自动验收、哈希与构建清单生成、Artifact 上传。
 
+目标不是机械生成 DMG，而是让最终 `.app` 具备当前本地源码已经确认的新功能。每项功能都必须从发布 commit 追踪到配置挂载、直接依赖与 `yarn.lock`、universal 打包闭包、最终安装副本和对应验收证据；只在开发 checkout、缓存或间接依赖中存在的能力不算进入候选包。
+
 ### 2.2 动态增量
 
 找到上次已交付 Mac 构建的 commit/tag，读取到当前 `HEAD` 的真实差异：
@@ -40,7 +42,7 @@ git diff --stat <上次发布提交>..HEAD
 - Mac 平台代码、原生依赖或窗口行为：追加对应 Mac 门禁。
 - sidebar/vendor：重建并核对源码、生成文件、安装副本和 `yarn.lock`。
 - Office/PDF/OCR：核对插件闭包、原生依赖和 OCR 数据。
-- 登录、模型、浏览器、WebSearch、存储迁移：为最终 DMG 的自动与真人验收追加风险项。
+- 登录、模型、浏览器、WebSearch、存储迁移：为最终 DMG 的自动与真人验收追加风险项。时间、时区或其他模型可见运行时上下文改动必须额外覆盖直接问答、基于“今天”的搜索词、新旧会话、重启边界和最终 `.app` 依赖闭包。
 - 仅文档或测试：仍运行适用门禁，但不虚构产品功能变化。
 - 无法归类的运行时变化：暂停打包，先读实现和调用关系并补充门禁。
 
@@ -79,7 +81,7 @@ corepack yarn install --immutable
 corepack yarn workspace dsh-plugin-desktop build:vendor-sidebar
 corepack yarn workspace dsh-plugin-desktop verify:vendor-sidebar
 corepack yarn check
-corepack yarn workspace dsh-plugin-desktop vitest run tests/mac-universal.spec.ts tests/package-mac.spec.ts tests/verify-mac-smoke.spec.ts tests/verify-packaged-runtime.spec.ts tests/electron-runtime.spec.ts tests/profile.spec.ts tests/desktop-plugins.spec.ts tests/sidebar-produced-files.spec.ts tests/window-options.spec.ts tests/mac-installed-acceptance.spec.ts
+corepack yarn workspace dsh-plugin-desktop vitest run tests/mac-universal.spec.ts tests/package.spec.ts tests/package-mac.spec.ts tests/verify-mac-smoke.spec.ts tests/verify-packaged-runtime.spec.ts tests/electron-runtime.spec.ts tests/profile.spec.ts tests/desktop-plugins.spec.ts tests/sidebar-produced-files.spec.ts tests/window-options.spec.ts tests/mac-installed-acceptance.spec.ts tests/ruijie-auth.spec.ts tests/ruijie-login-window.spec.ts tests/time-context-runtime-patch.spec.ts tests/ui-appearance-runtime-patch.spec.ts tests/appearance-compatibility.spec.ts tests/dsh-im-runtime-patch.spec.ts tests/sidebar-shortcuts.spec.ts tests/system-proxy.spec.ts tests/search-recovery.spec.ts tests/search-recovery-presentation.spec.ts
 corepack yarn workspace dsh-community-market vitest run tests/contracts.spec.ts tests/market-install.spec.ts tests/market-settings-persistence.spec.ts
 git ls-files --error-unmatch vendor/dsh-attachment-formats/vendor/tessdata/eng.traineddata.gz
 git ls-files --error-unmatch vendor/dsh-attachment-formats/vendor/tessdata/chi_sim.traineddata.gz
@@ -91,6 +93,14 @@ git diff --check
 Mac runner 上 `file:` 依赖可能因宿主 archive 元数据产生哈希差异。工作流允许一次刷新后必须立即再次执行 `yarn install --immutable`，证明依赖图稳定；不能删除第二次校验，也不能在 Mac runner 重建 Windows 生成的 sidebar bundle。
 
 `verify:profile` 必须保留历史 profile 回归夹具：第三方插件在 profile 中实体化 `@deepseek-ai/cordis`、`dsh-scope`、`dsh-system-prompt` 等框架依赖时，启动应自动改用当前 `.app` 内的唯一框架实例，同时保留插件自身。出现 `duplicate deployment:persona`、旧会话无法打开、模型选择无响应、新建会话或工作区选择无响应，均视为产品/打包阻断问题，不能要求用户删除 `~/.dsh` 规避。
+
+时间上下文门禁必须同时证明：desktop profile 组合后恰好存在一个已启用的 `@deepseek-ai/dsh-time-context` row；desktop deploy root 把它声明为直接生产依赖；packaged-runtime verifier 能从最终 `.app` 的物理运行树解析其 `package.json` export；构建已执行 `patch-dsh-time-context-runtime.mjs`，最终运行文件明确要求相对日期和搜索/工具参数采用权威时间戳，并忽略训练数据或早先消息中的冲突年份。任一缺失都阻断 DMG。真实日期回答和“今天”搜索语义由同目录真人验收指导执行，不能用模拟登录或静态包存在性冒充通过。
+
+内置插件门禁必须同时证明 `dsh-ui-appearance@0.1.4` 与 `@xmanrui/dsh-im@2.0.0` 是 desktop deploy root 的精确生产依赖，组合后分别只有一个已启用的 `ui-appearance`、`im-channels` row，并能从最终 `.app` 物理运行树解析两个包；旧 `dsh-lark-channel` 不得残留。二者必须随 DMG 提供，不能依赖开发机插件缓存或要求员工从市场补装。`verify:licenses` 与 notices 必须覆盖新增闭包；`@tencent-connect/qqbot-connector@1.2.0` 只允许准确包名的业务批准例外并须如实标记为 `UNLICENSED (business-approved exception)`，不得放宽全局许可证白名单或伪造许可证。
+
+全新 profile 启动后，九个 IM 渠道必须全部休眠：不打开浏览器、不弹授权窗/二维码、不连接外部平台、不反复提示凭据。用户只有主动点击侧栏“IM机器人”（位于设置正上方）或进入“设置 → 插件 → IM机器人”、选择渠道并点击添加/接入后，才进入扫码、Token 或应用凭据配置；取消或关闭后不得自动重开。账号/额度位于 IM 上方；“IM机器人”必须与原生“设置”使用相同文字颜色、行高和左边界，机器人与齿轮图标视觉尺寸一致，点击必须直达 IM 配置而非插件市场。外观位于“通用设置”顶部并明确命名为“界面外观（颜色、壁纸与透明度）”，收起状态也要显示“一键恢复默认”；修改多项外观后点击它应一次回到原版且不清除登录、会话或 IM 配置。改变强调色不得改变原版用户消息气泡颜色。各平台凭据不得打入 DMG。搜索及普通工具恢复都属于固定门禁：同一请求的重复可恢复错误只显示一条黄色折叠提示，备用方式成功后继续完成任务；仅整个回合最终失败时显示红色终局错误，原始技术详情仍可追溯。WhatsApp 代理实现必须使用 desktop deploy root 直接声明的 `https-proxy-agent@7.0.6`，最终 `.app` 物理运行树必须可解析该包，不能引用上游压缩 bundle 的临时变量名。主动生成二维码遇到断网、无效代理或服务异常时必须留在 IM 页面并显示可读错误，不得退出或重启 `.app`，也不得显示 `ReferenceError` 或 RPC schema 校验 JSON；代理兼容不能破坏无代理网络或应用启动。
+
+登录窗口门禁还必须覆盖本版平台差异：回调完成页和等待进度使用应用图标的蓝紫渐变；Windows 使用自绘右上角关闭按钮，并由主进程处理真实窗口关闭，不能依赖渲染页 `window.close()`；最终 macOS `.app` 必须保留可用的原生左上角交通灯关闭，不得同时叠加 Windows“×”。两种平台都必须实点后确认窗口消失、本次启动结束且不会立即重弹授权。回调后的账号验证与工作台启动必须分阶段呈现，账号服务请求有界超时；这些行为要进入 `ruijie-auth`、`ruijie-login-window`、`package-mac` 和最终安装副本验收，不能只检查源码字符串。
 
 完成条件：所有命令退出码为 0，工作树只含本轮明确改动，没有旧 bundle、缺失 OCR 数据或未提交生成物。
 
@@ -157,7 +167,7 @@ gh workflow run macos-internal-build.yml --repo WYunS/ruijie-harness --ref main 
 3. 完整代码门禁和 sidebar 连续性测试。
 4. 准备并校验 x86_64、arm64 两套原生依赖。
 5. 生成 universal unsigned DMG。
-6. 挂载 DMG、复制最终 `.app`，运行动态安装后验收。
+6. 挂载 DMG、复制最终 `.app`，运行固定基线与动态增量的安装后验收。固定基线必须包含登录等待窗的 macOS 原生关闭、时间上下文安装闭包、外观与一键恢复、侧栏 IM 入口与默认休眠、可恢复错误降噪；不能只测旧版工作台、文件和浏览器基线。
 7. 上传自动验收矩阵、截图、日志、报告、DMG、SHA-256 和构建清单。
 
 工作流会先上传 `Ruijie-Harness-macOS-candidate-<run-id>`，再执行安装后验收。候选上传必须发生在验收之前：即使后续脚本失败，DMG 仍可复用，不得让一次 UI 定位错误迫使完整重打。自动流程走完后按验收指导第 5 节作两态判定；只有判定“允许进入下一步”才把 candidate 作为待交付候选。稳定命名的 `Ruijie-Harness-<version>-macOS-universal` Artifact 通常在工作流成功时产生；若工作流因低影响例外未产生稳定 Artifact，可交付经哈希确认的 candidate，同时连同完整验收报告说明例外。candidate 是可复用的原始候选，稳定 Artifact 则额外汇集 SHA-256、构建清单和验收证据。

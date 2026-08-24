@@ -34,6 +34,9 @@ describe('Ruijie SSO startup presentation', () => {
     expect(loginWindow).toContain('确认后会直接返回 Harness')
     expect(loginWindow).toContain('正在打开工作台')
     expect(loginWindow).not.toMatch(/accessToken|refreshToken|codex-token|apiKey/u)
+    expect(loginWindow).toContain('#6682ff')
+    expect(loginWindow).toContain('#3d57da')
+    expect(loginWindow).not.toContain('#d71920')
   })
 
   it('uses Windows protection so ordinary application exits retain authorization', () => {
@@ -53,12 +56,31 @@ describe('Ruijie SSO startup presentation', () => {
     expect(loginWindow).toContain('showStarting(): void')
     expect(loginWindow).toContain('认证已完成')
     expect(loginWindow).toContain('正在打开工作台')
-    expect(loginWindow).toContain('首次启动需要加载组件，请再稍候。')
+    expect(loginWindow).toContain('首次启动或组件初始化可能需要更久。')
     expect(loginWindow).toContain('SLOW_START_NOTICE_MS = 8_000')
     expect(loginWindow).not.toContain('hide(): void')
   })
 
-  it('cannot be closed by accident while authorization is still pending', () => {
-    expect(loginWindow).toContain('closable: false')
+  it('lets the user cancel an abandoned browser authorization on every desktop platform', () => {
+    expect(loginWindow).toContain('closable: true')
+    expect(loginWindow).toContain('关闭并退出')
+    expect(loginWindow).toContain("process.platform === 'darwin'")
+    expect(loginWindow).toContain("titleBarStyle: 'hiddenInset'")
+    expect(loginWindow).toContain('trafficLightPosition')
+    expect(loginWindow).toContain('window.close()')
+  })
+
+  it('routes the frameless close control through the native BrowserWindow', () => {
+    expect(loginWindow).toContain("const CANCEL_NAVIGATION_URL = 'ruijie-harness://cancel-authorization/'")
+    expect(loginWindow).toContain("window.location.href='ruijie-harness://cancel-authorization/'")
+    expect(loginWindow).toContain('if (url === CANCEL_NAVIGATION_URL) window.close()')
+  })
+
+  it('separates slow account verification from slow workspace startup', () => {
+    expect(loginWindow).toContain('showVerifying(): void')
+    expect(loginWindow).toContain('正在验证账号')
+    expect(loginWindow).toContain('账号服务响应较慢')
+    expect(loginWindow).toContain('组件初始化可能需要更久')
+    expect(main).toContain("status === 'authorization-processing'")
   })
 })
