@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   buildMacAcceptancePlan,
@@ -31,6 +32,17 @@ describe('installed macOS workbench readiness', () => {
 describe('installed macOS acceptance paths', () => {
   it('checks the settings file at the DSH_HOME root', () => {
     expect(installedSettingsPath('/tmp/isolated-dsh-home')).toBe(join('/tmp/isolated-dsh-home', 'settings.yaml'))
+  })
+
+  it('collapses the right sidebar before opening Settings for language selection', () => {
+    const verifier = readFileSync(new URL('../scripts/verify-mac-installed-app.mjs', import.meta.url), 'utf8')
+    const firstLaunch = verifier.slice(
+      verifier.indexOf('async function exerciseFirstLaunch'),
+      verifier.indexOf('async function verifyRestartedExperience'),
+    )
+    expect(firstLaunch.indexOf('await collapseRightSidebar(page)')).toBeGreaterThanOrEqual(0)
+    expect(firstLaunch.indexOf('await collapseRightSidebar(page)'))
+      .toBeLessThan(firstLaunch.indexOf('await switchLanguageToChinese(page)'))
   })
 })
 

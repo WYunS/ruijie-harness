@@ -270,6 +270,34 @@ async function exerciseSidebar(page) {
   ), 'Files sidebar tab did not reopen')
 }
 
+async function collapseRightSidebar(page) {
+  const result = await page.evaluate(() => {
+    const visible = (element) => {
+      const style = getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      if (style.visibility === 'hidden' || style.display === 'none' || rect.width <= 0 || rect.height <= 0) return false
+      if (rect.right <= 0 || rect.bottom <= 0 || rect.left >= window.innerWidth || rect.top >= window.innerHeight) return false
+      const x = Math.min(window.innerWidth - 1, Math.max(0, rect.left + rect.width / 2))
+      const y = Math.min(window.innerHeight - 1, Math.max(0, rect.top + rect.height / 2))
+      const hit = document.elementFromPoint(x, y)
+      return hit !== null && (hit === element || element.contains(hit))
+    }
+    const controls = [...document.querySelectorAll('button,[role="button"]')]
+    const labels = element => [element.getAttribute('aria-label'), element.getAttribute('title'), element.textContent]
+      .filter(value => value !== null)
+      .map(value => value.trim().toLocaleLowerCase())
+    if (controls.some(element => visible(element) && labels(element).some(label => ['expand sidebar', '展开侧边栏'].includes(label)))) {
+      return 'already-collapsed'
+    }
+    const collapse = controls.find(element => visible(element) && labels(element).some(label => ['collapse sidebar', '折叠侧边栏'].includes(label)))
+    if (!(collapse instanceof HTMLElement)) return 'missing'
+    collapse.click()
+    return 'clicked'
+  })
+  if (result === 'missing') throw new Error('right sidebar could not be collapsed before opening Settings')
+  if (result === 'clicked') await waitForNamed(page, ['Expand sidebar', '展开侧边栏'])
+}
+
 async function openWorkspaceFile(page, absolutePath, filename, previewSelector) {
   await waitUntil(async () => await page.evaluate(path => {
     const element = document.querySelector(`[title="${CSS.escape(path)}"]`)
@@ -363,6 +391,7 @@ async function exerciseFirstLaunch({ browser, page, workspace, evidenceDir, resu
     await activateFilesTab(page)
     await exerciseDocumentViewers(page, workspace)
   }
+  await collapseRightSidebar(page)
   const language = await switchLanguageToChinese(page)
   await screenshot(page, evidenceDir, 'first-launch-exercised')
   return { model, language, ...(resumeRunId === undefined ? {} : { resumedAfterRun: resumeRunId }) }
