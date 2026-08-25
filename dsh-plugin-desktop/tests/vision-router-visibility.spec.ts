@@ -25,10 +25,15 @@ describe('Ruijie Vision Router presentation', () => {
     const packagePath = require.resolve('dsh-vision-router/package.json')
     const clientPath = fileURLToPath(new URL('./lib/client.js', pathToFileURL(packagePath)))
     const probe = [
+      "import{createRequire}from'node:module'",
+      `const require=createRequire(${JSON.stringify(new URL('../package.json', import.meta.url).href)})`,
       "let registration",
-      "globalThis.window={__ModuleLoader__:{load:value=>{registration=value}}}",
+      "globalThis.window={location:{hostname:'localhost'},__ModuleLoader__:{load:value=>{registration=value}}}",
       `await import(${JSON.stringify(`${pathToFileURL(clientPath).href}?registration-probe=1`)})`,
       "if(registration?.id!=='dsh-vision-router')throw new Error('dsh-vision-router loaded without registering via __ModuleLoader__.load')",
+      "const plugin=registration.factory(id=>id==='react'?require('react'):{ImageGallery(){return null}})",
+      "const ctx={settingsScope:{bind:()=>({})},sessions:{},locale:{register:()=>{},bind:()=>key=>key},get:()=>{throw new Error('missing')},effect:()=>{},slots:{inject:()=>{}},on:()=>()=>{}}",
+      "plugin.apply(ctx)",
     ].join(';')
     const result = spawnSync(process.execPath, ['--input-type=module', '-e', probe], { encoding: 'utf8' })
     expect(result.status, result.stderr).toBe(0)
