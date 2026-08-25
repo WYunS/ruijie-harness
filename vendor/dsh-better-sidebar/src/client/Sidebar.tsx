@@ -54,6 +54,7 @@ import { detectNewJob } from './subagent-jobs.ts'
 import { t } from './locales.ts'
 import { api, type SessionScope } from './api.ts'
 import { applyBrowserCommand, parseBrowserCommand } from './browser-command.ts'
+import { observeCenterColumnChanges } from './center-column-observer.ts'
 import css from './sidebar.module.css'
 
 /** How many consecutive reconnect failures stop the agent-terminals push loop
@@ -492,23 +493,20 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
       measureCenter()
     }
     locate()
-    const watcher = new MutationObserver(locate)
     const root = document.getElementById('root')
-    if (root !== null) watcher.observe(root, { childList: true })
+    const stopWatchingCenter = root === null ? undefined : observeCenterColumnChanges(root, locate)
     // The layout push writes --dsh-sidebar-* on <html>. A HMR re-activation
-    // clears those variables on teardown and re-writes them on setup — and
-    // that is also the moment the shell may have re-created the center
-    // column under a REUSED #root child (React swaps nodes in place, so
-    // #root's childList never changes and the watcher above never fires).
-    // Watching <html>'s style attribute catches that re-sync: the push
-    // rewrite re-locates and re-measures, so the bottom panel recovers
-    // instead of staying hidden on a stale {0,0} center rect.
+    // clears those variables on teardown and re-writes them on setup even
+    // when the shell retained the same DOM nodes and there was no child-list
+    // mutation for the subtree watcher above. Watching <html>'s style catches
+    // that re-sync too, so the bottom panel recovers instead of staying
+    // hidden on a stale {0,0} center rect.
     const htmlStyleWatcher = new MutationObserver(locate)
     htmlStyleWatcher.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] })
     return () => {
       disposed = true
       observer?.disconnect()
-      watcher.disconnect()
+      stopWatchingCenter?.()
       htmlStyleWatcher.disconnect()
       centerColRef.current = null
     }

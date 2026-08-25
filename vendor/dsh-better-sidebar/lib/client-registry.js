@@ -7728,6 +7728,32 @@ window.__ModuleLoader__.load({
 			}, { sessionId: command.sessionId });
 		}
 		//#endregion
+		//#region ../../vendor/dsh-better-sidebar/src/client/center-column-observer.ts
+		const CENTER_NODE_SELECTOR = "[data-slot=\"conversation\"], [data-pane=\"conversation\"]";
+		function containsCenterNode(node) {
+			if (node.nodeType !== 1) return false;
+			const element = node;
+			return element.matches(CENTER_NODE_SELECTOR) || element.querySelector(CENTER_NODE_SELECTOR) !== null;
+		}
+		/**
+		* Watch the application root for nested conversation-layout replacement and
+		* ask the sidebar to relocate its center-column anchor. Streaming output also
+		* mutates deep inside this root, so only mutations which add/remove one of the
+		* stable conversation markers trigger the relatively expensive measurement.
+		*/
+		function observeCenterColumnChanges(root, locate) {
+			const watcher = new MutationObserver((records) => {
+				if (records.some((record) => [...record.addedNodes, ...record.removedNodes].some(containsCenterNode))) locate();
+			});
+			watcher.observe(root, {
+				childList: true,
+				subtree: true
+			});
+			return () => {
+				watcher.disconnect();
+			};
+		}
+		//#endregion
 		//#region ../../vendor/dsh-better-sidebar/src/client/Sidebar.tsx
 		/**
 		* The sidebar shell: panels mounted inside the unified panel host — a
@@ -8118,9 +8144,8 @@ window.__ModuleLoader__.load({
 					measureCenter();
 				};
 				locate();
-				const watcher = new MutationObserver(locate);
 				const root = document.getElementById("root");
-				if (root !== null) watcher.observe(root, { childList: true });
+				const stopWatchingCenter = root === null ? void 0 : observeCenterColumnChanges(root, locate);
 				const htmlStyleWatcher = new MutationObserver(locate);
 				htmlStyleWatcher.observe(document.documentElement, {
 					attributes: true,
@@ -8129,7 +8154,7 @@ window.__ModuleLoader__.load({
 				return () => {
 					disposed = true;
 					observer?.disconnect();
-					watcher.disconnect();
+					stopWatchingCenter?.();
 					htmlStyleWatcher.disconnect();
 					centerColRef.current = null;
 				};
