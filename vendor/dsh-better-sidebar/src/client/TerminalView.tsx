@@ -19,10 +19,10 @@
  *   frame schedules a 0-ms close; a bare socket drop gets the host's
  *   reconnect grace.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { Terminal, type ITheme } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
-import { writeClipboard } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Menu, writeClipboard } from '@deepseek-ai/dsh-client-ui-primitives'
 import '@xterm/xterm/css/xterm.css'
 import { t } from './locales.ts'
 import { openWhenSized } from './open-when-sized.ts'
@@ -94,10 +94,12 @@ function xtermTheme(): ITheme {
 export function TerminalView(props: { scope: SessionScope; tabId: string; store: SidebarStore }) {
   const { scope, tabId, store } = props
   const hostRef = useRef<HTMLDivElement>(null)
+  const terminalRef = useRef<Terminal | null>(null)
   const [connected, setConnected] = useState(false)
   const [fatal, setFatal] = useState<string | null>(null)
   const [depsFatal, setDepsFatal] = useState<TerminalDepsInfo | null>(null)
   const [lastUrl, setLastUrl] = useState<string | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; hasSelection: boolean } | null>(null)
   const connectRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
@@ -115,6 +117,7 @@ export function TerminalView(props: { scope: SessionScope; tabId: string; store:
       scrollback: 4000,
       theme: xtermTheme(),
     })
+    terminalRef.current = term
     const fit = new FitAddon()
     term.loadAddon(fit)
     // Re-theme in place when the app's scheme flips (tokens + palette).
@@ -289,9 +292,40 @@ export function TerminalView(props: { scope: SessionScope; tabId: string; store:
       }
       socket?.close()
       term.dispose()
+      if (terminalRef.current === term) terminalRef.current = null
       connectRef.current = null
     }
   }, [scope.sessionId, scope.cwd, tabId, store])
+
+  const openContextMenu = (event: MouseEvent<HTMLDivElement>): void => {
+    event.preventDefault()
+    event.stopPropagation()
+    const term = terminalRef.current
+    setContextMenu({ x: event.clientX, y: event.clientY, hasSelection: term?.hasSelection() ?? false })
+  }
+
+  const selectContextAction = (id: string): void => {
+    const term = terminalRef.current
+    setContextMenu(null)
+    if (term === null) return
+    if (id === 'copy') {
+      const selection = term.getSelection()
+      if (selection !== '') void writeClipboard(selection)
+      term.focus()
+      return
+    }
+    if (id === 'paste') {
+      void navigator.clipboard?.readText().then((text) => {
+        if (text !== '') term.paste(text)
+        term.focus()
+      }).catch(() => { term.focus() })
+      return
+    }
+    if (id === 'select-all') {
+      term.selectAll()
+      term.focus()
+    }
+  }
 
   return (
     <div className={css.terminalWrap}>
@@ -312,7 +346,21 @@ export function TerminalView(props: { scope: SessionScope; tabId: string; store:
         </div>
       )}
       {fatal === null && depsFatal === null && !connected && <div className={css.terminalBanner}>{t('disconnected')}</div>}
-      <div ref={hostRef} className={css.terminal} />
+      <div ref={hostRef} className={css.terminal} onContextMenu={openContextMenu} />
+      <Menu
+        open={contextMenu !== null}
+        onClose={() => { setContextMenu(null) }}
+        items={[
+          { id: 'copy', label: t('copy'), disabled: contextMenu?.hasSelection !== true },
+          { id: 'paste', label: t('paste') },
+          { id: 'select-all', label: t('selectAll') },
+        ]}
+        onSelect={selectContextAction}
+        portal
+        align="start"
+        getAnchorRect={() => (contextMenu === null ? null : new DOMRect(contextMenu.x, contextMenu.y, 0, 0))}
+        anchor={<span />}
+      />
     </div>
   )
 }

@@ -7390,6 +7390,8 @@ globalThis.__dshChunks__["terminal"] = (require) => {
 		parent: "上级目录",
 		copied: "已复制",
 		copy: "复制",
+		paste: "粘贴",
+		selectAll: "全选",
 		newFile: "新文件",
 		openEditor: "打开编辑器",
 		gitDetail: "查看变更详情",
@@ -7645,6 +7647,8 @@ globalThis.__dshChunks__["terminal"] = (require) => {
 		parent: "Parent directory",
 		copied: "Copied",
 		copy: "Copy",
+		paste: "Paste",
+		selectAll: "Select all",
 		newFile: "New file",
 		openEditor: "Open editor",
 		gitDetail: "View change details",
@@ -8401,10 +8405,12 @@ globalThis.__dshChunks__["terminal"] = (require) => {
 	function TerminalView(props) {
 		const { scope, tabId, store } = props;
 		const hostRef = (0, react.useRef)(null);
+		const terminalRef = (0, react.useRef)(null);
 		const [connected, setConnected] = (0, react.useState)(false);
 		const [fatal, setFatal] = (0, react.useState)(null);
 		const [depsFatal, setDepsFatal] = (0, react.useState)(null);
 		const [lastUrl, setLastUrl] = (0, react.useState)(null);
+		const [contextMenu, setContextMenu] = (0, react.useState)(null);
 		const connectRef = (0, react.useRef)(null);
 		(0, react.useEffect)(() => {
 			const host = hostRef.current;
@@ -8419,6 +8425,7 @@ globalThis.__dshChunks__["terminal"] = (require) => {
 				scrollback: 4e3,
 				theme: xtermTheme()
 			});
+			terminalRef.current = term;
 			const fit = new import_addon_fit.FitAddon();
 			term.loadAddon(fit);
 			const applyTheme = () => {
@@ -8540,6 +8547,7 @@ globalThis.__dshChunks__["terminal"] = (require) => {
 				if (!store.tabOpen(scope.sessionId, tabId) && socket !== null && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "close" }));
 				socket?.close();
 				term.dispose();
+				if (terminalRef.current === term) terminalRef.current = null;
 				connectRef.current = null;
 			};
 		}, [
@@ -8548,6 +8556,40 @@ globalThis.__dshChunks__["terminal"] = (require) => {
 			tabId,
 			store
 		]);
+		const openContextMenu = (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			const term = terminalRef.current;
+			setContextMenu({
+				x: event.clientX,
+				y: event.clientY,
+				hasSelection: term?.hasSelection() ?? false
+			});
+		};
+		const selectContextAction = (id) => {
+			const term = terminalRef.current;
+			setContextMenu(null);
+			if (term === null) return;
+			if (id === "copy") {
+				const selection = term.getSelection();
+				if (selection !== "") (0, _deepseek_ai_dsh_client_ui_primitives.writeClipboard)(selection);
+				term.focus();
+				return;
+			}
+			if (id === "paste") {
+				navigator.clipboard?.readText().then((text) => {
+					if (text !== "") term.paste(text);
+					term.focus();
+				}).catch(() => {
+					term.focus();
+				});
+				return;
+			}
+			if (id === "select-all") {
+				term.selectAll();
+				term.focus();
+			}
+		};
 		return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 			className: sidebar_module_css_default.terminalWrap,
 			children: [
@@ -8585,7 +8627,34 @@ globalThis.__dshChunks__["terminal"] = (require) => {
 				}),
 				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 					ref: hostRef,
-					className: sidebar_module_css_default.terminal
+					className: sidebar_module_css_default.terminal,
+					onContextMenu: openContextMenu
+				}),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
+					open: contextMenu !== null,
+					onClose: () => {
+						setContextMenu(null);
+					},
+					items: [
+						{
+							id: "copy",
+							label: t("copy"),
+							disabled: contextMenu?.hasSelection !== true
+						},
+						{
+							id: "paste",
+							label: t("paste")
+						},
+						{
+							id: "select-all",
+							label: t("selectAll")
+						}
+					],
+					onSelect: selectContextAction,
+					portal: true,
+					align: "start",
+					getAnchorRect: () => contextMenu === null ? null : new DOMRect(contextMenu.x, contextMenu.y, 0, 0),
+					anchor: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {})
 				})
 			]
 		});
