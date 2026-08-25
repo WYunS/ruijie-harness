@@ -1,10 +1,34 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { findExactButton } from '../src/client/sidebar-shortcuts.tsx'
 
 const source = readFileSync(new URL('../src/client/sidebar-shortcuts.tsx', import.meta.url), 'utf8')
 const accountSource = readFileSync(new URL('../src/client/ruijie-account-card.tsx', import.meta.url), 'utf8')
 
 describe('sidebar shortcuts', () => {
+  it('finds an icon-only collapsed Settings button by its accessible label', () => {
+    const settings = {
+      textContent: '',
+      getAttribute: (name: string) => name === 'aria-label' ? '设置' : null,
+    } as HTMLButtonElement
+    const root = {
+      querySelectorAll: () => [settings],
+    } as unknown as ParentNode
+
+    expect(findExactButton('设置', root)).toBe(settings)
+  })
+
+  it('finds the collapsed Settings button through its stable settings slot', () => {
+    const settings = { textContent: '', getAttribute: () => null } as unknown as HTMLButtonElement
+    const settingsSlot = { closest: () => settings }
+    const root = {
+      querySelectorAll: () => [],
+      querySelector: (selector: string) => selector === '[data-slot="settings.trigger"]' ? settingsSlot : null,
+    } as unknown as ParentNode
+
+    expect(findExactButton('设置', root)).toBe(settings)
+  })
+
   it('places one IM entry after the account and immediately above Settings', () => {
     expect(accountSource).toContain('className="ruijieImShortcut"')
     expect(accountSource).toContain('onClick={openImSettings}')

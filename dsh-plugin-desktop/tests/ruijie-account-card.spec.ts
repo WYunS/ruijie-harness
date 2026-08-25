@@ -35,6 +35,8 @@ describe('Ruijie account sidebar presentation', () => {
     expect(source).toContain('<RobotMark />')
     expect(source).toMatch(/\.ruijieAccountSeat\s*\{[^}]*width:\s*36px/su)
     expect(source).toMatch(/\.ruijieAccountSeat\[data-wide\]\s*\{[^}]*width:\s*100%/su)
+    expect(source).toMatch(/\.ruijieImShortcut:not\(\[data-wide\]\)\s*\{[^}]*transform:\s*translate\(-2px, 2px\)/su)
+    expect(source).toMatch(/\.ruijieAccountCollapsedLabel\s*\{[^}]*color:\s*#fff;[^}]*background:\s*#4d6bfe/su)
   })
 
   it('removes the clipped community-market sliver from the sidebar footer', () => {

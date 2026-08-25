@@ -220,7 +220,7 @@ const ACCOUNT_STYLES = `
 .ruijieAccountTrigger[data-wide] { width: 100%; height: 52px; gap: 9px; padding: 7px 9px; border-color: var(--dsw-alias-border-l2); background: color-mix(in srgb, #4d6bfe 5%, var(--dsw-specific-sidebar-fill)); }
 .ruijieAccountTrigger[data-wide]:hover { border-color: color-mix(in srgb, #4d6bfe 35%, var(--dsw-alias-border-l2)); background: color-mix(in srgb, #4d6bfe 9%, var(--dsw-specific-sidebar-fill)); }
 .ruijieAccountMark { width: 32px; height: 32px; border-radius: 9px; flex: none; display: grid; place-items: center; color: #fff; background: #4d6bfe; }
-.ruijieAccountCollapsedLabel { width: 32px; height: 32px; border-radius: 50%; flex: none; display: grid; place-items: center; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); font-size: 15px; font-weight: 650; }
+.ruijieAccountCollapsedLabel { width: 32px; height: 32px; border-radius: 9px; flex: none; display: grid; place-items: center; color: #fff; background: #4d6bfe; font-size: 15px; font-weight: 650; }
 .ruijieMarkInitials { display: block; color: #fff; font-family: "Segoe UI", Arial, sans-serif; font-weight: 800; font-style: italic; letter-spacing: -1px; line-height: 1; transform: translateX(-1px); }
 .ruijieAccountIdentity { min-width: 0; flex: 1; display: flex; flex-direction: column; line-height: 1.25; }
 .ruijieAccountIdentity strong, .ruijieAccountIdentity small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -233,7 +233,7 @@ const ACCOUNT_STYLES = `
 .ruijieImShortcut { box-sizing: border-box; width: calc(100% + 9px); height: 42px; margin: 0 -2px; padding: 0 10px 0 8px; border: 1px solid transparent; border-radius: 12px; color: var(--dsw-alias-label-primary); background: transparent; display: flex; align-items: center; gap: 8px; cursor: pointer; font: inherit; font-size: 14px; line-height: 22px; text-align: left; transform: translateX(-5px); }
 .ruijieImShortcut > span { width: 16px; height: 16px; flex: none; display: grid; place-items: center; }
 .ruijieImShortcut > strong { min-width: 0; font: inherit; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ruijieImShortcut:not([data-wide]) { width: 36px; height: 36px; margin: 0; padding: 0; border-radius: 50%; justify-content: center; gap: 0; }
+.ruijieImShortcut:not([data-wide]) { width: 36px; height: 36px; margin: 0; padding: 0; border-radius: 50%; justify-content: center; gap: 0; transform: translate(-2px, 2px); }
 .ruijieImShortcut:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
 .ruijieImShortcut:focus-visible { outline: 2px solid #4d6bfe; outline-offset: 1px; }
 .ruijieAccountPopover { position: fixed; z-index: 1200; left: 68px; bottom: 72px; box-sizing: border-box; width: 286px; padding: 16px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 16px; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-base); box-shadow: 0 18px 50px rgba(15, 24, 48, .18); }
