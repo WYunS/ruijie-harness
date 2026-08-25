@@ -93,7 +93,7 @@ bash -n scripts/install-macos.sh
 
 `dsh_im_return_file` 成功只代表文件已登记给 IM，不天然代表桌面端已把它识别为本轮产物。最终 `@xmanrui/dsh-im/lib/index.js` 必须经过 `scripts/patch-dsh-im-runtime.mjs`，使该工具的 `presentCall` 返回 generic edit card 和原始文件 `locations`；否则会出现磁盘上已有 PDF、工具提示成功，但“本次产出”缺失且最终文件名不可点击的回归。上面的 `tests/dsh-im-runtime-patch.spec.ts` 是打包门禁，不能从 Mac 专项命令中删除。
 
-候选 `.app` 的动态验收必须让真实模型通过 Python 或终端生成一个中文文件名 PDF，再调用 `dsh_im_return_file` 交付。最终回复正文中的 PDF 引用和“本次产出”条目必须同时可点击并能在右侧栏打开；若共享技能输出 `:codex-file-citation{...}`，渲染兼容补丁必须把它转换成 DSH 原生的行内代码文件引用，页面不得显示指令原文。磁盘存在、聊天正文只出现普通文件名或 `Registered ... for IM delivery` 均不能单独作为证据。
+候选 `.app` 的动态验收必须让真实模型通过 Python 或终端生成一个中文文件名 PDF，再调用 `dsh_im_return_file` 交付。最终回复正文中的 PDF 引用和“本次产出”条目必须同时可点击并能在右侧栏打开；正文使用绝对路径、唯一文件名或相对子路径时都要验证，相对子路径与绝对产物路径只允许唯一后缀匹配，歧义时不得打开错误文件。若共享技能输出 `:codex-file-citation{...}`，渲染兼容补丁必须把它转换成 DSH 原生的行内代码文件引用，页面不得显示指令原文。磁盘存在、聊天正文只出现普通文件名或 `Registered ... for IM delivery` 均不能单独作为证据。
 
 若有意修改 `vendor/dsh-better-sidebar/src`，先审查生成后的 `lib`，再执行一次 `corepack yarn install` 更新 file dependency 哈希和 `yarn.lock`，随后重新运行 immutable 安装、构建和验证。源码、生成后的 `lib`、安装副本和锁文件必须一致。
 
