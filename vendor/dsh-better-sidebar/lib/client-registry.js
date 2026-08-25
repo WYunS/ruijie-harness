@@ -2824,8 +2824,8 @@ window.__ModuleLoader__.load({
 		* session's working directory. Levels load on expansion (one API call per
 		* directory), directories sort first, hidden entries render dimmed. The
 		* expansion set lives in the per-session state (owned by the caller); the
-		* caller also owns the refresh affordance — a `refreshTick` bump wipes the
-		* level cache so the visible set reloads.
+		* caller also owns the refresh affordance — a `refreshTick` bump reloads the
+		* visible levels in the background while keeping their current rows mounted.
 		*
 		* Row actions: hovering a row reveals an @-reference button on the far
 		* right (appends `@<relative path>` to the composer draft), and right-click
@@ -2858,9 +2858,10 @@ window.__ModuleLoader__.load({
 				};
 				setData(dataRef.current);
 			}, []);
-			const loadDir = (0, react.useCallback)((dir) => {
-				if (dataRef.current[dir] !== void 0) return;
-				storeLevel(dir, {});
+			const loadDir = (0, react.useCallback)((dir, force = false) => {
+				const current = dataRef.current[dir];
+				if (!force && current !== void 0) return;
+				if (current === void 0) storeLevel(dir, {});
 				api.fsTree({
 					sessionId,
 					cwd
@@ -2878,9 +2879,16 @@ window.__ModuleLoader__.load({
 			(0, react.useEffect)(() => {
 				if (lastTick.current === refreshTick) return;
 				lastTick.current = refreshTick;
-				dataRef.current = {};
-				setData({});
-			}, [refreshTick]);
+				const root = cwd;
+				if (root === void 0) return;
+				loadDir(root, true);
+				for (const dir of expanded) loadDir(dir, true);
+			}, [
+				cwd,
+				expanded,
+				refreshTick,
+				loadDir
+			]);
 			(0, react.useEffect)(() => {
 				const root = cwd;
 				if (root === void 0) return;
@@ -2889,7 +2897,6 @@ window.__ModuleLoader__.load({
 			}, [
 				cwd,
 				expanded,
-				refreshTick,
 				loadDir
 			]);
 			/** Copy `text`; on success flip the row's copied label for a moment. */

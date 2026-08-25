@@ -4,8 +4,8 @@
  * session's working directory. Levels load on expansion (one API call per
  * directory), directories sort first, hidden entries render dimmed. The
  * expansion set lives in the per-session state (owned by the caller); the
- * caller also owns the refresh affordance — a `refreshTick` bump wipes the
- * level cache so the visible set reloads.
+ * caller also owns the refresh affordance — a `refreshTick` bump reloads the
+ * visible levels in the background while keeping their current rows mounted.
  *
  * Row actions: hovering a row reveals an @-reference button on the far
  * right (appends `@<relative path>` to the composer draft), and right-click
@@ -53,7 +53,7 @@ export function FileTree(props: {
   onOpenFileSide?: (path: string) => void
   /** Insert `@<relative path>` into the composer draft. */
   onReferenceFile: (path: string) => void
-  /** Bump to wipe the level cache and reload the visible set. */
+  /** Bump to refresh the visible set without clearing rendered rows. */
   refreshTick: number
 }) {
   const { sessionId, cwd, expanded, onToggle, onOpenFile, onOpenFileNewTab, onOpenFileSide, onReferenceFile, refreshTick } = props
@@ -69,9 +69,13 @@ export function FileTree(props: {
     setData(dataRef.current)
   }, [])
 
-  const loadDir = useCallback((dir: string) => {
-    if (dataRef.current[dir] !== undefined) return
-    storeLevel(dir, {})
+  const loadDir = useCallback((dir: string, force = false) => {
+    const current = dataRef.current[dir]
+    if (!force && current !== undefined) return
+    // Only a directory's first load needs an empty loading state. Refreshes
+    // keep the previous entries mounted until the replacement arrives so the
+    // row mount animation cannot flash the whole tree every two seconds.
+    if (current === undefined) storeLevel(dir, {})
     api.fsTree({ sessionId, cwd }, dir).then((listing) => {
       storeLevel(dir, { entries: listing.entries })
     }).catch((error: unknown) => {
@@ -79,24 +83,26 @@ export function FileTree(props: {
     })
   }, [sessionId, cwd, storeLevel])
 
-  // The caller's refresh tick wipes the cache (declared BEFORE the load
-  // effect so the reload below sees the empty cache).
+  // Refresh only the visible levels. Existing rows remain available while
+  // these requests are in flight and React preserves stable keyed rows.
   const lastTick = useRef(refreshTick)
   useEffect(() => {
     if (lastTick.current === refreshTick) return
     lastTick.current = refreshTick
-    dataRef.current = {}
-    setData({})
-  }, [refreshTick])
+    const root = cwd
+    if (root === undefined) return
+    loadDir(root, true)
+    for (const dir of expanded) loadDir(dir, true)
+  }, [cwd, expanded, refreshTick, loadDir])
 
   useEffect(() => {
-    // Load the visible set; already-loaded levels (kept in the cache) are
-    // not refetched. Only the refresh tick wipes the cache.
+    // Load newly visible levels; already-loaded levels stay cached until the
+    // independent refresh effect replaces them.
     const root = cwd
     if (root === undefined) return
     loadDir(root)
     for (const dir of expanded) loadDir(dir)
-  }, [cwd, expanded, refreshTick, loadDir])
+  }, [cwd, expanded, loadDir])
 
   /** Copy `text`; on success flip the row's copied label for a moment. */
   const copyPath = useCallback((text: string, path: string): void => {

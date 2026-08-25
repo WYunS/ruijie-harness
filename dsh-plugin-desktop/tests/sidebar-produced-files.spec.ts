@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -89,6 +90,17 @@ describe('better sidebar produced-file integration', () => {
     vi.advanceTimersByTime(100)
     expect(refresh).toHaveBeenCalledTimes(3)
     expect(listeners.has('focus')).toBe(false)
+  })
+
+  it('refreshes visible directories without clearing rendered rows first', () => {
+    const source = readFileSync(
+      new URL('../../vendor/dsh-better-sidebar/src/client/FileTree.tsx', import.meta.url),
+      'utf8',
+    )
+
+    expect(source).not.toContain('dataRef.current = {}')
+    expect(source).not.toContain('setData({})')
+    expect(source).toContain('loadDir(root, true)')
   })
 
   it('publishes verified shell-created files with edit locations', async () => {
