@@ -1,43 +1,32 @@
 import { describe, expect, it } from 'vitest'
 import {
   SEARCH_RECOVERY_PROMPT,
-  classifySearchFailureRows,
+  shouldHideIntermediateFailure,
 } from '../src/client/search-recovery-presentation.ts'
 
-describe('search recovery presentation', () => {
-  it('keeps one subdued summary for repeated recoverable failures in a user turn', () => {
-    expect(classifySearchFailureRows([
-      { kind: 'user' },
-      { kind: 'assistant' },
-      { kind: 'tool-call', toolName: 'web_search', state: 'error' },
-      { kind: 'assistant' },
-      { kind: 'tool-call', toolName: 'browser_search', state: 'error' },
-      { kind: 'tool-call', toolName: 'web_search', state: 'error' },
-      { kind: 'tool-call', toolName: 'browser_search', state: 'ok' },
-    ])).toEqual(['summary-recovered', 'hidden-duplicate', 'hidden-duplicate'])
+describe('quiet intermediate failure presentation', () => {
+  it('hides every failed tool row from the main conversation immediately', () => {
+    expect(shouldHideIntermediateFailure({ insideChatFlow: true, kind: 'tool-call', state: 'error' }))
+      .toBe(true)
+    expect(shouldHideIntermediateFailure({ insideChatFlow: true, kind: 'tool-call', state: 'running' }))
+      .toBe(false)
   })
 
-  it('starts a fresh group after the next user message', () => {
-    expect(classifySearchFailureRows([
-      { kind: 'user' },
-      { kind: 'tool-call', toolName: 'web_search', state: 'error' },
-      { kind: 'user' },
-      { kind: 'tool-call', toolName: 'web_search', state: 'error' },
-    ])).toEqual(['summary-recovering', 'summary-recovering'])
+  it('hides stopped tool rows but leaves final non-tool errors visible', () => {
+    expect(shouldHideIntermediateFailure({ insideChatFlow: true, kind: 'tool-call', state: 'stopped' }))
+      .toBe(true)
+    expect(shouldHideIntermediateFailure({ insideChatFlow: true, kind: 'turn-error', state: 'error' }))
+      .toBe(false)
   })
 
-  it('subdues a failed shell step after a later fallback tool succeeds', () => {
-    expect(classifySearchFailureRows([
-      { kind: 'user' },
-      { kind: 'tool-call', toolName: 'Pwsh', state: 'error' },
-      { kind: 'assistant' },
-      { kind: 'tool-call', toolName: 'Pwsh', state: 'ok' },
-    ])).toEqual(['summary-recovered'])
+  it('does not alter error rows outside the conversation flow such as the trace view', () => {
+    expect(shouldHideIntermediateFailure({ insideChatFlow: false, kind: 'tool-call', state: 'error' }))
+      .toBe(false)
   })
 
   it('teaches the agent to switch methods and continue instead of retrying forever', () => {
-    expect(SEARCH_RECOVERY_PROMPT).toContain('不要用相同参数重复调用同一个失败的搜索工具')
-    expect(SEARCH_RECOVERY_PROMPT).toContain('切换到不同的可用搜索或浏览工具')
+    expect(SEARCH_RECOVERY_PROMPT).toContain('不要用相同参数重复调用同一个失败的工具')
+    expect(SEARCH_RECOVERY_PROMPT).toContain('切换到不同的可用工具、命令或实现路径')
     expect(SEARCH_RECOVERY_PROMPT).toContain('继续推进并完成用户任务')
   })
 })

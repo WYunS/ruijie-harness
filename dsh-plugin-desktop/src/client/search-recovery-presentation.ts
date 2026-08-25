@@ -2,49 +2,24 @@ import { SEARCH_RECOVERY_PROMPT } from '../search-recovery-policy.ts'
 
 export { SEARCH_RECOVERY_PROMPT }
 
-export interface SearchFlowRecord {
+export interface IntermediateFailureCandidate {
+  insideChatFlow: boolean
   kind: string
-  toolName?: string
-  state?: string
+  state: string
 }
-
-export type SearchFailurePresentation =
-  | 'summary-recovering'
-  | 'summary-recovered'
-  | 'hidden-duplicate'
 
 /**
- * Classify failed tool rows without hiding the underlying diagnostic data.
- * One user request owns at most one visible recoverable summary; any later
- * successful tool step proves that the agent recovered and kept progressing.
+ * Keep operational failures out of the main conversation while preserving
+ * Harness's dedicated turn-error node for a task that ultimately fails.
  */
-export function classifySearchFailureRows(
-  records: readonly SearchFlowRecord[],
-): SearchFailurePresentation[] {
-  const result: SearchFailurePresentation[] = []
-  let groupStart = 0
-  while (groupStart < records.length) {
-    let groupEnd = groupStart + 1
-    while (groupEnd < records.length && records[groupEnd]?.kind !== 'user') groupEnd += 1
-    const group = records.slice(groupStart, groupEnd)
-    const failureIndexes: number[] = []
-    let recovered = false
-    for (const [index, record] of group.entries()) {
-      if (record.kind !== 'tool-call' || record.toolName === undefined) continue
-      if (record.state === 'error') failureIndexes.push(index)
-      if (record.state === 'ok' && failureIndexes.length > 0) recovered = true
-    }
-    for (const [index] of failureIndexes.entries()) {
-      result.push(index === 0
-        ? (recovered ? 'summary-recovered' : 'summary-recovering')
-        : 'hidden-duplicate')
-    }
-    groupStart = groupEnd
-  }
-  return result
+export function shouldHideIntermediateFailure(candidate: IntermediateFailureCandidate): boolean {
+  return candidate.insideChatFlow
+    && candidate.kind === 'tool-call'
+    && (candidate.state === 'error' || candidate.state === 'stopped')
 }
 
-const STYLE_ID = 'dsh-desktop-search-recovery-style'
+const STYLE_ID = 'dsh-desktop-intermediate-failure-style'
+const FAILURE_ATTRIBUTE = 'data-dsh-intermediate-failure'
 
 function installStyles(documentRoot: Document): () => void {
   const existing = documentRoot.getElementById(STYLE_ID)
@@ -52,25 +27,8 @@ function installStyles(documentRoot: Document): () => void {
   const style = documentRoot.createElement('style')
   style.id = STYLE_ID
   style.textContent = `
-    [data-dsh-search-recovery="recovering"],
-    [data-dsh-search-recovery="recovered"] {
-      --dsw-alias-state-error-primary: var(--dsw-alias-state-warn-primary);
-    }
-    [data-dsh-search-recovery="recovering"]::before,
-    [data-dsh-search-recovery="recovered"]::before {
-      display: block;
-      margin: 2px 0 2px 22px;
-      color: var(--dsw-alias-state-warn-primary);
-      font-size: 12px;
-      line-height: 18px;
-    }
-    [data-dsh-search-recovery="recovering"]::before {
-      content: "当前步骤未成功，智能体正在切换备用方式";
-    }
-    [data-dsh-search-recovery="recovered"]::before {
-      content: "一个步骤未成功，已自动切换备用方式继续完成任务";
-    }
-    [data-dsh-search-recovery="duplicate"] {
+    [data-chat-flow]
+    [data-chat-flow-kind="tool-call"][${FAILURE_ATTRIBUTE}="hidden"] {
       display: none !important;
     }
   `
@@ -78,49 +36,47 @@ function installStyles(documentRoot: Document): () => void {
   return () => { style.remove() }
 }
 
-/** Reconcile upstream tool rows into one subdued recovery summary per prompt. */
+/**
+ * Hide failed or stopped Tool rows only in the Chat view. The Trace view does
+ * not live under data-chat-flow and retains the complete diagnostic record.
+ * A terminal turn failure is a separate turn-error node, so it stays visible.
+ */
 export function reconcileSearchFailureRows(documentRoot: Document): void {
-  const flowRows = [...documentRoot.querySelectorAll<HTMLElement>('[data-chat-flow-kind]')]
-  const records: SearchFlowRecord[] = []
-  const failures: HTMLElement[] = []
+  const flowRows = documentRoot.querySelectorAll<HTMLElement>(
+    '[data-chat-flow] [data-chat-flow-kind="tool-call"]',
+  )
+  const rowsToHide = new Set<HTMLElement>()
   for (const flowRow of flowRows) {
-    const kind = flowRow.dataset.chatFlowKind ?? ''
-    const tool = flowRow.querySelector<HTMLElement>('[data-tool]')
-    if (kind === 'tool-call' && tool !== null) {
-      const toolName = tool.dataset.tool ?? ''
-      const state = tool.dataset.state ?? ''
-      records.push({ kind: 'tool-call', toolName, state })
-      if (state === 'error') failures.push(tool)
-    } else {
-      records.push({ kind })
+    const failedState = flowRow.querySelector<HTMLElement>(
+      '[data-tool][data-state="error"], [data-tool][data-state="stopped"], '
+      + '[data-subcalls] [data-state="error"], [data-subcalls] [data-state="stopped"]',
+    )?.dataset.state ?? ''
+    if (shouldHideIntermediateFailure({
+      insideChatFlow: true,
+      kind: flowRow.dataset.chatFlowKind ?? '',
+      state: failedState,
+    })) rowsToHide.add(flowRow)
+  }
+
+  const previouslyHidden = documentRoot.querySelectorAll<HTMLElement>(
+    `[data-chat-flow] [${FAILURE_ATTRIBUTE}]`,
+  )
+  for (const row of previouslyHidden) {
+    if (rowsToHide.has(row)) continue
+    row.removeAttribute(FAILURE_ATTRIBUTE)
+    row.removeAttribute('aria-hidden')
+  }
+  for (const row of rowsToHide) {
+    if (row.getAttribute(FAILURE_ATTRIBUTE) !== 'hidden') {
+      row.setAttribute(FAILURE_ATTRIBUTE, 'hidden')
     }
-  }
-  const presentations = classifySearchFailureRows(records)
-  const desired = new Map<HTMLElement, string>()
-  for (const [index, tool] of failures.entries()) {
-    const presentation = presentations[index]
-    if (presentation === undefined) continue
-    desired.set(tool, presentation === 'hidden-duplicate'
-      ? 'duplicate'
-      : presentation === 'summary-recovered' ? 'recovered' : 'recovering')
-  }
-  for (const tool of documentRoot.querySelectorAll<HTMLElement>('[data-dsh-search-recovery]')) {
-    if (desired.has(tool)) continue
-    delete tool.dataset.dshSearchRecovery
-    tool.removeAttribute('aria-label')
-  }
-  for (const [tool, presentation] of desired) {
-    if (tool.dataset.dshSearchRecovery !== presentation) {
-      tool.dataset.dshSearchRecovery = presentation
+    if (row.getAttribute('aria-hidden') !== 'true') {
+      row.setAttribute('aria-hidden', 'true')
     }
-    const label = presentation === 'recovered'
-      ? '一个步骤未成功，已自动切换备用方式继续完成任务；展开可查看技术详情'
-      : '当前步骤未成功，智能体正在切换备用方式；展开可查看技术详情'
-    if (tool.getAttribute('aria-label') !== label) tool.setAttribute('aria-label', label)
   }
 }
 
-/** Install the presentation reconciler without replacing upstream result cards. */
+/** Install quiet intermediate-failure presentation without changing stored events. */
 export function installSearchRecoveryPresentation(documentRoot: Document = document): () => void {
   const removeStyles = installStyles(documentRoot)
   let queued = false

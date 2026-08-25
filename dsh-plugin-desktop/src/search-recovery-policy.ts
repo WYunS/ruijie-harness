@@ -1,8 +1,9 @@
-/** Model-facing policy for recoverable search failures in the desktop product. */
-export const SEARCH_RECOVERY_PROMPT = `## 搜索失败恢复
+/** Model-facing policy for recoverable tool failures in the desktop product. */
+export const SEARCH_RECOVERY_PROMPT = `## 工具失败恢复
 
-搜索或网页读取工具失败通常是可恢复的中间状态，不代表用户任务已经失败。
-- 不要用相同参数重复调用同一个失败的搜索工具。
-- 立即切换到不同的可用搜索或浏览工具；若仍不可用，改用已取得的信息继续推理。
+单次工具失败通常是可恢复的中间状态，不代表用户任务已经失败。
+- 用户要求打开浏览器、在浏览器中搜索或展示可见搜索结果时，优先使用 browser_search；该工具成功后不要再为同一请求补调其他搜索工具。
+- 不要用相同参数重复调用同一个失败的工具。
+- 立即切换到不同的可用工具、命令或实现路径；搜索失败时切换搜索或浏览方式，仍不可用则改用已取得的信息继续推理。
 - 只要存在安全可行的替代路径，就继续推进并完成用户任务。
 - 只有所有合理替代路径都已失败、确实无法完成时，才在最终答复中简洁说明限制。`

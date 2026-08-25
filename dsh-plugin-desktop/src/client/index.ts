@@ -61,7 +61,7 @@ export function apply(ctx: ClientContext): void {
   )
   ctx.effect(
     () => installSearchRecoveryPresentation(),
-    'dsh-plugin-desktop: recoverable search failure presentation',
+    'dsh-plugin-desktop: quiet intermediate failure presentation',
   )
   if (environment.platform === 'win32') {
     ctx.effect(
