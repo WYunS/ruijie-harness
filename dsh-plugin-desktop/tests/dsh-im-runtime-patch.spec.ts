@@ -28,4 +28,14 @@ describe('DSH-IM packaged runtime compatibility', () => {
     expect(manifest.scripts.build).toMatch(/^node scripts\/patch-dsh-im-runtime\.mjs &&/)
     expect(manifest.dependencies['https-proxy-agent']).toBe('7.0.6')
   })
+
+  it('reports returned IM files as clickable produced files', () => {
+    const packagePath = require.resolve('@xmanrui/dsh-im/package.json')
+    const runtimePath = new URL('./lib/index.js', `file:///${packagePath.replaceAll('\\', '/')}`)
+    const source = readFileSync(runtimePath, 'utf8')
+
+    expect(source).toContain(
+      'presentCall:A=>({card:"generic",kind:"edit",title:"Deliver file",locations:[{path:A.path}]})',
+    )
+  })
 })

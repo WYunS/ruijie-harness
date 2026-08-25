@@ -30,6 +30,12 @@ source = source.includes(brokenSocket)
   : replaceOnce(source, originalSocket, fixedSocket, 'WhatsApp socket construction')
 source = replaceOnce(
   source,
+  'required:["path"]},output:{schema:',
+  'required:["path"]},presentCall:A=>({card:"generic",kind:"edit",title:"Deliver file",locations:[{path:A.path}]}),output:{schema:',
+  'return-file produced-file presentation',
+)
+source = replaceOnce(
+  source,
   '{code:"whatsapp-operation-failed",message:"WhatsApp \\u64CD\\u4F5C\\u5931\\u8D25\\uFF0C\\u8BF7\\u7A0D\\u540E\\u91CD\\u8BD5\\u3002"}',
   '{code:"internal",message:"WhatsApp \\u65E0\\u6CD5\\u8FDE\\u63A5\\uFF0C\\u8BF7\\u68C0\\u67E5\\u7F51\\u7EDC\\u6216\\u4EE3\\u7406\\u540E\\u91CD\\u8BD5\\u3002",details:{}}',
   'WhatsApp RPC failure envelope',
