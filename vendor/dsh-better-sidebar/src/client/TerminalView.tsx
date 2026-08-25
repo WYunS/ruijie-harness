@@ -96,6 +96,7 @@ export function TerminalView(props: { scope: SessionScope; tabId: string; store:
   const hostRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const [connected, setConnected] = useState(false)
+  const [everConnected, setEverConnected] = useState(false)
   const [fatal, setFatal] = useState<string | null>(null)
   const [depsFatal, setDepsFatal] = useState<TerminalDepsInfo | null>(null)
   const [lastUrl, setLastUrl] = useState<string | null>(null)
@@ -105,6 +106,10 @@ export function TerminalView(props: { scope: SessionScope; tabId: string; store:
   useEffect(() => {
     const host = hostRef.current
     if (host === null) return
+    // A new session/tab starts in the quiet connecting phase. Do not carry
+    // the previous terminal's connection state across a React effect reuse.
+    setConnected(false)
+    setEverConnected(false)
     // The custom font prefs (side card settings, terminal card) resolve at
     // mount; store changes re-apply them live below.
     const font = resolveTerminalFont(store.getPrefs(), tokenValue('--ds-font-family-code'))
@@ -165,6 +170,7 @@ export function TerminalView(props: { scope: SessionScope; tabId: string; store:
       socket.onopen = () => {
         failures = 0
         setConnected(true)
+        setEverConnected(true)
         setFatal(null)
         sendResize()
       }
@@ -172,6 +178,9 @@ export function TerminalView(props: { scope: SessionScope; tabId: string; store:
         if (typeof event.data === 'string') term.write(event.data)
       }
       socket.onclose = (event) => {
+        // Closing the old socket during a session switch must not overwrite
+        // the fresh effect's connection state or surface a stale warning.
+        if (closed) return
         setConnected(false)
         // node-pty dependency missing/broken (issue #140): the host closed
         // with the short marker. Fetch the full repair details over HTTP —
@@ -345,7 +354,13 @@ export function TerminalView(props: { scope: SessionScope; tabId: string; store:
           </button>
         </div>
       )}
-      {fatal === null && depsFatal === null && !connected && <div className={css.terminalBanner}>{t('disconnected')}</div>}
+      {/* Initial WebSocket setup is expected and stays quiet. Only a session
+          that was connected and then dropped gets the yellow reconnecting
+          banner; fatal startup failures still surface through the banners
+          above. */}
+      {fatal === null && depsFatal === null && !connected && everConnected && (
+        <div className={css.terminalBanner}>{t('disconnected')}</div>
+      )}
       <div ref={hostRef} className={css.terminal} onContextMenu={openContextMenu} />
       <Menu
         open={contextMenu !== null}

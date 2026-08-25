@@ -8407,6 +8407,7 @@ globalThis.__dshChunks__["terminal"] = (require) => {
 		const hostRef = (0, react.useRef)(null);
 		const terminalRef = (0, react.useRef)(null);
 		const [connected, setConnected] = (0, react.useState)(false);
+		const [everConnected, setEverConnected] = (0, react.useState)(false);
 		const [fatal, setFatal] = (0, react.useState)(null);
 		const [depsFatal, setDepsFatal] = (0, react.useState)(null);
 		const [lastUrl, setLastUrl] = (0, react.useState)(null);
@@ -8415,6 +8416,8 @@ globalThis.__dshChunks__["terminal"] = (require) => {
 		(0, react.useEffect)(() => {
 			const host = hostRef.current;
 			if (host === null) return;
+			setConnected(false);
+			setEverConnected(false);
 			const font = resolveTerminalFont(store.getPrefs(), tokenValue("--ds-font-family-code"));
 			const term = new import_xterm.Terminal({
 				cursorBlink: true,
@@ -8466,6 +8469,7 @@ globalThis.__dshChunks__["terminal"] = (require) => {
 				socket.onopen = () => {
 					failures = 0;
 					setConnected(true);
+					setEverConnected(true);
 					setFatal(null);
 					sendResize();
 				};
@@ -8473,6 +8477,7 @@ globalThis.__dshChunks__["terminal"] = (require) => {
 					if (typeof event.data === "string") term.write(event.data);
 				};
 				socket.onclose = (event) => {
+					if (closed) return;
 					setConnected(false);
 					if (event.code === 1011 && event.reason === PTY_DEPS_MISSING) {
 						api.terminalDeps().then((status) => {
@@ -8621,7 +8626,7 @@ globalThis.__dshChunks__["terminal"] = (require) => {
 						})
 					]
 				}),
-				fatal === null && depsFatal === null && !connected && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				fatal === null && depsFatal === null && !connected && everConnected && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 					className: sidebar_module_css_default.terminalBanner,
 					children: t("disconnected")
 				}),
