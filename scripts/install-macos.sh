@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-readonly DOWNLOAD_URL="${RUIJIE_HARNESS_DMG_URL:-https://www.dshdesktop.cn/api/downloads/mac}"
+readonly DOWNLOAD_URL="${RUIJIE_HARNESS_DMG_URL:-https://gptauth.ruijie.com.cn/harness/api/downloads/mac}"
 readonly INSTALL_ROOT="${RUIJIE_HARNESS_INSTALL_ROOT:-/Applications}"
 readonly APP_NAME='锐捷 Harness.app'
 readonly BUNDLE_ID='cn.com.ruijie.dsh.desktop'

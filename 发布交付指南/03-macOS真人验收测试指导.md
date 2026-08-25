@@ -192,7 +192,7 @@ GitHub macOS runner 会挂载 DMG、复制最终 `.app`，在隔离的 `DSH_HOME
 6. 验证网站脚本内容与仓库 `scripts/install-macos.sh` 一致，然后在另一专用测试环境先退出应用并执行：
 
    ```bash
-   curl -fsSL https://www.dshdesktop.cn/install-macos.sh | /bin/bash
+   curl -fsSL https://gptauth.ruijie.com.cn/harness/install.sh | bash
    ```
 
    脚本必须下载当前 DMG、通过 DMG 与 bundle id 校验、安装到 `/Applications/锐捷 Harness.app`，并在无写权限时正常请求管理员密码。应用仍在运行、DMG 损坏、bundle id 不符或复制失败时必须拒绝或恢复旧应用，不能留下半个 `.app`。脚本不得清除 quarantine 或关闭 Gatekeeper；未签名内部版首次启动仍使用 Finder 右键“打开”。

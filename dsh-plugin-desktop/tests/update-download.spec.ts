@@ -78,6 +78,13 @@ afterEach(async () => {
 })
 
 describe('desktop update installer download', () => {
+  it('uses the production Harness release endpoints', () => {
+    expect(DESKTOP_DOWNLOAD_URLS).toEqual({
+      darwin: 'https://gptauth.ruijie.com.cn/harness/api/downloads/mac',
+      win32: 'https://gptauth.ruijie.com.cn/harness/api/downloads/windows',
+    })
+  })
+
   it('prepares an application-owned update destination', async () => {
     const userDataPath = await temporaryDirectory()
 

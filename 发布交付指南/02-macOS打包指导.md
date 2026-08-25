@@ -235,10 +235,10 @@ Get-Content -LiteralPath (Join-Path $download 'BUILD-MANIFEST.txt')
 
 DMG 通过机器校验后，按 `04-自动更新服务器交接.md` 操作：上传版本化 DMG 和 Windows EXE，核对远端大小与 SHA-256，更新两个下载入口和网页，最后才提高版本接口。只上传 DMG 或先提高版本号都会让另一平台收到无法完成的更新，必须阻断。
 
-把仓库中的 `scripts/install-macos.sh` 原样发布到 `https://www.dshdesktop.cn/install-macos.sh`，检查响应为脚本文本且没有被网页模板包裹。先下载到本地审阅并执行 `bash -n`，再在获得安装授权的专用 Mac 上验证：
+把仓库中的 `scripts/install-macos.sh` 原样发布为 `https://gptauth.ruijie.com.cn/harness/install.sh`，检查响应为脚本文本且没有被网页模板包裹。先下载到本地审阅并执行 `bash -n`，再在获得安装授权的专用 Mac 上验证：
 
 ```bash
-curl -fsSL https://www.dshdesktop.cn/install-macos.sh | /bin/bash
+curl -fsSL https://gptauth.ruijie.com.cn/harness/install.sh | bash
 ```
 
 脚本用于首次安装或应用已退出时的覆盖安装，不是应用内后台更新器。它应从 `/api/downloads/mac` 获取当前 DMG，核对 bundle id 后替换 `/Applications/锐捷 Harness.app`；无写权限时允许 `sudo` 请求本机管理员密码。未签名内部版首次打开仍按第 8 节处理，严禁在脚本中关闭 Gatekeeper。

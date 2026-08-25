@@ -319,7 +319,7 @@ IM 文件交付还有一条独立入口：模型可能直接调用 `dsh_im_retur
 
 - `cordis.patch.yml` 中 `desktop-updates.config.enabled` 为 `true`，最终 profile 只组合一个已启用的更新 row。
 - `update-checker`、`update-download`、`updates`、`electron-runtime` 及 profile 回归测试通过。
-- 客户端固定访问 `https://www.dshdesktop.cn/api/desktop/version`、`/api/downloads/windows` 和 `/api/downloads/mac`；若域名或路径变化，必须先改源码、重打两个平台，不能只改网页按钮。
+- 客户端固定访问 `https://gptauth.ruijie.com.cn/harness/api/desktop/version`、`/harness/api/downloads/windows` 和 `/harness/api/downloads/mac`；若域名或路径变化，必须先改源码、重打两个平台，不能只改网页按钮。
 - 用户确认更新后，Windows 安装包自动下载到 Electron userData 下的私有 `updates` 目录，不再弹出保存路径选择框；下载文件必须通过 PE 基本格式校验。
 - 下载完成后选择“稍后”不得退出应用；选择“重启并安装”必须先成功启动 NSIS，再有序退出当前应用。新安装器覆盖升级，不要求先卸载，且 `%USERPROFILE%\.dsh`、Electron userData、登录、会话、工作区、模型选择和插件配置全部保留。
 - 用户关闭首次更新提示或选择“稍后”后，同一版本不应在后台反复打扰；托盘“检查更新…”仍可重新触发。更高的新版本应再次提示。

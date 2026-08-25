@@ -9,6 +9,12 @@
 - 安装包上传目录：`/data/code/codex/deepseek_app/upload`
 - 线上文件目录：`/data/code/codex/deepseek_app/site`
 - 历史备份目录：`/data/code/codex/deepseek_app/bak`
+- 自动更新版本接口：`https://gptauth.ruijie.com.cn/harness/api/desktop/version`
+- Windows 自动更新入口：`https://gptauth.ruijie.com.cn/harness/api/downloads/windows`
+- macOS 自动更新入口：`https://gptauth.ruijie.com.cn/harness/api/downloads/mac`
+- macOS 终端安装入口：`https://gptauth.ruijie.com.cn/harness/install.sh`
+
+macOS 安装包必须是同时支持 Intel `x86_64` 与 Apple Silicon `arm64` 的 universal DMG。网页 macOS 按钮、应用内更新和终端安装命令都使用同一份 DMG。
 
 禁止修改 `/data/code/codex/codex_app`、13002 端口、任何 `codex-*` 资源以及现有 CodeX 路由。
 
@@ -113,6 +119,8 @@ Setup complete
 - 右上角「立即下载」在 Windows 上下载 EXE，在 macOS 上下载 DMG；
 - 无法识别操作系统时，右上角按钮跳转到版本选择区域。
 
+同一次发布还会把两个应用内更新下载入口切换到相同的 EXE 和 DMG。脚本完成安装包与网页验证后，最后才把 `/api/desktop/version` 更新为新版本，避免旧客户端先看到新版本却下载不到对应安装包。
+
 ## 七、发布后验收
 
 打开下载页面并刷新：
@@ -124,6 +132,9 @@ Setup complete
 ```bash
 curl -fsS https://gptauth.ruijie.com.cn/harness/latest.yml
 curl -fsS https://gptauth.ruijie.com.cn/harness/latest-mac.yml
+curl -fsS https://gptauth.ruijie.com.cn/harness/api/desktop/version
+curl -fsSI https://gptauth.ruijie.com.cn/harness/api/downloads/windows
+curl -fsSI https://gptauth.ruijie.com.cn/harness/api/downloads/mac
 ```
 
 同时确认原 CodeX 页面仍可访问：

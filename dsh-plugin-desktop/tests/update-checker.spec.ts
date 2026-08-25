@@ -52,6 +52,12 @@ describe('strict SemVer parsing', () => {
 })
 
 describe('public Desktop version check', () => {
+  it('uses the production Harness release endpoint', () => {
+    expect(DESKTOP_VERSION_ENDPOINT).toBe(
+      'https://gptauth.ruijie.com.cn/harness/api/desktop/version',
+    )
+  })
+
   it('uses only the fixed no-cache version endpoint and reports a newer stable version', async () => {
     const controller = new AbortController()
     const calls: Array<{ url: string, init: RequestInit }> = []
