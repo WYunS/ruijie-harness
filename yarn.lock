@@ -9600,6 +9600,20 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@xterm/addon-fit@npm:^0.11.0":
+  version: 0.11.0
+  resolution: "@xterm/addon-fit@npm:0.11.0"
+  checksum: 10c0/c0ce94f7e877d07e7197d15d041cc629ce2e853016400aadddc9810838ea8a26e836f87f325eba36df88c03feb72d9f13cd8c3bb41ee31e701f1058edb8553c3
+  languageName: node
+  linkType: hard
+
+"@xterm/xterm@npm:^5.5.0":
+  version: 5.5.0
+  resolution: "@xterm/xterm@npm:5.5.0"
+  checksum: 10c0/358801feece58617d777b2783bec68dac1f52f736da3b0317f71a34f4e25431fb0b1920244f678b8d673f797145b4858c2a5ccb463a4a6df7c10c9093f1c9267
+  languageName: node
+  linkType: hard
+
 "abbrev@npm:^4.0.0":
   version: 4.0.0
   resolution: "abbrev@npm:4.0.0"
@@ -11518,7 +11532,7 @@ __metadata:
 
 "dsh-better-sidebar@file:../vendor/dsh-better-sidebar::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
   version: 0.14.0
-  resolution: "dsh-better-sidebar@file:../vendor/dsh-better-sidebar#../vendor/dsh-better-sidebar::hash=fb1743&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
+  resolution: "dsh-better-sidebar@file:../vendor/dsh-better-sidebar#../vendor/dsh-better-sidebar::hash=9a40de&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
   dependencies:
     "@codemirror/commands": "npm:^6.10.4"
     "@codemirror/lang-cpp": "npm:^6.0.3"
@@ -11568,7 +11582,7 @@ __metadata:
   peerDependenciesMeta:
     cordis:
       optional: true
-  checksum: 10c0/412f83125f5e0cc91cc3314fec937911870fdd7423f9a0a2995971232ac525ef8fbb5b709fd89fa3eee22c0d2daca5c8a135a794432785397b1b379faab977f6
+  checksum: 10c0/75951df79ecc4b010f2a398c800d824a6989cf7310166096b8320268236b9ae4a92fe160a7d78dab05a21699718c820bce2ca8bea01768862872c3bcf4f06c9a
   languageName: node
   linkType: hard
 
@@ -11867,6 +11881,8 @@ __metadata:
     "@types/node": "npm:^22.20.0"
     "@types/react": "npm:^18"
     "@xmanrui/dsh-im": "npm:2.0.0"
+    "@xterm/addon-fit": "npm:^0.11.0"
+    "@xterm/xterm": "npm:^5.5.0"
     adm-zip: "npm:^0.6.0"
     dsh-attachment-formats: "file:../vendor/dsh-attachment-formats"
     dsh-better-sidebar: "file:../vendor/dsh-better-sidebar"

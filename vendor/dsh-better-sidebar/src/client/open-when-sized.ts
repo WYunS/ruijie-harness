@@ -10,10 +10,12 @@
  *
  * The caller's `open` callback (open + fit + resize) is invoked exactly
  * once, on the first frame where the host reports a real size. While the
- * host stays zero-sized the polling continues every frame; it stops when
- * the host leaves the document (`isConnected`), so a pending open never
- * fires after unmount. The returned cancel function drops a pending frame
- * immediately (idempotent).
+ * host stays zero-sized or is temporarily detached the polling continues
+ * every frame. A conversation switch can detach and then reattach the
+ * sidebar portal without unmounting this React view; treating that brief
+ * `isConnected === false` state as final leaves a connected WebSocket over
+ * a permanently blank, unfocusable terminal. The caller cancels polling in
+ * its effect cleanup, so a real unmount still stops immediately.
  *
  * `raf`/`caf` are injectable so tests can drive the polling deterministically.
  */
@@ -26,8 +28,7 @@ export function openWhenSized(
   let frame: number | null = null
   const step = (): void => {
     frame = null
-    if (!host.isConnected) return
-    if (host.clientWidth > 0 && host.clientHeight > 0) {
+    if (host.isConnected && host.clientWidth > 0 && host.clientHeight > 0) {
       open()
       return
     }

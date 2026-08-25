@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { basename, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { transform } from 'lightningcss'
@@ -7,6 +8,8 @@ const desktopRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const sidebarRoot = resolve(desktopRoot, '..', 'vendor', 'dsh-better-sidebar')
 const outputDir = resolve(sidebarRoot, 'lib')
 const clsxEntry = fileURLToPath(import.meta.resolve('clsx'))
+const desktopRequire = createRequire(resolve(desktopRoot, 'package.json'))
+const sidebarRequire = createRequire(resolve(desktopRoot, 'node_modules', 'dsh-better-sidebar', 'package.json'))
 
 const CLIENT_EXTERNALS = [
   'react',
@@ -21,6 +24,29 @@ const CLIENT_EXTERNALS = [
 
 const CSS_VIRTUAL_PREFIX = '\0dsh-css:'
 const CSS_VIRTUAL_SUFFIX = '.mjs'
+
+function resolveBundledDependency(source: string): string {
+  try {
+    return sidebarRequire.resolve(source)
+  } catch {
+    return desktopRequire.resolve(source)
+  }
+}
+
+function makeVendorResolvePlugin() {
+  return {
+    name: 'dsh-vendor-dependency-resolve',
+    resolveId(source: string) {
+      if (source.startsWith('.') || source.startsWith('/') || /^[A-Za-z]:[\\/]/.test(source)) return null
+      if (source.endsWith('.css') || CLIENT_EXTERNALS.includes(source)) return null
+      try {
+        return resolveBundledDependency(source)
+      } catch {
+        return null
+      }
+    },
+  }
+}
 
 function injectTag(pluginId: string, fileId: string, cssText: string): string {
   const tagId = `${pluginId}/${basename(fileId)}`
@@ -44,7 +70,7 @@ function makeCssPlugin(pluginId: string) {
       if (!source.endsWith('.css')) return null
       const absolute = source.startsWith('.') || source.startsWith('/') || /^[A-Za-z]:[\\/]/.test(source)
         ? importer === undefined ? source : resolve(dirname(importer), source)
-        : import.meta.resolve(source).replace(/^file:\/\//u, '')
+        : resolveBundledDependency(source)
       return CSS_VIRTUAL_PREFIX + absolute + CSS_VIRTUAL_SUFFIX
     },
     async load(this: { addWatchFile(file: string): void }, virtualId: string) {
@@ -104,6 +130,40 @@ function clientBundle(pluginId: string, entryFile: string) {
   }
 }
 
+function clientChunk(chunk: 'terminal') {
+  return {
+    entry: { [`client-${chunk}`]: resolve(sidebarRoot, 'src', 'client', 'chunks', `${chunk}.tsx`) },
+    outDir: outputDir,
+    format: 'cjs',
+    platform: 'browser',
+    dts: false,
+    sourcemap: true,
+    clean: false,
+    external: CLIENT_EXTERNALS,
+    define: {
+      'process.env.NODE_ENV': JSON.stringify('production'),
+      'import.meta.env.MODE': JSON.stringify('production'),
+      'import.meta.env': JSON.stringify({ MODE: 'production' }),
+      'import.meta.resolve': 'undefined',
+    },
+    inputOptions: {
+      resolve: {
+        alias: { clsx: clsxEntry },
+        conditionNames: ['browser', 'import', 'require', 'default'],
+      },
+    },
+    noExternal: (id: string) => CLIENT_EXTERNALS.includes(id) ? undefined : true,
+    plugins: [makeCssPlugin('dsh-better-sidebar'), makeVendorResolvePlugin()],
+    outputOptions: {
+      entryFileNames: `client-${chunk}.js`,
+      banner: `globalThis.__dshChunks__ = globalThis.__dshChunks__ || {};\nglobalThis.__dshChunks__[${JSON.stringify(chunk)}] = (require) => {`,
+      footer: 'return module.exports;\n};',
+      intro: 'var module = { exports: {} }; var exports = module.exports;',
+      codeSplitting: false,
+    },
+  }
+}
+
 export default [
   {
     entry: {
@@ -121,4 +181,5 @@ export default [
   },
   clientBundle('dsh-better-sidebar', 'client.js'),
   clientBundle('dsh-external/dsh-better-sidebar', 'client-registry.js'),
+  clientChunk('terminal'),
 ]
