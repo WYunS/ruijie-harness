@@ -164,6 +164,16 @@ export function desktopUpdateFilename(platform: DesktopDownloadPlatform, version
   return `DSH-Desktop-${version}-${platformName}.${extension}`
 }
 
+/** Prepare the private application-owned path used for an automatic update download. */
+export async function prepareDesktopUpdateDestination(
+  userDataPath: string,
+  platform: DesktopDownloadPlatform,
+  version: string,
+): Promise<string> {
+  const directory = await prepareUpdateDirectory(userDataPath)
+  return join(directory, desktopUpdateFilename(platform, version))
+}
+
 /** Remember a downloaded installer until an upgraded application resolves its retention. */
 export async function recordDesktopUpdateArtifact(
   userDataPath: string,
@@ -285,6 +295,11 @@ function validatedArtifactPath(path: string, platform: DesktopDownloadPlatform):
 }
 
 async function prepareArtifactStatePath(userDataPath: string): Promise<string> {
+  const directory = await prepareUpdateDirectory(userDataPath)
+  return join(directory, UPDATE_ARTIFACT_STATE_FILENAME)
+}
+
+async function prepareUpdateDirectory(userDataPath: string): Promise<string> {
   const root = validatedUserDataPath(userDataPath)
   const rootStat = await lstat(root)
   if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
@@ -292,7 +307,7 @@ async function prepareArtifactStatePath(userDataPath: string): Promise<string> {
   }
   const directory = join(root, 'updates')
   await preparePrivateDirectory(directory)
-  return artifactStatePath(root)
+  return directory
 }
 
 function artifactStatePath(userDataPath: string): string {

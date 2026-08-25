@@ -9,6 +9,7 @@ import {
   desktopUpdateFilename,
   downloadDesktopUpdate,
   pendingDesktopUpdateArtifact,
+  prepareDesktopUpdateDestination,
   recordDesktopUpdateArtifact,
   resolveDesktopUpdateArtifact,
   type DesktopDownloadPlatform,
@@ -77,6 +78,14 @@ afterEach(async () => {
 })
 
 describe('desktop update installer download', () => {
+  it('prepares an application-owned update destination', async () => {
+    const userDataPath = await temporaryDirectory()
+
+    await expect(prepareDesktopUpdateDestination(userDataPath, 'darwin', '2.1.0'))
+      .resolves.toBe(join(userDataPath, 'updates', 'DSH-Desktop-2.1.0-mac.dmg'))
+    await expect(access(join(userDataPath, 'updates'))).resolves.toBeUndefined()
+  })
+
   it('streams a macOS DMG from only the fixed endpoint and atomically completes it', async () => {
     const directory = await temporaryDirectory()
     const artifact = dmgArtifact()
