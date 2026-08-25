@@ -102,7 +102,7 @@ Setup complete
 
 该目录中保存的是发布前的版本，也就是 `2.0.8`。不要手动删除 `bak` 中的历史备份。
 
-## 六、页面版本号和五个下载入口
+## 六、页面版本号和下载入口
 
 不需要手动修改 `index.html`。脚本会从安装包文件名识别版本号，并自动生成：
 
@@ -114,7 +114,8 @@ Setup complete
 页面读取这两个清单后会自动完成：
 
 - 两个 Windows 下载入口指向新版 EXE；
-- 两个 macOS 下载入口指向新版 DMG；
+- 两个 macOS 下载入口打开同一个安装弹窗；
+- 弹窗可复制 `curl -fsSL https://gptauth.ruijie.com.cn/harness/install.sh | bash`，也可直接下载新版 universal DMG；
 - 页面显示的 Windows 和 macOS 版本号自动更新；
 - 右上角「立即下载」在 Windows 上下载 EXE，在 macOS 上下载 DMG；
 - 无法识别操作系统时，右上角按钮跳转到版本选择区域。
