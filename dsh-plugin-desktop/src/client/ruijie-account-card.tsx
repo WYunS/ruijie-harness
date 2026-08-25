@@ -48,6 +48,10 @@ function accountLabel(summary: RuijieAccountSummary | undefined): string {
   return summary.account.name ?? summary.account.email?.split('@')[0] ?? '锐捷账号'
 }
 
+function collapsedAccountLabel(label: string): string {
+  return Array.from(label.trim())[0] ?? '锐'
+}
+
 function RuijieMark({ size }: { size: number }) {
   return <span className="ruijieMarkInitials" style={{ fontSize: Math.max(8, size * 0.43) }} aria-hidden="true">RJ</span>
 }
@@ -139,7 +143,7 @@ export function RuijieAccountCard({ wide }: AccountCardProps) {
   const title = error ?? (summary === undefined ? '正在读取锐捷 SSO 账号' : `${label} · 剩余 ${money(summary.billing.remaining)}`)
 
   return (
-    <div ref={seatRef} className="ruijieAccountSeat">
+    <div ref={seatRef} className="ruijieAccountSeat" data-wide={wide || undefined}>
       <button
         type="button"
         className="ruijieAccountTrigger"
@@ -150,7 +154,9 @@ export function RuijieAccountCard({ wide }: AccountCardProps) {
         title={title}
         onClick={() => { setOpen(value => !value) }}
       >
-        <span className="ruijieAccountMark"><RuijieMark size={21} /></span>
+        {wide
+          ? <span className="ruijieAccountMark"><RuijieMark size={21} /></span>
+          : <span className="ruijieAccountCollapsedLabel" aria-hidden="true">{collapsedAccountLabel(label)}</span>}
         {wide && (
           <>
             <span className="ruijieAccountIdentity">
@@ -204,14 +210,17 @@ export function RuijieAccountCard({ wide }: AccountCardProps) {
 }
 
 const ACCOUNT_STYLES = `
-*:has(> .ruijieAccountSeat) { flex-direction: column; gap: 4px; }
-.ruijieAccountSeat { position: relative; box-sizing: border-box; flex: none; width: 100%; min-width: 0; padding: 0 2px; display: flex; flex-direction: column; gap: 2px; }
+*:has(> .ruijieAccountSeat) { flex-direction: column; align-items: center; gap: 4px; }
+.dshMarketLauncher { display: none !important; }
+.ruijieAccountSeat { position: relative; box-sizing: border-box; flex: none; width: 36px; min-width: 36px; padding: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.ruijieAccountSeat[data-wide] { width: 100%; min-width: 0; padding: 0 2px; align-items: stretch; }
 .ruijieAccountTrigger { box-sizing: border-box; width: 36px; height: 36px; padding: 0; border: 1px solid transparent; border-radius: 11px; color: var(--dsw-alias-label-primary); background: transparent; display: flex; align-items: center; cursor: pointer; font: inherit; text-align: left; }
 .ruijieAccountTrigger:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .ruijieAccountTrigger:focus-visible { outline: 2px solid #4d6bfe; outline-offset: 2px; }
 .ruijieAccountTrigger[data-wide] { width: 100%; height: 52px; gap: 9px; padding: 7px 9px; border-color: var(--dsw-alias-border-l2); background: color-mix(in srgb, #4d6bfe 5%, var(--dsw-specific-sidebar-fill)); }
 .ruijieAccountTrigger[data-wide]:hover { border-color: color-mix(in srgb, #4d6bfe 35%, var(--dsw-alias-border-l2)); background: color-mix(in srgb, #4d6bfe 9%, var(--dsw-specific-sidebar-fill)); }
 .ruijieAccountMark { width: 32px; height: 32px; border-radius: 9px; flex: none; display: grid; place-items: center; color: #fff; background: #4d6bfe; }
+.ruijieAccountCollapsedLabel { width: 32px; height: 32px; border-radius: 50%; flex: none; display: grid; place-items: center; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); font-size: 15px; font-weight: 650; }
 .ruijieMarkInitials { display: block; color: #fff; font-family: "Segoe UI", Arial, sans-serif; font-weight: 800; font-style: italic; letter-spacing: -1px; line-height: 1; transform: translateX(-1px); }
 .ruijieAccountIdentity { min-width: 0; flex: 1; display: flex; flex-direction: column; line-height: 1.25; }
 .ruijieAccountIdentity strong, .ruijieAccountIdentity small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -28,6 +28,24 @@ describe('Ruijie account sidebar presentation', () => {
     expect(source).not.toMatch(/Whale|favicon\.svg/u)
   })
 
+  it('keeps both account quota and IM robot usable in the collapsed rail', () => {
+    expect(source).toContain('function collapsedAccountLabel')
+    expect(source).toContain('{collapsedAccountLabel(label)}')
+    expect(source).toContain('className="ruijieAccountCollapsedLabel"')
+    expect(source).toContain('<RobotMark />')
+    expect(source).toMatch(/\.ruijieAccountSeat\s*\{[^}]*width:\s*36px/su)
+    expect(source).toMatch(/\.ruijieAccountSeat\[data-wide\]\s*\{[^}]*width:\s*100%/su)
+  })
+
+  it('removes the clipped community-market sliver from the sidebar footer', () => {
+    expect(source).toContain('.dshMarketLauncher { display: none !important; }')
+  })
+
+  it('refreshes quota once per minute and when the window regains focus', () => {
+    expect(source).toContain('const REFRESH_INTERVAL_MS = 60_000')
+    expect(source).toContain("window.addEventListener('focus', onFocus)")
+  })
+
   it('requires an explicit user action before clearing the reusable SSO session', () => {
     expect(source).toContain("window.confirm('退出锐捷 Harness？下次打开时需要重新授权。')")
     expect(source).toContain('RUIJIE_LOGOUT_PATH')

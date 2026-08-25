@@ -7,8 +7,15 @@ import {
 } from '../window-chrome.ts'
 import { SIDEBAR_COLLAPSED } from './layout-state.ts'
 
+/** Pin message bubbles to the upstream light/dark surfaces in every desktop shell mode. */
+const NATIVE_BUBBLE_STYLES = `
+body { --dsw-specific-bubble: var(--dsw-static-deepseek-50) !important; --dsw-specific-bubble-highlight: var(--dsw-static-deepseek-200) !important; }
+body[data-ds-dark-theme] { --dsw-specific-bubble: var(--dsw-static-neutral-bluish-850) !important; --dsw-specific-bubble-highlight: var(--dsw-static-neutral-bluish-750) !important; }
+`
+
 /** Advanced-shell stylesheet kept as a plain string so the package client bundle stays self-contained. */
 const ADVANCED_STYLES = `
+${NATIVE_BUBBLE_STYLES}
 html, body, #root { width: 100%; height: 100%; }
 body[data-dsh-desktop-mode="advanced"] { margin: 0; background: transparent !important; }
 .dshDesktopFrame { position: relative; display: grid; grid-template-rows: 100%; width: 100%; height: 100%; overflow: hidden; background: transparent; }
@@ -46,9 +53,8 @@ html:has([aria-modal="true"]) .dshDesktopSidebarSurface::before { -webkit-app-re
 
 /** Keep the upstream compatibility layout below the native Windows overlay. */
 const WINDOWS_COMPATIBILITY_STYLES = `
+${NATIVE_BUBBLE_STYLES}
 html, body { width: 100%; height: 100%; }
-body { --dsw-specific-bubble: var(--dsw-static-deepseek-50) !important; --dsw-specific-bubble-highlight: var(--dsw-static-deepseek-200) !important; }
-body[data-ds-dark-theme] { --dsw-specific-bubble: var(--dsw-static-neutral-bluish-850) !important; --dsw-specific-bubble-highlight: var(--dsw-static-neutral-bluish-750) !important; }
 body[data-dsh-desktop-mode="compatibility"][data-dsh-desktop-platform="win32"] {
   box-sizing: border-box;
   height: 100%;

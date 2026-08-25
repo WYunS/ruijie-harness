@@ -1,6 +1,6 @@
 import { access, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   DESKTOP_DOWNLOAD_URLS,
@@ -320,6 +320,30 @@ describe('desktop update installer download', () => {
 })
 
 describe('desktop update artifact cleanup', () => {
+  it('leaves credentials, sessions, settings, and browser data untouched', async () => {
+    const userDataPath = await temporaryDirectory()
+    const preserved = [
+      join(userDataPath, 'ruijie-auth', 'oauth-session.enc'),
+      join(userDataPath, 'sessions', 'history.jsonl'),
+      join(userDataPath, 'settings.yaml'),
+      join(userDataPath, 'Cache', 'index'),
+    ]
+    for (const path of preserved) {
+      await mkdir(dirname(path), { recursive: true })
+      await writeFile(path, `preserve:${path}`)
+    }
+    const path = await prepareDesktopUpdateDestination(userDataPath, 'darwin', '2.1.0')
+    const artifact = { platform: 'darwin' as const, version: '2.1.0', path }
+    await writeFile(path, dmgArtifact())
+    await recordDesktopUpdateArtifact(userDataPath, artifact)
+
+    await resolveDesktopUpdateArtifact(userDataPath, artifact, true)
+
+    for (const preservedPath of preserved) {
+      await expect(readFile(preservedPath, 'utf8')).resolves.toBe(`preserve:${preservedPath}`)
+    }
+  })
+
   it('rejects malformed cleanup state with a typed failure', async () => {
     const userDataPath = await temporaryDirectory()
     const updates = join(userDataPath, 'updates')
