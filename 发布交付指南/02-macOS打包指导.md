@@ -42,6 +42,7 @@ git diff --stat <上次发布提交>..HEAD
 - Mac 平台代码、原生依赖或窗口行为：追加对应 Mac 门禁。
 - sidebar/vendor：重建并核对源码、生成文件、安装副本和 `yarn.lock`。
 - Office/PDF/OCR：核对插件闭包、原生依赖和 OCR 数据。
+- IM 交付或生成文件链路：除文件本身外，核对 `dsh_im_return_file` 的 produced-file 展示元数据，追加“本次产出”可点击与右侧栏预览回归。
 - 登录、模型、浏览器、WebSearch、存储迁移：为最终 DMG 的自动与真人验收追加风险项。时间、时区或其他模型可见运行时上下文改动必须额外覆盖直接问答、基于“今天”的搜索词、新旧会话、重启边界和最终 `.app` 依赖闭包。
 - 更新逻辑、版本接口、下载地址或安装脚本：追加后台检查、用户拒绝/重试、私有目录下载、DMG 打开、旧数据保留和网站 curl 安装回归；Windows 与 Mac 必须保持同一稳定版本。
 - 仅文档或测试：仍运行适用门禁，但不虚构产品功能变化。
@@ -89,6 +90,10 @@ git ls-files --error-unmatch vendor/dsh-attachment-formats/vendor/tessdata/chi_s
 git diff --check
 bash -n scripts/install-macos.sh
 ```
+
+`dsh_im_return_file` 成功只代表文件已登记给 IM，不天然代表桌面端已把它识别为本轮产物。最终 `@xmanrui/dsh-im/lib/index.js` 必须经过 `scripts/patch-dsh-im-runtime.mjs`，使该工具的 `presentCall` 返回 generic edit card 和原始文件 `locations`；否则会出现磁盘上已有 PDF、工具提示成功，但“本次产出”缺失且最终文件名不可点击的回归。上面的 `tests/dsh-im-runtime-patch.spec.ts` 是打包门禁，不能从 Mac 专项命令中删除。
+
+候选 `.app` 的动态验收必须让真实模型通过 Python 或终端生成一个中文文件名 PDF，再调用 `dsh_im_return_file` 交付。只有同时看到“本次产出”的可点击 PDF，并能在右侧栏打开，才算通过；磁盘存在、聊天正文出现文件名或 `Registered ... for IM delivery` 均不能单独作为证据。
 
 若有意修改 `vendor/dsh-better-sidebar/src`，先审查生成后的 `lib`，再执行一次 `corepack yarn install` 更新 file dependency 哈希和 `yarn.lock`，随后重新运行 immutable 安装、构建和验证。源码、生成后的 `lib`、安装副本和锁文件必须一致。
 
