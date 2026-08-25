@@ -43,6 +43,7 @@ git diff --stat <上次发布提交>..HEAD
 - sidebar/vendor：重建并核对源码、生成文件、安装副本和 `yarn.lock`。
 - Office/PDF/OCR：核对插件闭包、原生依赖和 OCR 数据。
 - 登录、模型、浏览器、WebSearch、存储迁移：为最终 DMG 的自动与真人验收追加风险项。时间、时区或其他模型可见运行时上下文改动必须额外覆盖直接问答、基于“今天”的搜索词、新旧会话、重启边界和最终 `.app` 依赖闭包。
+- 更新逻辑、版本接口、下载地址或安装脚本：追加后台检查、用户拒绝/重试、私有目录下载、DMG 打开、旧数据保留和网站 curl 安装回归；Windows 与 Mac 必须保持同一稳定版本。
 - 仅文档或测试：仍运行适用门禁，但不虚构产品功能变化。
 - 无法归类的运行时变化：暂停打包，先读实现和调用关系并补充门禁。
 
@@ -81,11 +82,12 @@ corepack yarn install --immutable
 corepack yarn workspace dsh-plugin-desktop build:vendor-sidebar
 corepack yarn workspace dsh-plugin-desktop verify:vendor-sidebar
 corepack yarn check
-corepack yarn workspace dsh-plugin-desktop vitest run tests/mac-universal.spec.ts tests/package.spec.ts tests/package-mac.spec.ts tests/verify-mac-smoke.spec.ts tests/verify-packaged-runtime.spec.ts tests/electron-runtime.spec.ts tests/profile.spec.ts tests/desktop-plugins.spec.ts tests/sidebar-produced-files.spec.ts tests/window-options.spec.ts tests/mac-installed-acceptance.spec.ts tests/ruijie-auth.spec.ts tests/ruijie-login-window.spec.ts tests/time-context-runtime-patch.spec.ts tests/ui-appearance-runtime-patch.spec.ts tests/appearance-compatibility.spec.ts tests/dsh-im-runtime-patch.spec.ts tests/sidebar-shortcuts.spec.ts tests/system-proxy.spec.ts tests/search-recovery.spec.ts tests/search-recovery-presentation.spec.ts
+corepack yarn workspace dsh-plugin-desktop vitest run tests/mac-universal.spec.ts tests/package.spec.ts tests/package-mac.spec.ts tests/verify-mac-smoke.spec.ts tests/verify-packaged-runtime.spec.ts tests/electron-runtime.spec.ts tests/profile.spec.ts tests/desktop-plugins.spec.ts tests/sidebar-produced-files.spec.ts tests/window-options.spec.ts tests/mac-installed-acceptance.spec.ts tests/ruijie-auth.spec.ts tests/ruijie-login-window.spec.ts tests/time-context-runtime-patch.spec.ts tests/ui-appearance-runtime-patch.spec.ts tests/appearance-compatibility.spec.ts tests/dsh-im-runtime-patch.spec.ts tests/sidebar-shortcuts.spec.ts tests/system-proxy.spec.ts tests/search-recovery.spec.ts tests/search-recovery-presentation.spec.ts tests/update-checker.spec.ts tests/update-download.spec.ts tests/updates.spec.ts
 corepack yarn workspace dsh-community-market vitest run tests/contracts.spec.ts tests/market-install.spec.ts tests/market-settings-persistence.spec.ts
 git ls-files --error-unmatch vendor/dsh-attachment-formats/vendor/tessdata/eng.traineddata.gz
 git ls-files --error-unmatch vendor/dsh-attachment-formats/vendor/tessdata/chi_sim.traineddata.gz
 git diff --check
+bash -n scripts/install-macos.sh
 ```
 
 若有意修改 `vendor/dsh-better-sidebar/src`，先审查生成后的 `lib`，再执行一次 `corepack yarn install` 更新 file dependency 哈希和 `yarn.lock`，随后重新运行 immutable 安装、构建和验证。源码、生成后的 `lib`、安装副本和锁文件必须一致。
@@ -103,6 +105,8 @@ Mac runner 上 `file:` 依赖可能因宿主 archive 元数据产生哈希差异
 联网降噪不得靠关闭 `web_search`、ModSearch 或浏览器工具通过。最终 `.app` 的自动验收负责证明工具和呈现链路仍在，真人验收必须用“联网搜索今天 AI 圈发生的大事”证明真实 `web_search` 返回来源、多个来源可读取、`browser_search` 可见且同词重搜会重新加载；再用确定不可访问的 URL 证明失败后换路完成、“对话”静默而“轨迹”保留证据。正常搜索缺失时不得因界面无红字而放行。
 
 登录窗口门禁还必须覆盖本版平台差异：回调完成页和等待进度使用应用图标的蓝紫渐变；Windows 使用自绘右上角关闭按钮，并由主进程处理真实窗口关闭，不能依赖渲染页 `window.close()`；最终 macOS `.app` 必须保留可用的原生左上角交通灯关闭，不得同时叠加 Windows“×”。两种平台都必须实点后确认窗口消失、本次启动结束且不会立即重弹授权。回调后的账号验证与工作台启动必须分阶段呈现，账号服务请求有界超时；这些行为要进入 `ruijie-auth`、`ruijie-login-window`、`package-mac` 和最终安装副本验收，不能只检查源码字符串。
+
+更新门禁必须证明 `desktop-updates.config.enabled: true` 已进入最终 profile，正式 `.app` 启动约 60 秒后会检查固定 HTTPS 版本接口，用户确认后把 DMG 下载到 Electron userData 的私有 `updates` 目录并自动打开，不出现保存路径选择框。macOS 内部包未签名、未公证，因此应用内更新只负责发现、下载和打开 DMG，不能宣称会静默替换 `/Applications`。`scripts/install-macos.sh` 必须通过 `bash -n`，并核对脚本只接受 macOS、校验 DMG 与 bundle id、拒绝覆盖运行中的应用、使用暂存和备份完成替换、失败时恢复旧应用，且不关闭 Gatekeeper、不自动清除 quarantine。
 
 完成条件：所有命令退出码为 0，工作树只含本轮明确改动，没有旧 bundle、缺失 OCR 数据或未提交生成物。
 
@@ -169,7 +173,7 @@ gh workflow run macos-internal-build.yml --repo WYunS/ruijie-harness --ref main 
 3. 完整代码门禁和 sidebar 连续性测试。
 4. 准备并校验 x86_64、arm64 两套原生依赖。
 5. 生成 universal unsigned DMG。
-6. 挂载 DMG、复制最终 `.app`，运行固定基线与动态增量的安装后验收。固定基线必须包含登录等待窗的 macOS 原生关闭、时间上下文安装闭包、外观与一键恢复、侧栏 IM 入口与默认休眠、可恢复错误降噪；不能只测旧版工作台、文件和浏览器基线。
+6. 挂载 DMG、复制最终 `.app`，运行固定基线与动态增量的安装后验收。固定基线必须包含登录等待窗的 macOS 原生关闭、时间上下文安装闭包、外观与一键恢复、侧栏 IM 入口与默认休眠、可恢复错误降噪，以及更新插件启用与私有下载路径；不能只测旧版工作台、文件和浏览器基线。
 7. 上传自动验收矩阵、截图、日志、报告、DMG、SHA-256 和构建清单。
 
 工作流会先上传 `Ruijie-Harness-macOS-candidate-<run-id>`，再执行安装后验收。候选上传必须发生在验收之前：即使后续脚本失败，DMG 仍可复用，不得让一次 UI 定位错误迫使完整重打。自动流程走完后按验收指导第 5 节作两态判定；只有判定“允许进入下一步”才把 candidate 作为待交付候选。稳定命名的 `Ruijie-Harness-<version>-macOS-universal` Artifact 通常在工作流成功时产生；若工作流因低影响例外未产生稳定 Artifact，可交付经哈希确认的 candidate，同时连同完整验收报告说明例外。candidate 是可复用的原始候选，稳定 Artifact 则额外汇集 SHA-256、构建清单和验收证据。
@@ -222,6 +226,18 @@ Get-Content -LiteralPath (Join-Path $download 'BUILD-MANIFEST.txt')
 
 阶段判定允许进入下一步后仍只能称为“Mac 候选包”。随后完整执行 `03-macOS真人验收测试指导.md`；真人验收作出“允许内部上线/发布”判定后才能称为“Mac 内部可用版”。
 
+### 7.1 更新服务与 curl 安装脚本发布
+
+DMG 通过机器校验后，按 `04-自动更新服务器交接.md` 操作：上传版本化 DMG 和 Windows EXE，核对远端大小与 SHA-256，更新两个下载入口和网页，最后才提高版本接口。只上传 DMG 或先提高版本号都会让另一平台收到无法完成的更新，必须阻断。
+
+把仓库中的 `scripts/install-macos.sh` 原样发布到 `https://www.dshdesktop.cn/install-macos.sh`，检查响应为脚本文本且没有被网页模板包裹。先下载到本地审阅并执行 `bash -n`，再在获得安装授权的专用 Mac 上验证：
+
+```bash
+curl -fsSL https://www.dshdesktop.cn/install-macos.sh | /bin/bash
+```
+
+脚本用于首次安装或应用已退出时的覆盖安装，不是应用内后台更新器。它应从 `/api/downloads/mac` 获取当前 DMG，核对 bundle id 后替换 `/Applications/锐捷 Harness.app`；无写权限时允许 `sudo` 请求本机管理员密码。未签名内部版首次打开仍按第 8 节处理，严禁在脚本中关闭 Gatekeeper。
+
 ## 8. 未签名内部版
 
 当前内部版没有 Apple Developer ID，也不做 notarization。首次打开可能被 Gatekeeper 拦截。先在 Finder 中右键应用并选择“打开”；确认 DMG 哈希正确仍被拦截时，可执行：
@@ -234,7 +250,7 @@ xattr -dr com.apple.quarantine "/Applications/锐捷 Harness.app"
 
 ## 9. 交付记录
 
-最终记录必须包含：源码 commit、GitHub run 链接、Artifact 名、DMG 绝对路径或云端位置、bytes/MiB、SHA-256、架构、签名/公证状态、本地门禁、自动安装验收、通过/失败/阻塞/未执行数量、两态阶段判定、判定理由、真人验收状态和未执行项。
+最终记录必须包含：源码 commit、GitHub run 链接、Artifact 名、DMG 绝对路径或云端位置、bytes/MiB、SHA-256、架构、签名/公证状态、本地门禁、自动安装验收、更新三个接口与 curl 脚本状态、通过/失败/阻塞/未执行数量、两态阶段判定、判定理由、真人验收状态和未执行项。
 
 旧构建快照只用于追溯，版本、路径和哈希必须从本次产物动态读取，不能复制旧值。
 

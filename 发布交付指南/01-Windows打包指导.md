@@ -123,7 +123,7 @@ Get-FileHash -Algorithm SHA256 -LiteralPath `
 
 ### 6.1 固定基线 + 动态生成当次验收标准
 
-本节 6.2–6.10 是每版不能删除的固定回归基线，不是完整清单。每次打包前，发布模型必须找到上一个已经完成安装验收的 Windows 发布 commit/tag，并根据到当前 `HEAD` 的真实差异生成当次验收矩阵：
+本节 6.2–6.11 是每版不能删除的固定回归基线，不是完整清单。每次打包前，发布模型必须找到上一个已经完成安装验收的 Windows 发布 commit/tag，并根据到当前 `HEAD` 的真实差异生成当次验收矩阵：
 
 ```powershell
 Set-Location -LiteralPath 'D:\ChatGPT\RuijieDSH'
@@ -155,7 +155,7 @@ corepack yarn check
 
 ```powershell
 Set-Location -LiteralPath 'D:\ChatGPT\RuijieDSH\dsh-plugin-desktop'
-corepack yarn vitest run tests/native-sidebar-browser.spec.ts tests/electron-runtime.spec.ts tests/office-document-plugins.spec.ts tests/profile.spec.ts tests/package.spec.ts tests/verify-packaged-runtime.spec.ts tests/desktop-plugins.spec.ts tests/sidebar-produced-files.spec.ts tests/ruijie-auth.spec.ts tests/ruijie-login-window.spec.ts tests/time-context-runtime-patch.spec.ts tests/ui-appearance-runtime-patch.spec.ts tests/appearance-compatibility.spec.ts tests/dsh-im-runtime-patch.spec.ts tests/sidebar-shortcuts.spec.ts tests/system-proxy.spec.ts tests/search-recovery.spec.ts tests/search-recovery-presentation.spec.ts
+corepack yarn vitest run tests/native-sidebar-browser.spec.ts tests/electron-runtime.spec.ts tests/office-document-plugins.spec.ts tests/profile.spec.ts tests/package.spec.ts tests/verify-packaged-runtime.spec.ts tests/desktop-plugins.spec.ts tests/sidebar-produced-files.spec.ts tests/ruijie-auth.spec.ts tests/ruijie-login-window.spec.ts tests/time-context-runtime-patch.spec.ts tests/ui-appearance-runtime-patch.spec.ts tests/appearance-compatibility.spec.ts tests/dsh-im-runtime-patch.spec.ts tests/sidebar-shortcuts.spec.ts tests/system-proxy.spec.ts tests/search-recovery.spec.ts tests/search-recovery-presentation.spec.ts tests/update-checker.spec.ts tests/update-download.spec.ts tests/updates.spec.ts
 Set-Location -LiteralPath 'D:\ChatGPT\RuijieDSH'
 corepack yarn workspace dsh-community-market vitest run tests/contracts.spec.ts tests/market-install.spec.ts tests/market-settings-persistence.spec.ts
 ```
@@ -307,6 +307,23 @@ PDF 有两条不同链路，必须分开验收：
 
 降噪不能以关闭联网能力换取。最终安装版还必须用自然提示词“联网搜索今天 AI 圈发生的大事”完成一次真实全链路：`web_search` 返回非空来源，实际读取多个不同来源，`browser_search` 在右侧栏显示结果，同一关键词再次搜索仍重新加载，最终回答使用当前日期并给出可点击来源。再加入一个确定不可访问的 URL，验证读取失败后切换其他联网方式并完成任务；“对话”保持安静，“轨迹”保留失败与换路证据。若普通网络下正常搜索能力缺失，即使界面没有报错也判为失败。
 
+### 6.11 应用内更新与发布源
+
+自动更新从 `2.1.0` 开始启用。`2.0.7` 等旧安装包没有后台更新能力，无法由服务器远程补齐；旧用户必须最后手动安装一次 `2.1.0`。本地开发版因 `app.isPackaged=false` 不会轮询或下载安装包，不能拿桌面“本地开发版”入口代替正式安装包验收。
+
+每版打包前必须证明：
+
+- `cordis.patch.yml` 中 `desktop-updates.config.enabled` 为 `true`，最终 profile 只组合一个已启用的更新 row。
+- `update-checker`、`update-download`、`updates`、`electron-runtime` 及 profile 回归测试通过。
+- 客户端固定访问 `https://www.dshdesktop.cn/api/desktop/version`、`/api/downloads/windows` 和 `/api/downloads/mac`；若域名或路径变化，必须先改源码、重打两个平台，不能只改网页按钮。
+- 用户确认更新后，Windows 安装包自动下载到 Electron userData 下的私有 `updates` 目录，不再弹出保存路径选择框；下载文件必须通过 PE 基本格式校验。
+- 下载完成后选择“稍后”不得退出应用；选择“重启并安装”必须先成功启动 NSIS，再有序退出当前应用。新安装器覆盖升级，不要求先卸载，且 `%USERPROFILE%\.dsh`、Electron userData、登录、会话、工作区、模型选择和插件配置全部保留。
+- 用户关闭首次更新提示或选择“稍后”后，同一版本不应在后台反复打扰；托盘“检查更新…”仍可重新触发。更高的新版本应再次提示。
+
+发布源按 `04-自动更新服务器交接.md` 操作。必须先上传并校验 Windows EXE 与同版本 macOS DMG，再切换两个下载入口，最后才提升版本 JSON。版本接口应为 HTTP 200、`application/json`、禁长缓存，正文使用规范稳定 SemVer，例如 `{"version":"2.1.1"}`。下载入口最终必须返回 HTTP 200、正确文件大小，并与本地产物 SHA-256 一致。
+
+`2.1.0` 是桥接版：服务器切到 `2.1.0` 后只能验证“当前版本不误提示、不降级”和托盘手动检查。第一次完整旧版自动升级必须保留一台正式安装的 `2.1.0` 测试机，在发布 `2.1.1` 时验证：启动约 60 秒出现提示 → 确认后自动下载 → 稍后/重试路径 → 重启并覆盖安装 → 新版本启动 → 数据与设置保留。没有兼容旧版或隔离发布源时，不得虚构已经完成跨版本验收。
+
 ## 7. 当前已知故障与发布判定
 
 ### 7.1 公司电脑 HTTPS
@@ -357,6 +374,8 @@ corepack yarn dist:win
 4. 禁止发布到远端。
 5. 验证安装器和 `win-unpacked\Ruijie-Harness.exe` 的 PE 结构。
 
+生成安装包不等于立即修改线上更新版本。Windows 与 macOS 同版本产物都上传并校验前，禁止提高 `/api/desktop/version`；完整服务器操作顺序见 `04-自动更新服务器交接.md`。
+
 不得设置 `DSH_PACKAGE_CHECK_ALREADY_RAN=1` 跳过门禁，除非同一次受控 CI 工作流已经成功完成等价检查并保存日志。
 
 打包前再执行一次发布差异判定：
@@ -400,7 +419,7 @@ Get-Item -LiteralPath $exe |
 
 1. 在已获明确授权的专用测试电脑或测试账户卸载旧版，避免旧进程仍在运行；不得卸载用户正在使用的版本。
 2. 用新的 Windows 用户账户优先完成首次启动测试；需要保留旧数据时，再单独做升级安装测试。
-3. 重复第 6 节 6.2–6.10 的全部固定基线，并执行当次动态验收矩阵；不得只复测首次启动、Office、侧栏、浏览器和 PDF 等旧基线。
+3. 重复第 6 节 6.2–6.11 的全部固定基线，并执行当次动态验收矩阵；不得只复测首次启动、Office、侧栏、浏览器和 PDF 等旧基线。
 4. 升级测试必须保留 `%USERPROFILE%\.dsh`：确认登录、历史会话、用户已选模型/推理强度、市场来源、安装回执和用户安装的插件不丢失；同时确认 `profiles\desktop\node_modules\dsh-better-sidebar` 以及安装闭包内的 `@deepseek-ai/*` 框架包已被修复为指向新版程序依赖，旧实体副本不能继续加载。至少打开一个历史会话、操作模型选择器、新建对话并选择工作区，日志中不得出现 `duplicate deployment:persona`。
 5. 在专用测试账户关闭应用并删除整个 `%USERPROFILE%\.dsh`，再次启动应自动完成初始化；新 profile 默认启用 `DSH 1024Store`，且仍可添加、切换、禁用或移除来源。
 6. 新建无上下文对话与打开已有上下文对话都要确认沿用用户最后保存的模型选择；只有没有模型设置的新 profile 使用 `deepseek-v4-flash / low`。
@@ -424,6 +443,7 @@ Get-Item -LiteralPath $exe |
 - 当次动态验收矩阵及其基线 commit；明确列出历史回归、本次增量、相邻影响和未执行项。
 - `dist` 最终文件列表，确认保留用户本次明确指定的历史备份和当前正式 EXE，不含构建中间产物。
 - 已知环境限制与通用产品缺陷分开列出。
+- 更新服务三个接口的状态、版本 JSON、最终下载地址、远端大小/哈希，以及本版实际完成的自动升级路径；桥接版未执行跨版本升级时必须明确写“未执行”。
 - 本次是否产生值得写回手册的稳定经验；若有，说明已更新的章节。
 
 只生成 EXE、不验证安装后的真实功能，不算完成发布。
