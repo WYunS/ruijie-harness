@@ -5,7 +5,9 @@ import { dirname, resolve } from 'node:path'
 const require = createRequire(import.meta.url)
 const path = resolve(dirname(require.resolve('@deepseek-ai/dsh-client-ui-workspace/package.json')), 'lib/client.js')
 let source = await readFile(path, 'utf8')
-const PATCH_MARKER = '/* ruijie-session-lifecycle-v2 */'
+const V2_PATCH_MARKER = '/* ruijie-session-lifecycle-v2 */'
+const V3_PATCH_MARKER = '/* ruijie-session-lifecycle-v3 */'
+const PATCH_MARKER = '/* ruijie-session-lifecycle-v4 */'
 
 if (source.includes(PATCH_MARKER)) process.exit(0)
 
@@ -23,6 +25,23 @@ function replaceExactCount(before, after, expected) {
   source = source.split(before).join(after)
 }
 
+const archiveHandler = 'if (id === "archive") { onArchive(node.id); window.dispatchEvent(new CustomEvent("ruijie-session-archived", { detail: node.id })); }'
+const v2LifecycleListener = '(0, react.useEffect)(() => { const listener = (event) => { setPermanentlyDeleted((ids) => ids.includes(event.detail) ? ids : [...ids, event.detail]); }; window.addEventListener("ruijie-session-deleted", listener); return () => { window.removeEventListener("ruijie-session-deleted", listener); }; }, []);'
+const v3LifecycleListener = '(0, react.useEffect)(() => { const deletedListener = (event) => { setPermanentlyDeleted((ids) => ids.includes(event.detail) ? ids : [...ids, event.detail]); }; const archivedListener = (event) => { setRestoredSessions((ids) => ids.filter((id) => id !== event.detail)); }; window.addEventListener("ruijie-session-deleted", deletedListener); window.addEventListener("ruijie-session-archived", archivedListener); return () => { window.removeEventListener("ruijie-session-deleted", deletedListener); window.removeEventListener("ruijie-session-archived", archivedListener); }; }, []);'
+const lifecycleListener = '(0, react.useEffect)(() => { const deletedListener = (event) => { if (sessionList.current === event.detail) { const owner = workspaces.find((workspace) => workspace.sessionIds.includes(event.detail)); startSession(owner?.workspaceId); } setPermanentlyDeleted((ids) => ids.includes(event.detail) ? ids : [...ids, event.detail]); }; const archivedListener = (event) => { setRestoredSessions((ids) => ids.filter((id) => id !== event.detail)); }; window.addEventListener("ruijie-session-deleted", deletedListener); window.addEventListener("ruijie-session-archived", archivedListener); return () => { window.removeEventListener("ruijie-session-deleted", deletedListener); window.removeEventListener("ruijie-session-archived", archivedListener); }; }, [sessionList.current, startSession, workspaces]);'
+
+if (source.includes(V2_PATCH_MARKER)) {
+  replaceOnce('if (id === "archive") onArchive(node.id);', archiveHandler)
+  replaceOnce(v2LifecycleListener, v3LifecycleListener)
+  source = source.replace(V2_PATCH_MARKER, V3_PATCH_MARKER)
+}
+if (source.includes(V3_PATCH_MARKER)) {
+  replaceOnce(v3LifecycleListener, lifecycleListener)
+  source = source.replace(V3_PATCH_MARKER, PATCH_MARKER)
+  await writeFile(path, source)
+  process.exit(0)
+}
+
 replaceOnce('max-width:60px;transition:max-width', 'max-width:92px;transition:max-width')
 replaceOnce(
   '\t\t\t"menu.archiveSession": "归档会话",',
@@ -38,7 +57,7 @@ replaceOnce(
 )
 replaceOnce(
   '\t\t\t\t\t\t\t\t\tif (id === "archive") onArchive(node.id);',
-  '\t\t\t\t\t\t\t\t\tif (id === "archive") onArchive(node.id);\n\t\t\t\t\t\t\t\t\tif (id === "delete") void deleteSessionPermanently(node.id, t("archive.deleteConfirm"));',
+  `\t\t\t\t\t\t\t\t\t${archiveHandler}\n\t\t\t\t\t\t\t\t\tif (id === "delete") void deleteSessionPermanently(node.id, t("archive.deleteConfirm"));`,
 )
 replaceOnce(
   '\t\tfunction WorkspaceBrowser({ wide,',
@@ -46,7 +65,7 @@ replaceOnce(
 )
 replaceOnce(
   '\t\t\tconst archivedSessionIds = useWorkspaces((state) => state.archivedSessionIds);',
-  '\t\t\tconst archivedSessionIds = useWorkspaces((state) => state.archivedSessionIds);\n\t\t\tconst sessionList = useSessions((state) => state);\n\t\t\tconst [archiveOpen, setArchiveOpen] = (0, react.useState)(false);\n\t\t\tconst [archiveBusy, setArchiveBusy] = (0, react.useState)(null);\n\t\t\tconst [archiveError, setArchiveError] = (0, react.useState)(null);\n\t\t\tconst [permanentlyDeleted, setPermanentlyDeleted] = (0, react.useState)([]);\n\t\t\tconst [restoredSessions, setRestoredSessions] = (0, react.useState)([]);\n\t\t\t(0, react.useEffect)(() => { const listener = (event) => { setPermanentlyDeleted((ids) => ids.includes(event.detail) ? ids : [...ids, event.detail]); }; window.addEventListener("ruijie-session-deleted", listener); return () => { window.removeEventListener("ruijie-session-deleted", listener); }; }, []);\n\t\t\tconst effectiveArchivedSessionIds = [...new Set([...archivedSessionIds.filter((id) => !restoredSessions.includes(id)), ...permanentlyDeleted])];\n\t\t\tconst archivedRows = archivedSessionIds.filter((id) => !permanentlyDeleted.includes(id) && !restoredSessions.includes(id)).map((id) => sessionList.byId[id]).filter((row) => row !== void 0);\n\t\t\tconst runArchiveAction = (sessionId, action) => {\n\t\t\t\tsetArchiveBusy(sessionId); setArchiveError(null);\n\t\t\t\tarchivedSessionAction(sessionId, action).then(() => { if (action === "delete") setPermanentlyDeleted((ids) => [...ids, sessionId]); else setRestoredSessions((ids) => [...ids, sessionId]); }).catch((reason) => { setArchiveError(reason instanceof Error ? reason.message : String(reason)); }).finally(() => { setArchiveBusy(null); });\n\t\t\t};',
+  `\t\t\tconst archivedSessionIds = useWorkspaces((state) => state.archivedSessionIds);\n\t\t\tconst sessionList = useSessions((state) => state);\n\t\t\tconst [archiveOpen, setArchiveOpen] = (0, react.useState)(false);\n\t\t\tconst [archiveBusy, setArchiveBusy] = (0, react.useState)(null);\n\t\t\tconst [archiveError, setArchiveError] = (0, react.useState)(null);\n\t\t\tconst [permanentlyDeleted, setPermanentlyDeleted] = (0, react.useState)([]);\n\t\t\tconst [restoredSessions, setRestoredSessions] = (0, react.useState)([]);\n\t\t\t${lifecycleListener}\n\t\t\tconst effectiveArchivedSessionIds = [...new Set([...archivedSessionIds.filter((id) => !restoredSessions.includes(id)), ...permanentlyDeleted])];\n\t\t\tconst archivedRows = archivedSessionIds.filter((id) => !permanentlyDeleted.includes(id) && !restoredSessions.includes(id)).map((id) => sessionList.byId[id]).filter((row) => row !== void 0);\n\t\t\tconst runArchiveAction = (sessionId, action) => {\n\t\t\t\tsetArchiveBusy(sessionId); setArchiveError(null);\n\t\t\t\tarchivedSessionAction(sessionId, action).then(() => { if (action === "delete") setPermanentlyDeleted((ids) => [...ids, sessionId]); else setRestoredSessions((ids) => [...ids, sessionId]); }).catch((reason) => { setArchiveError(reason instanceof Error ? reason.message : String(reason)); }).finally(() => { setArchiveBusy(null); });\n\t\t\t};`,
 )
 replaceOnce(
   '\t\t\t\t\t\t\t\tchildren: [wide && (0, react_jsx_runtime.jsx)(ViewOptionsMenu, {',

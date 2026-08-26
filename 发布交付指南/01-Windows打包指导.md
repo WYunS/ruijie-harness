@@ -155,7 +155,7 @@ corepack yarn check
 
 ```powershell
 Set-Location -LiteralPath 'D:\ChatGPT\RuijieDSH\dsh-plugin-desktop'
-corepack yarn vitest run tests/native-sidebar-browser.spec.ts tests/electron-runtime.spec.ts tests/office-document-plugins.spec.ts tests/profile.spec.ts tests/package.spec.ts tests/verify-packaged-runtime.spec.ts tests/desktop-plugins.spec.ts tests/sidebar-produced-files.spec.ts tests/ruijie-auth.spec.ts tests/ruijie-login-window.spec.ts tests/time-context-runtime-patch.spec.ts tests/ui-appearance-runtime-patch.spec.ts tests/appearance-compatibility.spec.ts tests/dsh-im-runtime-patch.spec.ts tests/storage-json-runtime-patch.spec.ts tests/workspace-cross-move-runtime-patch.spec.ts tests/session-lifecycle-client-runtime-patch.spec.ts tests/archived-session-route.spec.ts tests/session-deletion-policy.spec.ts tests/sidebar-shortcuts.spec.ts tests/system-proxy.spec.ts tests/search-recovery.spec.ts tests/search-recovery-presentation.spec.ts tests/update-checker.spec.ts tests/update-download.spec.ts tests/updates.spec.ts
+corepack yarn vitest run tests/native-sidebar-browser.spec.ts tests/electron-runtime.spec.ts tests/office-document-plugins.spec.ts tests/profile.spec.ts tests/package.spec.ts tests/verify-packaged-runtime.spec.ts tests/desktop-plugins.spec.ts tests/sidebar-produced-files.spec.ts tests/ruijie-auth.spec.ts tests/ruijie-login-window.spec.ts tests/time-context-runtime-patch.spec.ts tests/ui-appearance-runtime-patch.spec.ts tests/appearance-compatibility.spec.ts tests/dsh-im-runtime-patch.spec.ts tests/storage-json-runtime-patch.spec.ts tests/workspace-cross-move-runtime-patch.spec.ts tests/session-lifecycle-client-runtime-patch.spec.ts tests/workspace-edit-focus-runtime-patch.spec.ts tests/editor-context-menu.spec.ts tests/archived-session-route.spec.ts tests/session-deletion-policy.spec.ts tests/sidebar-shortcuts.spec.ts tests/system-proxy.spec.ts tests/search-recovery.spec.ts tests/search-recovery-presentation.spec.ts tests/update-checker.spec.ts tests/update-download.spec.ts tests/updates.spec.ts
 Set-Location -LiteralPath 'D:\ChatGPT\RuijieDSH'
 corepack yarn workspace dsh-community-market vitest run tests/contracts.spec.ts tests/market-install.spec.ts tests/market-settings-persistence.spec.ts
 ```
@@ -322,6 +322,8 @@ IM 文件交付还有一条独立入口：模型可能直接调用 `dsh_im_retur
 2. 归档入口必须能列出已归档会话，并支持恢复或彻底删除；普通会话的 `...` 也必须提供彻底删除。恢复后回到原工作区位置。彻底删除只移除该会话事件日志，不删除工作区产物或共享附件对象。
 3. 已打开但当前空闲的会话仍允许彻底删除；只有事件流中存在尚未结束的生成回合时才阻止，并提示先停止生成。不得把“曾加载进内存”误判为“正在运行”。
 4. 删除、恢复和拖动完成后必须通过局部状态立即更新，不得调用整页刷新，不得出现白屏、登录页闪现或重新授权；连续删除两个会话也必须稳定。构建补丁重复执行两次后客户端哈希应保持一致，禁止重复声明或重复注入导致 `Failed to load plugins`。
+5. 会话永久删除确认必须使用应用内非阻塞 Modal，工作区客户端不得残留 `window.confirm()` 或 `window.alert()`。删除当前会话并关闭确认层后，无需截图、切页或重新聚焦窗口，必须能立即在新会话输入、重命名任一会话/工作区，并在目录选择器的“新建文件夹”中键入；输入框已选中文字但键盘无响应属于发布阻断。
+6. 对话输入框、重命名输入框和其他可编辑区域右键时必须提供系统原生撤销、重做、剪切、复制、粘贴和全选；非编辑文本有选区时至少提供复制。文字与剪贴板图片粘贴均需实测，不能用自绘菜单破坏 Electron 原生编辑行为。
 
 ### 6.10 工具失败恢复与主界面降噪
 

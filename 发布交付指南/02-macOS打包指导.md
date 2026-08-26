@@ -42,7 +42,7 @@ git diff --stat <上次发布提交>..HEAD
 - Mac 平台代码、原生依赖或窗口行为：追加对应 Mac 门禁。
 - sidebar/vendor：重建并核对源码、生成文件、安装副本和 `yarn.lock`。
 - 侧栏打开目标：追加“对话/Agent/网页/PDF 固定右栏，下栏仅承接用户在下栏面板内主动点击”的归属回归；不能只验证内容能打开。
-- 会话/工作区管理：追加工作区互移、工作区与未命名双向拖动、归档恢复、彻底删除和重启持久化；拖动只改变侧栏归属，不移动会话 `cwd` 或产物。删除只移除会话事件日志，不删除工作区产物或共享附件；已加载但空闲的会话可删除，正在生成的会话仍受保护。所有操作必须局部更新，不能整页刷新或闪回登录页。
+- 会话/工作区管理：追加工作区互移、工作区与未命名双向拖动、归档恢复、彻底删除和重启持久化；拖动只改变侧栏归属，不移动会话 `cwd` 或产物。删除只移除会话事件日志，不删除工作区产物或共享附件；已加载但空闲的会话可删除，正在生成的会话仍受保护。所有操作必须局部更新，不能整页刷新或闪回登录页；永久删除确认必须使用应用内非阻塞 Modal，关闭后立即验证新会话、重命名和新建文件夹仍可键入。
 - Office/PDF/OCR：核对插件闭包、原生依赖和 OCR 数据。
 - IM 交付或生成文件链路：除文件本身外，核对 `dsh_im_return_file` 的 produced-file 展示元数据，追加“本次产出”可点击与右侧栏预览回归。
 - 登录、模型、浏览器、WebSearch、存储迁移：为最终 DMG 的自动与真人验收追加风险项。时间、时区或其他模型可见运行时上下文改动必须额外覆盖直接问答、基于“今天”的搜索词、新旧会话、重启边界和最终 `.app` 依赖闭包。
@@ -86,7 +86,7 @@ corepack yarn install --immutable
 corepack yarn workspace dsh-plugin-desktop build:vendor-sidebar
 corepack yarn workspace dsh-plugin-desktop verify:vendor-sidebar
 corepack yarn check
-corepack yarn workspace dsh-plugin-desktop vitest run tests/mac-universal.spec.ts tests/package.spec.ts tests/package-mac.spec.ts tests/verify-mac-smoke.spec.ts tests/verify-packaged-runtime.spec.ts tests/electron-runtime.spec.ts tests/profile.spec.ts tests/desktop-plugins.spec.ts tests/sidebar-produced-files.spec.ts tests/window-options.spec.ts tests/mac-installed-acceptance.spec.ts tests/ruijie-auth.spec.ts tests/ruijie-login-window.spec.ts tests/time-context-runtime-patch.spec.ts tests/ui-appearance-runtime-patch.spec.ts tests/appearance-compatibility.spec.ts tests/dsh-im-runtime-patch.spec.ts tests/sidebar-shortcuts.spec.ts tests/system-proxy.spec.ts tests/search-recovery.spec.ts tests/search-recovery-presentation.spec.ts tests/update-checker.spec.ts tests/update-download.spec.ts tests/updates.spec.ts
+corepack yarn workspace dsh-plugin-desktop vitest run tests/mac-universal.spec.ts tests/package.spec.ts tests/package-mac.spec.ts tests/verify-mac-smoke.spec.ts tests/verify-packaged-runtime.spec.ts tests/electron-runtime.spec.ts tests/profile.spec.ts tests/desktop-plugins.spec.ts tests/sidebar-produced-files.spec.ts tests/window-options.spec.ts tests/mac-installed-acceptance.spec.ts tests/ruijie-auth.spec.ts tests/ruijie-login-window.spec.ts tests/time-context-runtime-patch.spec.ts tests/ui-appearance-runtime-patch.spec.ts tests/appearance-compatibility.spec.ts tests/dsh-im-runtime-patch.spec.ts tests/session-lifecycle-client-runtime-patch.spec.ts tests/workspace-edit-focus-runtime-patch.spec.ts tests/editor-context-menu.spec.ts tests/sidebar-shortcuts.spec.ts tests/system-proxy.spec.ts tests/search-recovery.spec.ts tests/search-recovery-presentation.spec.ts tests/update-checker.spec.ts tests/update-download.spec.ts tests/updates.spec.ts
 corepack yarn workspace dsh-community-market vitest run tests/contracts.spec.ts tests/market-install.spec.ts tests/market-settings-persistence.spec.ts
 git ls-files --error-unmatch vendor/dsh-attachment-formats/vendor/tessdata/eng.traineddata.gz
 git ls-files --error-unmatch vendor/dsh-attachment-formats/vendor/tessdata/chi_sim.traineddata.gz
@@ -124,7 +124,7 @@ Mac runner 上 `file:` 依赖可能因宿主 archive 元数据产生哈希差异
 
 登录窗口门禁还必须覆盖本版平台差异：回调完成页和等待进度使用应用图标的蓝紫渐变；Windows 使用自绘右上角关闭按钮，并由主进程处理真实窗口关闭，不能依赖渲染页 `window.close()`；最终 macOS `.app` 必须保留可用的原生左上角交通灯关闭，不得同时叠加 Windows“×”。两种平台都必须实点后确认窗口消失、本次启动结束且不会立即重弹授权。回调后的账号验证与工作台启动必须分阶段呈现，账号服务请求有界超时；这些行为要进入 `ruijie-auth`、`ruijie-login-window`、`package-mac` 和最终安装副本验收，不能只检查源码字符串。
 
-会话生命周期补丁必须作为最终 `.app` 闭包的一部分验证，并重复执行两次确认幂等：客户端只能出现一份生命周期补丁和一份会话列表声明，不得出现 `Failed to load plugins`。真人验收需连续删除两个空闲会话，确认侧栏局部消失且工作台不白屏、不闪回登录页；再验证工作区 A → B、未命名 → 工作区、工作区 → 未命名及重启持久化。归档恢复后保留原归属，彻底删除不应清理工作区产物或共享附件；真实生成中的会话仍应要求先停止生成。
+会话生命周期补丁必须作为最终 `.app` 闭包的一部分验证，并重复执行两次确认幂等：客户端只能出现一份生命周期补丁和一份会话列表声明，不得出现 `Failed to load plugins`。永久删除确认必须使用应用内 Modal，最终 workspace client 不得包含 `window.confirm()` 或 `window.alert()`；删除当前会话后立即测试新会话输入、会话/工作区重命名和目录选择器“新建文件夹”，无需截图或切换页面即可键入。真人验收还需连续删除两个空闲会话，确认侧栏局部消失且工作台不白屏、不闪回登录页；再验证工作区 A → B、未命名 → 工作区、工作区 → 未命名及重启持久化。归档恢复后保留原归属，彻底删除不应清理工作区产物或共享附件；真实生成中的会话仍应要求先停止生成。可编辑区域右键应提供系统原生剪切、复制、粘贴等菜单，并验证文字与剪贴板图片粘贴。
 
 更新门禁必须证明 `desktop-updates.config.enabled: true` 已进入最终 profile，正式 `.app` 启动约 60 秒后会检查固定 HTTPS 版本接口，用户确认后把 DMG 下载到 Electron userData 的私有 `updates` 目录并自动打开，不出现保存路径选择框。macOS 内部包未签名、未公证，因此应用内更新只负责发现、下载和打开 DMG，不能宣称会静默替换 `/Applications`。`scripts/install-macos.sh` 必须通过 `bash -n`，并核对脚本只接受 macOS、校验 DMG 与 bundle id、拒绝覆盖运行中的应用、使用暂存和备份完成替换、失败时恢复旧应用，且不关闭 Gatekeeper、不自动清除 quarantine。
 

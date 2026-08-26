@@ -9,6 +9,7 @@ import {
   Tray,
 } from 'electron'
 import { formatDesktopExitCode } from './desktop-logger.ts'
+import { editorContextMenuRoles } from './editor-context-menu.ts'
 import type { ElectronPlatformStrategy } from './electron-platform.ts'
 import type { DesktopShellSpec } from './runtime.ts'
 import { DESKTOP_SIDEBAR_POPUP_CHANNEL } from './sidebar-popup-bridge-contract.ts'
@@ -149,6 +150,22 @@ export class ElectronShellGeneration {
         return { action: 'deny' }
       })
     }
+    const showEditorContextMenu = (
+      _event: Electron.Event,
+      params: Electron.ContextMenuParams,
+    ): void => {
+      const roles = editorContextMenuRoles({
+        isEditable: params.isEditable,
+        hasSelection: params.selectionText.length > 0,
+      })
+      if (roles.length === 0) return
+      const template: Electron.MenuItemConstructorOptions[] = []
+      for (const role of roles) {
+        if (role === 'cut' || role === 'selectAll') template.push({ type: 'separator' })
+        template.push({ role })
+      }
+      Menu.buildFromTemplate(template).popup({ window })
+    }
 
     app.on('activate', show)
     window.on('close', close)
@@ -159,6 +176,7 @@ export class ElectronShellGeneration {
     window.webContents.on('render-process-gone', rendererGone)
     window.webContents.on('did-fail-load', loadFailed)
     window.webContents.on('did-attach-webview', attachWebview)
+    window.webContents.on('context-menu', showEditorContextMenu)
     window.webContents.setWindowOpenHandler(({ url }) => {
       try {
         const target = new URL(url)
@@ -185,6 +203,7 @@ export class ElectronShellGeneration {
       window.webContents.off('render-process-gone', rendererGone)
       window.webContents.off('did-fail-load', loadFailed)
       window.webContents.off('did-attach-webview', attachWebview)
+      window.webContents.off('context-menu', showEditorContextMenu)
       tray?.off('click', show)
     }
 
