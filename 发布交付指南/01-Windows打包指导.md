@@ -155,7 +155,7 @@ corepack yarn check
 
 ```powershell
 Set-Location -LiteralPath 'D:\ChatGPT\RuijieDSH\dsh-plugin-desktop'
-corepack yarn vitest run tests/native-sidebar-browser.spec.ts tests/electron-runtime.spec.ts tests/office-document-plugins.spec.ts tests/profile.spec.ts tests/package.spec.ts tests/verify-packaged-runtime.spec.ts tests/desktop-plugins.spec.ts tests/sidebar-produced-files.spec.ts tests/ruijie-auth.spec.ts tests/ruijie-login-window.spec.ts tests/time-context-runtime-patch.spec.ts tests/ui-appearance-runtime-patch.spec.ts tests/appearance-compatibility.spec.ts tests/dsh-im-runtime-patch.spec.ts tests/sidebar-shortcuts.spec.ts tests/system-proxy.spec.ts tests/search-recovery.spec.ts tests/search-recovery-presentation.spec.ts tests/update-checker.spec.ts tests/update-download.spec.ts tests/updates.spec.ts
+corepack yarn vitest run tests/native-sidebar-browser.spec.ts tests/electron-runtime.spec.ts tests/office-document-plugins.spec.ts tests/profile.spec.ts tests/package.spec.ts tests/verify-packaged-runtime.spec.ts tests/desktop-plugins.spec.ts tests/sidebar-produced-files.spec.ts tests/ruijie-auth.spec.ts tests/ruijie-login-window.spec.ts tests/time-context-runtime-patch.spec.ts tests/ui-appearance-runtime-patch.spec.ts tests/appearance-compatibility.spec.ts tests/dsh-im-runtime-patch.spec.ts tests/storage-json-runtime-patch.spec.ts tests/workspace-cross-move-runtime-patch.spec.ts tests/session-lifecycle-client-runtime-patch.spec.ts tests/archived-session-route.spec.ts tests/session-deletion-policy.spec.ts tests/sidebar-shortcuts.spec.ts tests/system-proxy.spec.ts tests/search-recovery.spec.ts tests/search-recovery-presentation.spec.ts tests/update-checker.spec.ts tests/update-download.spec.ts tests/updates.spec.ts
 Set-Location -LiteralPath 'D:\ChatGPT\RuijieDSH'
 corepack yarn workspace dsh-community-market vitest run tests/contracts.spec.ts tests/market-install.spec.ts tests/market-settings-persistence.spec.ts
 ```
@@ -185,6 +185,7 @@ corepack yarn workspace dsh-community-market vitest run tests/contracts.spec.ts 
 - 应用关闭后，在专用测试账户中删除整个 `%USERPROFILE%\.dsh` 再启动：应用自动重建 profile 与 `settings.yaml`，无需手工建目录。
 - 全新 profile 的插件市场默认已有并启用 `DSH 1024Store`；用户仍可切换当前来源、添加标准 manifest 来源、禁用或移除来源。
 - 若用户已经配置过 `dsh-community-market.sources`，升级迁移不得重置、追加或覆盖该列表；空数组也代表用户的明确选择。
+- 使用专用测试 profile 或自动化夹具，在 JSON storage backend 已打开后移除其 `storages` 根目录，再触发 workspace storage 的写入或删除；运行时必须自动重建父目录和对应 JSON 文件，不得抛出 `ENOENT`，后续工作区、会话与设置写入仍应正常。桌面构建必须执行 `patch-dsh-storage-json-runtime.mjs`，`tests/storage-json-runtime-patch.spec.ts` 必须验证补丁入口与真实恢复写入。
 - 安装插件后保留 `.dsh` 升级，`profiles\desktop\package.json` 中的第三方依赖和对应 `node_modules` 内容必须继续存在；只允许桌面端自有的 `dsh-better-sidebar` 与安装闭包内的 `@deepseek-ai/*` 框架包被修复为新版程序链接。
 - 用一个历史 profile 夹具让第三方插件带入重复的 `@deepseek-ai/cordis`、`dsh-scope`、`dsh-system-prompt`，升级启动后必须自动改用当前程序中的同一套框架实例，第三方插件仍保留。日志不得出现 `duplicate deployment:persona`；已有会话可打开、模型选择器可操作、新建对话和工作区选择有响应。
 
@@ -314,6 +315,13 @@ IM 文件交付还有一条独立入口：模型可能直接调用 `dsh_im_retur
 6. WhatsApp 的代理构造器不得引用上游压缩 bundle 的临时变量名；`https-proxy-agent@7.0.6` 必须是 desktop deploy root 的直接生产依赖，packaged-runtime gate 必须从最终 `app.asar.unpacked` 物理树解析其 `package.json`。在 Windows 开启系统 HTTP/HTTPS 代理且不设置 `HTTP_PROXY`/`HTTPS_PROXY` 环境变量，用户主动接入 WhatsApp 后应尽量生成可扫码二维码；显式环境变量存在时不得覆盖。无论网络、代理或二维码服务是否成功，点击“生成二维码”都不得让桌面进程退出或重启。失败必须留在 IM 页面并显示可读的网络/代理说明，不能暴露 `ReferenceError`、`invalid_union`、`invalid_value` 等内部异常或 RPC 校验 JSON。代理解析失败不得阻止桌面应用启动。
 
 完成条件：员工无需自行安装这两个插件；外观能力开箱可用，IM 能力由用户按渠道主动启用；未启用时绝不打扰，启用后能正常使用；安装包内置版本、profile row、物理依赖闭包和真实交互四层一致。
+
+会话与工作区管理属于同一侧栏发布门禁：
+
+1. 会话必须支持工作区 A → 工作区 B、未命名 → 工作区、工作区 → 未命名三种拖动。拖动只改变侧栏归属并持久化，不改变会话原始 `cwd`、不搬迁产物、不使既有文件链接失效；拖到空工作区标题也必须生效，重启后归属保持。
+2. 归档入口必须能列出已归档会话，并支持恢复或彻底删除；普通会话的 `...` 也必须提供彻底删除。恢复后回到原工作区位置。彻底删除只移除该会话事件日志，不删除工作区产物或共享附件对象。
+3. 已打开但当前空闲的会话仍允许彻底删除；只有事件流中存在尚未结束的生成回合时才阻止，并提示先停止生成。不得把“曾加载进内存”误判为“正在运行”。
+4. 删除、恢复和拖动完成后必须通过局部状态立即更新，不得调用整页刷新，不得出现白屏、登录页闪现或重新授权；连续删除两个会话也必须稳定。构建补丁重复执行两次后客户端哈希应保持一致，禁止重复声明或重复注入导致 `Failed to load plugins`。
 
 ### 6.10 工具失败恢复与主界面降噪
 
@@ -473,9 +481,9 @@ Get-Item -LiteralPath $exe |
 | 上版备份 | `Ruijie-Harness-2.0.7-x64-Setup.exe` | 344285426 | 328.34 | `875576C9A857D9B96EE913CDF27A94DF905110C44E8338398B74C652F8A731E3` | `NotSigned` |
 | 历史正式包 | `Ruijie-Harness-2.0.8-x64-Setup.exe` | 344287016 | 328.34 | `697EC1ECA5010CDC98521DC97DF24D70FB62626DF5E0710D48C15BAE69292691` | `NotSigned` |
 | 最近历史正式包 | `Ruijie-Harness-2.0.9-x64-Setup.exe` | 354214480 | 337.81 | `AE03CACD2420E545F1AC5A04CEDC70616F473B953A6D1A1307DD515562067580` | `NotSigned` |
-| 当前 Windows 候选包 | `Ruijie-Harness-2.1.0-x64-Setup.exe` | 354378546 | 337.96 | `34D205285D115C57E1A9C25C602D86D66BD07E936E5D6C925E3D5F6E425AFF43` | `NotSigned` |
+| 当前 Windows 候选包 | `Ruijie-Harness-2.1.0-x64-Setup.exe` | 354378568 | 337.96 | `CB7E1BFA2176DBA44F28DD1F8D6DD065959E3A2A0B8B79CF826793145FFBA6BB` | `NotSigned` |
 
-`2.1.0` Windows 候选包生成于产品提交 `929d4007692cba3a7639218f0677c05a6d236325`。`node scripts/verify-win-installer.ts`、完整 headless gate、Windows 关键测试（含侧栏页面正文读取、浏览器搜索证据与 ModSearch 供应商顺序）以及真实 Electron WebView 连续性 `20/20` 均已通过；本轮按用户要求未安装，因此首次安装、保留数据升级、真实联网与跨版本自动升级仍标记为未执行，不能仅凭本快照宣称完成正式发布验收。
+`2.1.0` Windows 候选包生成于产品提交 `2376a16c38dd511961f01fed9ec01e5e3f4a2114`。`node scripts/verify-win-installer.ts`、完整 headless gate、Windows 关键测试（含侧栏页面正文读取、浏览器搜索证据、ModSearch 供应商顺序与 JSON storage 根目录恢复）以及真实 Electron WebView 连续性 `20/20` 均已通过；同时已从 `win-unpacked` 最终物理依赖树确认 storage 恢复补丁进入安装包闭包。本轮按用户要求未安装，因此首次安装、保留数据升级、真实联网与跨版本自动升级仍标记为未执行，不能仅凭本快照宣称完成正式发布验收。
 
 `node scripts/verify-win-installer.ts` 已对 2.0.8 通过验证。该安装包包含 profile 框架单例修复，产品源码 commit 为 `5d90929a86d99a871e18497be3bed37a319b2dad`。此快照只证明构建产物结构、打包内容检查与发布门禁通过；由于本轮没有安装授权，安装后的联网、登录、侧栏、Office、搜索、PDF 和真实保留数据升级仍须按第 10 节验收。
 

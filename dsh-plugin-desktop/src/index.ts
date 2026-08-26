@@ -1,6 +1,8 @@
 /** DSH Desktop Host plugin: owns the selected native shell generation. */
 
 import { readFileSync } from 'node:fs'
+import { rm } from 'node:fs/promises'
+import { basename, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
@@ -10,6 +12,9 @@ import {
   type LocaleSettings,
 } from '@deepseek-ai/dsh-client-locale'
 import type {} from '@deepseek-ai/dsh-host-webserver'
+import { SessionId } from '@deepseek-ai/dsh-session'
+import type {} from '@deepseek-ai/dsh-session-persistence'
+import type {} from '@deepseek-ai/dsh-workspace'
 import {
   THEME_SETTINGS_NAMESPACE,
   type ThemeSettings,
@@ -33,6 +38,9 @@ import type {} from './ruijie-auth.ts'
 import { RUIJIE_ACCOUNT_PATH, RUIJIE_BRAND_WORDMARK_PATH, RUIJIE_LOGOUT_PATH } from './ruijie-account-contract.ts'
 import { handleRuijieAccountRequest, handleRuijieLogoutRequest } from './ruijie-account-route.ts'
 import { WINDOWS_TITLEBAR_HEIGHT } from './window-chrome.ts'
+import { ARCHIVED_SESSION_ACTION_PATH } from './archived-session-contract.ts'
+import { handleArchivedSessionActionRequest } from './archived-session-route.ts'
+import { isSessionActivelyRunning } from './session-deletion-policy.ts'
 
 /** Stable Cordis plugin name. */
 export const name = 'desktop-shell'
@@ -43,6 +51,11 @@ export const inject = ['webServer', 'webRuntime', 'appExit', 'settings']
 
 /** Standard settings namespace shared by tray and configuration surfaces. */
 export const DESKTOP_SETTINGS_NAMESPACE = settingsNamespace('dsh-desktop')
+
+interface SessionLifecycleRegistry {
+  readonly archivedSessionIds: readonly string[]
+  unarchiveSession(sessionId: ReturnType<typeof SessionId>): Promise<void>
+}
 
 const UI_THEME_SETTINGS_NAMESPACE = settingsNamespace(THEME_SETTINGS_NAMESPACE)
 const UI_LOCALE_SETTINGS_NAMESPACE = settingsNamespace(LOCALE_SETTINGS_NAMESPACE)
@@ -217,6 +230,53 @@ export function apply(ctx: Context, config: Config): void {
       },
     }),
     'dsh-plugin-desktop: Ruijie brand wordmark route',
+  )
+  ctx.effect(
+    () => ctx.webServer.register({
+      kind: 'exact',
+      path: ARCHIVED_SESSION_ACTION_PATH,
+      handler: (req, res) => handleArchivedSessionActionRequest(
+        req,
+        res,
+        rendererOrigin,
+        async ({ action, sessionId: rawSessionId }) => {
+          const sessionId = SessionId(rawSessionId)
+          const workspaceRegistry = ctx.get('workspaceRegistry')
+          if (workspaceRegistry === undefined) throw new Error('工作区服务尚未就绪')
+          const registry = workspaceRegistry as unknown as SessionLifecycleRegistry & typeof workspaceRegistry
+          if (action === 'restore') {
+            await registry.unarchiveSession(sessionId)
+            return
+          }
+          if (action === 'ungroup') {
+            for (const workspace of workspaceRegistry.list()) await workspace.detachSession(sessionId)
+            return
+          }
+          const loadedSession = ctx.get('sessions')?.get(sessionId)
+          if (loadedSession !== undefined && isSessionActivelyRunning(loadedSession.events)) {
+            throw new Error('会话正在生成内容，请先停止生成再彻底删除')
+          }
+          const sessionPersistence = ctx.get('sessionPersistence')
+          if (sessionPersistence === undefined) throw new Error('会话存储服务尚未就绪')
+          const header = (await sessionPersistence.list()).find(candidate => candidate.id === sessionId)
+          if (header === undefined) throw new Error('会话记录已经不存在')
+          const location = sessionPersistence.locate(header)
+          if (location?.kind !== 'jsonl') throw new Error('当前会话存储格式不支持彻底删除')
+          const artifact = resolve(location.path)
+          const sessionDirectory = dirname(artifact)
+          if (!basename(artifact).startsWith('session.jsonl') || dirname(sessionDirectory) === sessionDirectory) {
+            throw new Error('拒绝删除不安全的会话路径')
+          }
+          await workspaceRegistry.archiveSession(sessionId)
+          for (const workspace of workspaceRegistry.list()) await workspace.detachSession(sessionId)
+          await rm(sessionDirectory, { recursive: true, force: false })
+        },
+        cause => {
+          ctx.logger.warn(`dsh-plugin-desktop: archived-session action failed: ${cause instanceof Error ? cause.message : String(cause)}`)
+        },
+      ),
+    }),
+    'dsh-plugin-desktop: archived session lifecycle route',
   )
   if (runtime.platform === 'win32') {
     ctx.effect(

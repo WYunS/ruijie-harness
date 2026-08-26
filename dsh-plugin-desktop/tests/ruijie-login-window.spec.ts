@@ -76,6 +76,13 @@ describe('Ruijie SSO startup presentation', () => {
     expect(loginWindow).toContain('if (url === CANCEL_NAVIGATION_URL) window.close()')
   })
 
+  it('gives the Windows close control a stable 40px hit target without replacing macOS traffic lights', () => {
+    expect(loginWindow).toContain('width:40px;height:40px')
+    expect(loginWindow).toContain('display:grid;place-items:center')
+    expect(loginWindow).toContain("const closeControl = macOS\n    ? ''")
+    expect(loginWindow).toContain("frame: macOS")
+  })
+
   it('separates slow account verification from slow workspace startup', () => {
     expect(loginWindow).toContain('showVerifying(): void')
     expect(loginWindow).toContain('正在验证账号')
