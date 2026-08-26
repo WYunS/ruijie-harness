@@ -56,8 +56,8 @@ export function apply(ctx, config = {}) {
 
 /**
  * The web seam's search capability, backed by the modsearch engine chain
- * (Firecrawl keyless by default with no signup, agy by sign-in, Tavily and Exa
- * by key, with cooldown-aware fallback). `available()` must stay cheap and
+ * (Exa then Tavily by key, agy by sign-in, and Firecrawl as the final
+ * keyless/keyed fallback, with cooldown-aware reordering). `available()` must stay cheap and
  * offline, and the CLI plus its
  * router always ship, so it answers true and leaves the honest verdict to
  * execution: a run with no usable engine fails with the per-engine attempt

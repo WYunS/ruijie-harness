@@ -1580,16 +1580,12 @@ const ENGINES = {
   direct: httpFetchProvider
 };
 const ROLE_PREFERENCE = {
-  // Firecrawl leads: its keyless allowance works on a bare machine with no
-  // signup, which is the product's zero-setup promise. agy synthesizes and
-  // cites but its weekly quota is small, so it backs Firecrawl up rather than
-  // fronting the chain. Tavily and Exa are keyed backups.
-  search: ["firecrawl", "antigravity-cli", "tavily", "exa"],
-  // Firecrawl runs a cloud browser for JS-heavy pages, keyless by default
-  // (opt out with firecrawl.keylessFetch false). agy extracts to a focus. The
-  // local engine always works and returns the page as served, so it stays the
-  // floor.
-  fetch: ["firecrawl", "antigravity-cli", "local"],
+  // Prefer low-cost keyed providers, then a signed-in local CLI. Firecrawl
+  // stays last as a keyed or keyless compatibility fallback.
+  search: ["exa", "tavily", "antigravity-cli", "firecrawl"],
+  // Fetch locally first. A signed-in CLI may extract to a focus; Firecrawl's
+  // cloud browser stays last for JS-heavy or otherwise unreadable pages.
+  fetch: ["local", "antigravity-cli", "firecrawl"],
   // Only xAI can see inside X.
   social: ["grok-cli"]
 };

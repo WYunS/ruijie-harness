@@ -204,19 +204,25 @@ corepack yarn workspace dsh-community-market vitest run tests/contracts.spec.ts 
 
 必须区分：
 
-- `browser_search`：只生成 Bing URL 并送到右侧栏，`delivered: true` 只表示命令送达。
-- `web_search`：模型后端搜索；当前由 ModSearch 调用 `https://api.firecrawl.dev/v2/search`，成功时应返回真实来源列表。
+- `browser_search`：生成 Bing URL 并送到右侧栏，同时通过 `ctx.web` 的同一搜索接缝返回机器可读的摘要与来源；右栏导航和证据获取是两个独立结果，证据供应商失败不得把已经成功的导航显示成工具错误。
+- `web_search`：不打开浏览器，只通过相同 ModSearch 接缝返回真实来源和原生引用卡片；工具名与既有调用方式保持不变。
+- ModSearch 搜索基础顺序为 Exa → Tavily →已登录的 Antigravity CLI → Firecrawl，读取正文为本地安全抓取 → Antigravity CLI → Firecrawl。未配置的引擎会被跳过；额度冷却会把暂时耗尽的引擎后移，Firecrawl 必须保持最终兜底而不是默认首选。
+
+Exa、Tavily、Firecrawl 的 Key 或兼容 `baseURL` 只允许由受控运行环境、用户私有 `~/.modsearch/config.json` 或内部网关注入，严禁写入源码、`cordis.patch.yml`、安装包、日志和截图。正式接入“从当前 SSO 用户总额度扣费”前，必须由 GPTAuth 提供带 OAuth 鉴权、计量和审计的兼容网关；桌面端只能复用该用户凭据，不能在本地伪造扣费或共享长期供应商密钥。未部署网关时允许使用已配置供应商或 Firecrawl 免注册兜底，但交付记录必须如实说明计费归属。
 
 至少分别验证：
 
 1. 地址栏打开一个普通 HTTPS 页面。
 2. `browser_search` 的结果页确实加载，而非只返回 `delivered: true`。
+   同一次工具结果还必须包含 `evidenceStatus: available` 和非空 `sources`；模型可据此继续调用 `read_page` 阅读新闻正文并汇总，不能声称看见了 webview 的像素或 DOM。
 3. 对同一关键词或同一 URL 连续执行两次，第二次必须触发当前 webview 重新加载，不能因为 URL 字符串未变化而被 React 吞掉。
 4. `web_search` 返回非空 sources，而非只证明插件已注册。
 5. 点击含 `target="_blank"` 的普通链接，仍在受控侧栏 tab 内稳定导航。
 6. 先由用户主动打开并激活下栏终端、Files、Git 或浏览器，再从对话执行 `browser_search`、点击普通网页链接或触发 Agent 网页跳转；这些对话/命令来源必须始终在右侧栏打开，下栏保持原内容和活动状态，不能因为本会话曾打开下栏就把后续跳转吸入下栏。
 
 下栏不是对话跳转的默认目标。只有用户在下栏 Files、Git 等面板内部主动点击文件或链接时，内容才沿用下栏；同一资源已经在下栏打开时，随后从对话或 Agent 再次打开，也必须迁移或聚焦到右侧栏。关闭、收起和重新展开下栏后重复上述步骤，路由归属必须保持一致。
+
+故障矩阵必须使用可控夹具覆盖：Exa 成功时后续供应商不调用；Exa 额度耗尽后 Tavily 接管；前序供应商不可用时 Firecrawl 能接管；所有证据供应商失败时 `browser_search` 仍成功打开右栏并返回 `evidenceStatus: unavailable`，失败详情只进入轨迹/日志。`web_search` 独立调用仍应按原行为返回来源或终局错误，不能因合并浏览器展示而被删除或静默禁用。
 
 网络测试矩阵至少包含：
 

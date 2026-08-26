@@ -14,7 +14,7 @@
 | 读一个 URL | 所选引擎（若它能抓取），然后是免注册的 `firecrawl`，最后 `local` | 不可以，跟随上面的选择 |
 | 搜 X（推特） | `grok-cli` | 不可以，别的引擎看不到 X 里面 |
 
-搜索顺序固定为 `firecrawl`、`antigravity-cli`、`tavily`、`exa`。抓取顺序是 `firecrawl`、`antigravity-cli`、`local`。可用性会过滤这份名单，额度冷却会重新排序（见下文），但基础顺序不变。Firecrawl 领跑两条链，因为它的免注册通道在裸机上就能用，不要账号不要 key。
+锐捷桌面发行版的搜索顺序固定为 `exa`、`tavily`、`antigravity-cli`、`firecrawl`，抓取顺序为 `local`、`antigravity-cli`、`firecrawl`。可用性会过滤名单，额度冷却会重新排序（见下文），但基础顺序不变；Firecrawl 保留免注册和 API Key 两种能力，只在更便宜的搜索或本地读取不可用时兜底。
 
 从这张表能推出两个事实，它们回答大多数问题：
 
@@ -129,11 +129,11 @@ modsearch config set exa.apiKey <key>
 # 或环境变量：export EXA_API_KEY=<key>
 ```
 
-Exa 返回排好序的链接和高亮片段，但不写综述，所以它的 summary 是机械拼的，证据在 `items` 里。它在搜索顺序中排在 Tavily 之后。
+Exa 返回排好序的链接和高亮片段，但不写综述，所以它的 summary 是机械拼的，证据在 `items` 里。锐捷桌面发行版把它放在搜索顺序首位，Tavily 紧随其后。
 
 ### firecrawl（搜索 + 抓取，默认免注册）
 
-默认引擎，也是裸安装能直接干活的原因：Firecrawl 的免注册通道[每月送 1,000 免费 credits，无需注册](https://www.firecrawl.dev/blog/firecrawl-keyless-launch)。免注册请求不发送 Authorization header，按 IP 计量，受每日请求数和 credits 两项上限约束（[限流文档](https://docs.firecrawl.dev/rate-limits#keyless-no-api-key)没有公开每日上限的具体数字）。在 https://firecrawl.dev 领一个免费 key，可以再得独享的每月 1,000 credits 和更高限额：
+最终兜底引擎，也是裸安装在其他引擎均不可用时仍能尝试搜索的原因：Firecrawl 的免注册通道[每月送 1,000 免费 credits，无需注册](https://www.firecrawl.dev/blog/firecrawl-keyless-launch)。免注册请求不发送 Authorization header，按 IP 计量，受每日请求数和 credits 两项上限约束（[限流文档](https://docs.firecrawl.dev/rate-limits#keyless-no-api-key)没有公开每日上限的具体数字）。在 https://firecrawl.dev 领一个免费 key，可以再得独享的每月 1,000 credits 和更高限额：
 
 ```bash
 modsearch config set firecrawl.apiKey <key>
@@ -141,7 +141,7 @@ modsearch config set firecrawl.apiKey <key>
 modsearch config set firecrawl.keylessFetch false   # 让自动抓取不走云端
 ```
 
-两个角色开箱都免 key 运行。抓取正是 Firecrawl 领跑的原因：它在云端跑真实浏览器，JavaScript 渲染的页面能带着本地引擎看不到的内容回来。这也意味着公网 URL 会被交给第三方，每次云端抓取的结果 warning 都会标明这条边界。想让自动抓取只走本地，设 `firecrawl.keylessFetch false`：搜索照常免 key，抓取则跳过 Firecrawl，除非配置了 key 或用 `-e firecrawl` 显式选它。私有或保留地址的目标一律跳过它、交给本地引擎，即使 `--allow-private-network` 开着也一样：URL 里写的保留段 IP、天生本地的名字（`localhost`、`*.local`、`*.internal`），以及解析到保留 IP 的公网样子主机，都不发给云端。VPN 的假 IP 和真内部名从这里分不出来，所以都不上线。开关只让本地引擎访问它们。
+两个角色开箱都能在没有 key 时尝试运行。抓取先走内置本地读取；只有本地读取失败、内容需要 JavaScript 渲染或前序引擎不可用时，才使用 Firecrawl 云端浏览器。这意味着兜底时公网 URL 会被交给第三方，每次云端抓取的结果 warning 都会标明这条边界。想完全关闭免注册云端抓取，设 `firecrawl.keylessFetch false`；配置了 key 或用 `-e firecrawl` 显式选择时仍可使用。私有或保留地址的目标一律跳过它、交给本地引擎。
 
 每次 Firecrawl 抓取花一个 credit 并强制重新爬。modsearch 发送 `maxAge: 0`，关掉 Firecrawl 默认的多天缓存，所以抓取永远不会拿到过期内容。这个取舍是故意的：一次抓取一个 credit，换来内容是新的，这正是工具的意义。想省 credits 不要新鲜度的话，Firecrawl 不是该选的引擎。
 

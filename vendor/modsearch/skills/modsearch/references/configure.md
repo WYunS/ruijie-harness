@@ -14,7 +14,7 @@ Three jobs, called roles. Each role has engines that can do it:
 | read one URL | the chosen engine if it can fetch, then keyless `firecrawl`, then `local` | no, it follows the choice above |
 | search X (Twitter) | `grok-cli` | no, nothing else can see inside X |
 
-The search order is fixed at `firecrawl` then `antigravity-cli` then `tavily` then `exa`, and fetch is `firecrawl` then `antigravity-cli` then `local`. Availability filters the list, and quota cooldown reorders it (see below), but the base order does not change. Firecrawl leads both chains because its keyless tier works on a bare machine, no signup, no key.
+The Ruijie desktop distribution searches through `exa`, `tavily`, `antigravity-cli`, then `firecrawl`, and fetches through `local`, `antigravity-cli`, then `firecrawl`. Availability filters the list and quota cooldown can reorder it (see below), but this base order keeps Firecrawl as the final keyed or keyless fallback after cheaper search and local reading paths.
 
 Two facts follow from this table, and they answer most questions:
 
@@ -130,11 +130,11 @@ modsearch config set exa.apiKey <key>
 # or environment: export EXA_API_KEY=<key>
 ```
 
-Exa ranks and links with highlight snippets but writes no synthesis, so its summary is mechanical and the evidence is in `items`. It sits after Tavily in the search order.
+Exa ranks and links with highlight snippets but writes no synthesis, so its summary is mechanical and the evidence is in `items`. The Ruijie desktop distribution puts it first, followed by Tavily.
 
 ### firecrawl (search + fetch, keyless by default)
 
-The default engine, and the reason a bare install works: Firecrawl's keyless tier grants [1,000 free credits a month with no signup](https://www.firecrawl.dev/blog/firecrawl-keyless-launch). Keyless requests omit the Authorization header and are metered per IP with daily request and credit caps (Firecrawl does not publish the daily numbers in its [rate-limit documentation](https://docs.firecrawl.dev/rate-limits#keyless-no-api-key)). A free key from https://firecrawl.dev adds a personal 1,000 credits/month and higher limits:
+The final fallback engine, and the reason a bare install can still attempt search when no configured engine is available: Firecrawl's keyless tier grants [1,000 free credits a month with no signup](https://www.firecrawl.dev/blog/firecrawl-keyless-launch). Keyless requests omit the Authorization header and are metered per IP with daily request and credit caps (Firecrawl does not publish the daily numbers in its [rate-limit documentation](https://docs.firecrawl.dev/rate-limits#keyless-no-api-key)). A free key from https://firecrawl.dev adds a personal 1,000 credits/month and higher limits:
 
 ```bash
 modsearch config set firecrawl.apiKey <key>

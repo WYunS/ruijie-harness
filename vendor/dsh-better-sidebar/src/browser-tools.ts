@@ -4,6 +4,21 @@ import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { Context } from './context-types.ts'
 
+interface BrowserSearchSource {
+  url: string
+  title?: string
+  snippet?: string
+  publishedAt?: string
+}
+
+interface BrowserSearchResult {
+  url: string
+  delivered: boolean
+  evidenceStatus: 'available' | 'unavailable'
+  content?: string
+  sources: BrowserSearchSource[]
+}
+
 export interface BrowserCommand {
   id: number
   sessionId: string
@@ -67,12 +82,21 @@ function sessionIdOf(exec: ToolRunContext): string {
 }
 
 function renderBrowserResult(_args: unknown, value: unknown): ContentBlock[] {
-  const result = value as { url: string; delivered: boolean }
+  const result = value as BrowserSearchResult | { url: string; delivered: boolean }
+  const evidence = 'evidenceStatus' in result && result.evidenceStatus === 'available'
+    ? [
+        result.content,
+        ...result.sources.map((source, index) => {
+          const heading = `${String(index + 1)}. ${source.title ?? source.url} — ${source.url}`
+          return source.snippet === undefined ? heading : `${heading}\n${source.snippet}`
+        }),
+      ].filter((line): line is string => typeof line === 'string' && line !== '').join('\n')
+    : ''
   return [{
     type: 'text',
-    text: result.delivered
+    text: `${result.delivered
       ? `Opened ${result.url} in the current conversation's right sidebar browser.`
-      : `Queued ${result.url} for the current conversation's right sidebar browser; it will open when the sidebar connects.`,
+      : `Queued ${result.url} for the current conversation's right sidebar browser; it will open when the sidebar connects.`}${evidence === '' ? '' : `\n\nMachine-readable search evidence:\n${evidence}`}`,
   }]
 }
 
@@ -96,9 +120,9 @@ export function registerBrowserTools(ctx: Context, broker: BrowserCommandBroker)
   disposers.push(ctx.tools.register(defineTool({
     name: 'browser_search',
     description:
-      'Open the visible browser in the current conversation right sidebar and search Bing for a query. '
+      'Open the visible browser in the current conversation right sidebar and search Bing for a query, while also returning machine-readable web evidence from the configured web_search provider. '
       + 'Use this whenever the user asks you to open a browser, search something in the browser, or show web search results in the sidebar. '
-      + 'This controls the user-visible sidebar; do not claim that you cannot open their browser when this tool is available.',
+      + 'Use the returned sources to answer, and call read_page for article details when needed. This controls the user-visible sidebar; do not claim that you cannot open or read the search when this tool is available.',
     parameters: {
       query: {
         type: 'string',
@@ -113,17 +137,49 @@ export function registerBrowserTools(ctx: Context, broker: BrowserCommandBroker)
         properties: {
           url: { type: 'string', required: true },
           delivered: { type: 'boolean', required: true },
+          evidenceStatus: { type: 'string', enum: ['available', 'unavailable'], required: true },
+          content: { type: 'string' },
+          sources: {
+            type: 'array',
+            required: true,
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                url: { type: 'string', required: true },
+                title: { type: 'string' },
+                snippet: { type: 'string' },
+                publishedAt: { type: 'string' },
+              },
+            },
+          },
         },
       },
       render: renderBrowserResult,
     },
-    execute: (args: { query: string }, exec) => {
+    execute: async (args: { query: string }, exec): Promise<BrowserSearchResult> => {
       exec.signal.throwIfAborted()
       const query = args.query.trim()
       if (query === '') throw new Error('query must not be empty')
       const url = `https://cn.bing.com/search?q=${encodeURIComponent(query)}`
       const { delivered } = broker.issue(sessionIdOf(exec), url, `必应搜索：${query}`)
-      return Promise.resolve({ url, delivered })
+      try {
+        const evidence = await ctx.web.search({ query, maxResults: 8 }, exec.signal)
+        return {
+          url,
+          delivered,
+          evidenceStatus: 'available',
+          ...(evidence.content === undefined ? {} : { content: evidence.content }),
+          sources: evidence.sources.map((source: BrowserSearchSource) => ({ ...source })),
+        }
+      } catch (cause) {
+        if (exec.signal.aborted) throw cause
+        // Opening the user-visible browser is independently useful. Provider
+        // exhaustion must not turn a successful navigation into a tool error;
+        // the provider trail remains available in host diagnostics.
+        console.warn('[dsh-better-sidebar] browser_search evidence unavailable', cause)
+        return { url, delivered, evidenceStatus: 'unavailable', sources: [] }
+      }
     },
   })))
 

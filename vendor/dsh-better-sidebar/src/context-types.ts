@@ -396,6 +396,26 @@ export interface SidebarToolsService {
   register(tool: unknown): () => void
 }
 
+/** One normalized source returned by the host web-search seam. */
+export interface SidebarWebSearchSource {
+  readonly url: string
+  readonly title?: string
+  readonly snippet?: string
+  readonly publishedAt?: string
+}
+
+/** The selected web-search provider face used by browser_search. */
+export interface SidebarWebSearchService {
+  search(
+    request: { readonly query: string; readonly maxResults?: number },
+    signal?: AbortSignal,
+  ): Promise<{
+    readonly content?: string
+    readonly sources: readonly SidebarWebSearchSource[]
+    readonly truncated: boolean
+  }>
+}
+
 /** System-prompt service subset used to teach agents how to publish script outputs. */
 export interface SidebarSystemPromptService {
   section(section: { name: string; order: number; text: string }): () => void
@@ -428,6 +448,7 @@ declare module 'cordis' {
     settings: SidebarSettingsService
     invariants: SidebarInvariantsService
     tools: SidebarToolsService
+    web: SidebarWebSearchService
     systemPrompt: SidebarSystemPromptService
     /**
      * The client locale service (`@deepseek-ai/dsh-client-locale`): the

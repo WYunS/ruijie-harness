@@ -5283,13 +5283,13 @@ __metadata:
 
 "@liustack/modsearch@file:../vendor/modsearch::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
   version: 5.6.0
-  resolution: "@liustack/modsearch@file:../vendor/modsearch#../vendor/modsearch::hash=967368&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
+  resolution: "@liustack/modsearch@file:../vendor/modsearch#../vendor/modsearch::hash=a004bb&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
   dependencies:
     commander: "npm:^13.1.0"
     undici: "npm:^7.29.0"
   bin:
     modsearch: ./dist/main.js
-  checksum: 10c0/16e84312f2aca7a74a175f002a4a6401a0a63694e8d474d36d58b96b4064e37e3b2a295b342641b59e94a46b87c2e88048c6d35462b61a6b009c037c5589f546
+  checksum: 10c0/927933b2a964386a7836b52b935e77d39a48f5c86d37626aa8ca21c6609fcf7d84a9588a8d74db290809e12b37acb355d8ed043e8909a23dc137a662397e6d39
   languageName: node
   linkType: hard
 
@@ -11532,7 +11532,7 @@ __metadata:
 
 "dsh-better-sidebar@file:../vendor/dsh-better-sidebar::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
   version: 0.14.0
-  resolution: "dsh-better-sidebar@file:../vendor/dsh-better-sidebar#../vendor/dsh-better-sidebar::hash=a9fbb2&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
+  resolution: "dsh-better-sidebar@file:../vendor/dsh-better-sidebar#../vendor/dsh-better-sidebar::hash=fef357&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
   dependencies:
     "@codemirror/commands": "npm:^6.10.4"
     "@codemirror/lang-cpp": "npm:^6.0.3"
@@ -11582,7 +11582,7 @@ __metadata:
   peerDependenciesMeta:
     cordis:
       optional: true
-  checksum: 10c0/ecd9ded76af43b7dd54c881ad1793c9cdb45993bc306c6e1fa728d9bad5fa7ddb3d7ce22eea7786fae5049cd228a98d0beab901a7ac23e5dd57cda90fa830263
+  checksum: 10c0/b7423e277402deb946bfa8cc09432b0bed4bce2ff69b4e7f7d00d3426463daa0ba86ae00f092b254a761494994d9e4c8a8d1c866bf12ee91d67002660b5ac82b
   languageName: node
   linkType: hard
 

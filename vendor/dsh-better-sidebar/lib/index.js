@@ -2294,9 +2294,13 @@ function sessionIdOf(exec) {
 }
 function renderBrowserResult(_args, value) {
 	const result = value;
+	const evidence = "evidenceStatus" in result && result.evidenceStatus === "available" ? [result.content, ...result.sources.map((source, index) => {
+		const heading = `${String(index + 1)}. ${source.title ?? source.url} — ${source.url}`;
+		return source.snippet === void 0 ? heading : `${heading}\n${source.snippet}`;
+	})].filter((line) => typeof line === "string" && line !== "").join("\n") : "";
 	return [{
 		type: "text",
-		text: result.delivered ? `Opened ${result.url} in the current conversation's right sidebar browser.` : `Queued ${result.url} for the current conversation's right sidebar browser; it will open when the sidebar connects.`
+		text: `${result.delivered ? `Opened ${result.url} in the current conversation's right sidebar browser.` : `Queued ${result.url} for the current conversation's right sidebar browser; it will open when the sidebar connects.`}${evidence === "" ? "" : `\n\nMachine-readable search evidence:\n${evidence}`}`
 	}];
 }
 function validateHttpUrl(raw) {
@@ -2314,7 +2318,7 @@ function registerBrowserTools(ctx, broker) {
 	const disposers = [];
 	disposers.push(ctx.tools.register(defineTool({
 		name: "browser_search",
-		description: "Open the visible browser in the current conversation right sidebar and search Bing for a query. Use this whenever the user asks you to open a browser, search something in the browser, or show web search results in the sidebar. This controls the user-visible sidebar; do not claim that you cannot open their browser when this tool is available.",
+		description: "Open the visible browser in the current conversation right sidebar and search Bing for a query, while also returning machine-readable web evidence from the configured web_search provider. Use this whenever the user asks you to open a browser, search something in the browser, or show web search results in the sidebar. Use the returned sources to answer, and call read_page for article details when needed. This controls the user-visible sidebar; do not claim that you cannot open or read the search when this tool is available.",
 		parameters: { query: {
 			type: "string",
 			required: true,
@@ -2332,21 +2336,62 @@ function registerBrowserTools(ctx, broker) {
 					delivered: {
 						type: "boolean",
 						required: true
+					},
+					evidenceStatus: {
+						type: "string",
+						enum: ["available", "unavailable"],
+						required: true
+					},
+					content: { type: "string" },
+					sources: {
+						type: "array",
+						required: true,
+						items: {
+							type: "object",
+							additionalProperties: false,
+							properties: {
+								url: {
+									type: "string",
+									required: true
+								},
+								title: { type: "string" },
+								snippet: { type: "string" },
+								publishedAt: { type: "string" }
+							}
+						}
 					}
 				}
 			},
 			render: renderBrowserResult
 		},
-		execute: (args, exec) => {
+		execute: async (args, exec) => {
 			exec.signal.throwIfAborted();
 			const query = args.query.trim();
 			if (query === "") throw new Error("query must not be empty");
 			const url = `https://cn.bing.com/search?q=${encodeURIComponent(query)}`;
 			const { delivered } = broker.issue(sessionIdOf(exec), url, `必应搜索：${query}`);
-			return Promise.resolve({
-				url,
-				delivered
-			});
+			try {
+				const evidence = await ctx.web.search({
+					query,
+					maxResults: 8
+				}, exec.signal);
+				return {
+					url,
+					delivered,
+					evidenceStatus: "available",
+					...evidence.content === void 0 ? {} : { content: evidence.content },
+					sources: evidence.sources.map((source) => ({ ...source }))
+				};
+			} catch (cause) {
+				if (exec.signal.aborted) throw cause;
+				console.warn("[dsh-better-sidebar] browser_search evidence unavailable", cause);
+				return {
+					url,
+					delivered,
+					evidenceStatus: "unavailable",
+					sources: []
+				};
+			}
 		}
 	})));
 	disposers.push(ctx.tools.register(defineTool({
@@ -2589,7 +2634,8 @@ const inject = [
 	"webServer",
 	"sessions",
 	"webRuntime",
-	"tools"
+	"tools",
+	"web"
 ];
 /** Content types for the media route, by extension. */
 const MEDIA_TYPES = {
@@ -3293,4 +3339,4 @@ function pumpAgentTerminal(registry, handle, ws) {
 	});
 }
 //#endregion
-export { Config, apply, inject, mediaTypeForPath, name };
+export { BrowserCommandBroker, Config, apply, inject, mediaTypeForPath, name, registerBrowserTools };
