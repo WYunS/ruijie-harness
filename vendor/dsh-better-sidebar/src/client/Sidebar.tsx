@@ -197,6 +197,14 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
     let socket: WebSocket | undefined
     let retry: number | undefined
     let failures = 0
+    const previousReporter = (window as Window & {
+      __DSH_DESKTOP_BROWSER_CONTENT__?: (value: unknown) => void
+    }).__DSH_DESKTOP_BROWSER_CONTENT__
+    ;(window as Window & {
+      __DSH_DESKTOP_BROWSER_CONTENT__?: (value: unknown) => void
+    }).__DSH_DESKTOP_BROWSER_CONTENT__ = (value) => {
+      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'page-content', value }))
+    }
     const connect = (): void => {
       if (closed) return
       const url = new URL('/sidebar/ws/browser-commands', location.origin)
@@ -222,6 +230,9 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
       closed = true
       if (retry !== undefined) window.clearTimeout(retry)
       socket?.close()
+      ;(window as Window & {
+        __DSH_DESKTOP_BROWSER_CONTENT__?: (value: unknown) => void
+      }).__DSH_DESKTOP_BROWSER_CONTENT__ = previousReporter
     }
   }, [current, ctx])
 

@@ -45,7 +45,7 @@ import {
   PTY_DEPS_MISSING,
 } from './pty-deps.ts'
 import { registerArtifactPrompt, registerArtifactTool, registerTools } from './tools.ts'
-import { BrowserCommandBroker, registerBrowserTools } from './browser-tools.ts'
+import { BrowserCommandBroker, registerBrowserTools, type BrowserPageContent } from './browser-tools.ts'
 import { buildJobsApi, type SidebarJobsRoutes } from './jobs-routes.ts'
 import { readJsonBody, requireString, SidebarError, writeError, writeJson, writeOk } from './wire.ts'
 
@@ -842,6 +842,36 @@ async function attachBrowserCommands(
     }
     const unsubscribe = broker.subscribe(sessionId, (command) => {
       if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(command))
+    })
+    ws.on('message', (data) => {
+      let frame: unknown
+      try { frame = JSON.parse(data.toString()) } catch { return }
+      if (typeof frame !== 'object' || frame === null || Array.isArray(frame)) return
+      const row = frame as Record<string, unknown>
+      if (row.type !== 'page-content' || typeof row.value !== 'object' || row.value === null || Array.isArray(row.value)) return
+      const value = row.value as Record<string, unknown>
+      if (!Number.isInteger(value.commandId) || (value.commandId as number) < 0 || value.sessionId !== sessionId) return
+      if (typeof value.url !== 'string' || typeof value.title !== 'string' || typeof value.text !== 'string') return
+      if (!Array.isArray(value.links) || typeof value.truncated !== 'boolean') return
+      if (!/^https?:\/\//iu.test(value.url)) return
+      const links = value.links.flatMap((candidate): BrowserPageContent['links'] => {
+        if (typeof candidate !== 'object' || candidate === null || Array.isArray(candidate)) return []
+        const link = candidate as Record<string, unknown>
+        if (typeof link.url !== 'string' || !/^https?:\/\//iu.test(link.url)) return []
+        return [{
+          url: link.url.slice(0, 8_192),
+          ...(typeof link.title === 'string' ? { title: link.title.slice(0, 300) } : {}),
+        }]
+      }).slice(0, 30)
+      broker.acceptPage({
+        commandId: value.commandId as number,
+        sessionId,
+        url: value.url.slice(0, 8_192),
+        title: value.title.slice(0, 500),
+        text: value.text.slice(0, 50_000),
+        links,
+        truncated: value.truncated,
+      })
     })
     ws.on('close', unsubscribe)
     ws.on('error', unsubscribe)

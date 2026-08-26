@@ -41,6 +41,7 @@ type NativeWebviewElement = HTMLElement & {
   reload(): void
   getURL(): string
   getWebContentsId(): number
+  executeJavaScript<T>(code: string, userGesture?: boolean): Promise<T>
 }
 
 type DesktopSidebarPopupBridge = {
@@ -49,7 +50,42 @@ type DesktopSidebarPopupBridge = {
 
 type DesktopSidebarPopupWindow = Window & {
   __DSH_DESKTOP_SIDEBAR_POPUP__?: DesktopSidebarPopupBridge
+  __DSH_DESKTOP_BROWSER_CONTENT__?: (value: unknown) => void
 }
+
+interface ExtractedBrowserPage {
+  url: string
+  title: string
+  text: string
+  links: Array<{ url: string; title?: string }>
+  truncated: boolean
+}
+
+const EXTRACT_BROWSER_PAGE_SCRIPT = `(() => {
+  const clean = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+  const roots = [document.querySelector('article'), document.querySelector('main'), document.querySelector('[role="main"]'), document.body].filter(Boolean);
+  let best = '';
+  for (const root of roots) {
+    const clone = root.cloneNode(true);
+    for (const noisy of clone.querySelectorAll('script,style,noscript,svg,nav,footer,aside,form,[aria-hidden="true"]')) noisy.remove();
+    const text = clean(clone.innerText || clone.textContent || '');
+    if (text.length > best.length) best = text;
+  }
+  const limit = 50000;
+  const links = [];
+  const seen = new Set();
+  for (const anchor of document.querySelectorAll('a[href]')) {
+    let href;
+    try { href = new URL(anchor.href, location.href).href; } catch { continue; }
+    if (!/^https?:/i.test(href) || seen.has(href)) continue;
+    const title = clean(anchor.innerText || anchor.getAttribute('aria-label') || anchor.title);
+    if (!title) continue;
+    seen.add(href);
+    links.push({ url: href, title: title.slice(0, 300) });
+    if (links.length >= 30) break;
+  }
+  return { url: location.href, title: clean(document.title), text: best.slice(0, limit), links, truncated: best.length > limit };
+})()`
 
 declare module 'react' {
   namespace JSX {
@@ -106,7 +142,14 @@ export function BrowserView(props: TabComponentProps) {
     && typeof (tab.meta as Record<string, unknown>).browserNavigationId === 'number'
     ? (tab.meta as Record<string, number>).browserNavigationId
     : undefined
+  const browserReadRequestId = tab.meta !== null
+    && typeof tab.meta === 'object'
+    && !Array.isArray(tab.meta)
+    && typeof (tab.meta as Record<string, unknown>).browserReadRequestId === 'number'
+    ? (tab.meta as Record<string, number>).browserReadRequestId
+    : undefined
   const handledNavigationId = useRef(browserNavigationId)
+  const reportedReadId = useRef<number | undefined>(undefined)
 
   // A model browser command can navigate an already-mounted browser tab by
   // patching its persisted path. Mirror that external change into this
@@ -172,6 +215,20 @@ export function BrowserView(props: TabComponentProps) {
       persist(next)
       syncHistory()
     }
+    const reportPage = (): void => {
+      const commandId = browserReadRequestId !== undefined && reportedReadId.current !== browserReadRequestId
+        ? browserReadRequestId
+        : 0
+      if (commandId > 0) reportedReadId.current = commandId
+      void view.executeJavaScript<ExtractedBrowserPage>(EXTRACT_BROWSER_PAGE_SCRIPT).then((page) => {
+        if (page === null || typeof page !== 'object') return
+        ;(window as DesktopSidebarPopupWindow).__DSH_DESKTOP_BROWSER_CONTENT__?.({
+          commandId,
+          sessionId: props.scope.sessionId,
+          ...page,
+        })
+      }).catch(() => { /* Host timeout is the silent fallback for unreadable pages. */ })
+    }
     const failed = (event: Event): void => {
       const detail = event as Event & { errorCode?: number; errorDescription?: string; validatedURL?: string; isMainFrame?: boolean }
       if (detail.errorCode === -3) return
@@ -193,19 +250,20 @@ export function BrowserView(props: TabComponentProps) {
     })
     view.addEventListener('did-navigate', syncUrl)
     view.addEventListener('did-navigate-in-page', syncUrl)
-    view.addEventListener('did-stop-loading', syncHistory)
+    const stopped = (): void => { syncHistory(); reportPage() }
+    view.addEventListener('did-stop-loading', stopped)
     view.addEventListener('did-fail-load', failed)
     return () => {
       unsubscribePopup?.()
       view.removeEventListener('did-navigate', syncUrl)
       view.removeEventListener('did-navigate-in-page', syncUrl)
-      view.removeEventListener('did-stop-loading', syncHistory)
+      view.removeEventListener('did-stop-loading', stopped)
       view.removeEventListener('did-fail-load', failed)
     }
   // navigateTo/persist are intentionally resolved from the current render;
   // the effect rebinds when the requested URL changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nativeWebview, url])
+  }, [browserReadRequestId, nativeWebview, props.scope.sessionId, url])
 
   const persist = (nextUrl: string): void => {
     let host = nextUrl

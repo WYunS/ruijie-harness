@@ -10,6 +10,7 @@ describe('browser command client bridge', () => {
       sessionId: 'session-a',
       url: 'https://www.baidu.com/s?wd=test',
       title: '百度搜索：test',
+      readPage: true,
     }))
 
     expect(command).not.toBeNull()
@@ -18,6 +19,8 @@ describe('browser command client bridge', () => {
       type: 'browser',
       url: 'https://www.baidu.com/s?wd=test',
       title: '百度搜索：test',
+      placement: 'right',
+      meta: { browserNavigationId: 1, browserReadRequestId: 1 },
     }, { sessionId: 'session-a' })
   })
 
@@ -44,13 +47,14 @@ describe('browser command client bridge', () => {
       sessionId: 'session-a',
       url: 'https://cn.bing.com/search?q=second',
       title: '必应搜索：second',
+      readPage: true,
     })
 
     expect(service.openTab).not.toHaveBeenCalled()
     expect(service.updateTab).toHaveBeenCalledWith('browser:1', {
       path: 'https://cn.bing.com/search?q=second',
       title: '必应搜索：second',
-      meta: { browserNavigationId: 2 },
+      meta: { browserNavigationId: 2, browserReadRequestId: 2 },
     })
     expect(service.activateTab).toHaveBeenCalledWith('browser:1', { sessionId: 'session-a' })
   })

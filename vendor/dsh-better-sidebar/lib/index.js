@@ -2245,28 +2245,72 @@ var BrowserCommandBroker = class {
 	nextId = 1;
 	listeners = /* @__PURE__ */ new Map();
 	pending = /* @__PURE__ */ new Map();
-	issue(sessionId, url, title) {
+	pageReads = /* @__PURE__ */ new Map();
+	latestPages = /* @__PURE__ */ new Map();
+	issue(sessionId, url, title, options = {}) {
 		const command = {
 			id: this.nextId++,
 			sessionId,
 			url,
-			title
+			title,
+			...options.readPage === true ? { readPage: true } : {}
 		};
+		let page;
+		if (options.readPage === true) page = new Promise((resolve) => {
+			const timer = setTimeout(() => {
+				this.pageReads.delete(command.id);
+				resolve(void 0);
+			}, options.timeoutMs ?? 15e3);
+			this.pageReads.set(command.id, {
+				sessionId,
+				resolve,
+				timer
+			});
+		});
 		const listeners = this.listeners.get(sessionId);
 		if (listeners !== void 0 && listeners.size > 0) {
 			for (const listener of listeners) listener(command);
 			return {
 				command,
-				delivered: true
+				delivered: true,
+				...page === void 0 ? {} : { page }
 			};
 		}
 		const queue = this.pending.get(sessionId) ?? [];
 		queue.push(command);
 		this.pending.set(sessionId, queue.slice(-10));
+		if (page !== void 0) {
+			const pendingRead = this.pageReads.get(command.id);
+			if (pendingRead !== void 0) {
+				clearTimeout(pendingRead.timer);
+				this.pageReads.delete(command.id);
+				pendingRead.resolve(void 0);
+			}
+		}
 		return {
 			command,
-			delivered: false
+			delivered: false,
+			...page === void 0 ? {} : { page }
 		};
+	}
+	acceptPage(value) {
+		this.latestPages.set(value.sessionId, value);
+		const pending = this.pageReads.get(value.commandId);
+		if (pending === void 0 || pending.sessionId !== value.sessionId) return false;
+		clearTimeout(pending.timer);
+		this.pageReads.delete(value.commandId);
+		pending.resolve(value);
+		return true;
+	}
+	currentPage(sessionId) {
+		return this.latestPages.get(sessionId);
+	}
+	cancelPage(commandId) {
+		const pending = this.pageReads.get(commandId);
+		if (pending === void 0) return;
+		clearTimeout(pending.timer);
+		this.pageReads.delete(commandId);
+		pending.resolve(void 0);
 	}
 	subscribe(sessionId, listener) {
 		const listeners = this.listeners.get(sessionId) ?? /* @__PURE__ */ new Set();
@@ -2285,6 +2329,12 @@ var BrowserCommandBroker = class {
 	clear() {
 		this.listeners.clear();
 		this.pending.clear();
+		this.latestPages.clear();
+		for (const pending of this.pageReads.values()) {
+			clearTimeout(pending.timer);
+			pending.resolve(void 0);
+		}
+		this.pageReads.clear();
 	}
 };
 function sessionIdOf(exec) {
@@ -2303,6 +2353,35 @@ function renderBrowserResult(_args, value) {
 		text: `${result.delivered ? `Opened ${result.url} in the current conversation's right sidebar browser.` : `Queued ${result.url} for the current conversation's right sidebar browser; it will open when the sidebar connects.`}${evidence === "" ? "" : `\n\nMachine-readable search evidence:\n${evidence}`}`
 	}];
 }
+function renderCurrentPage(_args, value) {
+	const result = value;
+	if (result.content === void 0 || result.url === void 0) return [{
+		type: "text",
+		text: "The right-sidebar browser has no readable page content yet."
+	}];
+	return [{
+		type: "text",
+		text: `Read the current right-sidebar page: ${result.title ?? result.url} — ${result.url}\n\n${result.content}`
+	}];
+}
+function pageEvidence(page) {
+	if (page === void 0 || page.text.trim().length < 40) return void 0;
+	const sources = page.links.length > 0 ? page.links.slice(0, 20) : [{
+		url: page.url,
+		title: page.title
+	}];
+	return {
+		content: page.text,
+		sources
+	};
+}
+function providerEvidence(value) {
+	if (value === void 0 || value.sources.length === 0 && (value.content?.trim().length ?? 0) < 40) return void 0;
+	return {
+		...value.content === void 0 ? {} : { content: value.content },
+		sources: value.sources.map((source) => ({ ...source }))
+	};
+}
 function validateHttpUrl(raw) {
 	let url;
 	try {
@@ -2318,7 +2397,7 @@ function registerBrowserTools(ctx, broker) {
 	const disposers = [];
 	disposers.push(ctx.tools.register(defineTool({
 		name: "browser_search",
-		description: "Open the visible browser in the current conversation right sidebar and search Bing for a query, while also returning machine-readable web evidence from the configured web_search provider. Use this whenever the user asks you to open a browser, search something in the browser, or show web search results in the sidebar. Use the returned sources to answer, and call read_page for article details when needed. This controls the user-visible sidebar; do not claim that you cannot open or read the search when this tool is available.",
+		description: "Open the visible browser in the current conversation right sidebar and search Bing for a query, while also returning machine-readable web evidence from the configured web_search provider. The desktop app reads the loaded right-sidebar result page directly when provider evidence is unavailable. Use this whenever the user asks you to open a browser, search something in the browser, or show web search results in the sidebar. Use the returned sources to answer, and call read_page for article details when needed. This controls the user-visible sidebar; do not claim that you cannot open or read the search when this tool is available.",
 		parameters: { query: {
 			type: "string",
 			required: true,
@@ -2369,34 +2448,39 @@ function registerBrowserTools(ctx, broker) {
 			const query = args.query.trim();
 			if (query === "") throw new Error("query must not be empty");
 			const url = `https://cn.bing.com/search?q=${encodeURIComponent(query)}`;
-			const { delivered } = broker.issue(sessionIdOf(exec), url, `必应搜索：${query}`);
-			try {
-				const evidence = await ctx.web.search({
-					query,
-					maxResults: 8
-				}, exec.signal);
-				return {
-					url,
-					delivered,
-					evidenceStatus: "available",
-					...evidence.content === void 0 ? {} : { content: evidence.content },
-					sources: evidence.sources.map((source) => ({ ...source }))
-				};
-			} catch (cause) {
+			const sessionId = sessionIdOf(exec);
+			const issued = broker.issue(sessionId, url, `必应搜索：${query}`, { readPage: true });
+			const provider = ctx.web.search({
+				query,
+				maxResults: 8
+			}, exec.signal).then((value) => {
+				const evidence = providerEvidence(value);
+				if (evidence !== void 0) broker.cancelPage(issued.command.id);
+				return evidence;
+			}).catch((cause) => {
 				if (exec.signal.aborted) throw cause;
-				console.warn("[dsh-better-sidebar] browser_search evidence unavailable", cause);
-				return {
-					url,
-					delivered,
-					evidenceStatus: "unavailable",
-					sources: []
-				};
-			}
+				console.warn("[dsh-better-sidebar] browser_search provider evidence unavailable", cause);
+			});
+			const page = (issued.page ?? Promise.resolve(void 0)).then((value) => pageEvidence(value));
+			const evidence = await Promise.race([page, provider]) ?? await Promise.all([page, provider]).then((values) => values.find(Boolean));
+			if (evidence !== void 0) return {
+				url,
+				delivered: issued.delivered,
+				evidenceStatus: "available",
+				...evidence.content === void 0 ? {} : { content: evidence.content },
+				sources: evidence.sources
+			};
+			return {
+				url,
+				delivered: issued.delivered,
+				evidenceStatus: "unavailable",
+				sources: []
+			};
 		}
 	})));
 	disposers.push(ctx.tools.register(defineTool({
 		name: "browser_open",
-		description: "Open a complete http:// or https:// URL in the visible browser in the current conversation right sidebar. Use browser_search instead when the user gives keywords rather than a URL.",
+		description: "Open a complete http:// or https:// URL in the visible browser in the current conversation right sidebar and return the readable text from that loaded page. Use browser_search instead when the user gives keywords rather than a URL.",
 		parameters: { url: {
 			type: "string",
 			required: true,
@@ -2414,19 +2498,90 @@ function registerBrowserTools(ctx, broker) {
 					delivered: {
 						type: "boolean",
 						required: true
+					},
+					evidenceStatus: {
+						type: "string",
+						enum: ["available", "unavailable"],
+						required: true
+					},
+					content: { type: "string" },
+					sources: {
+						type: "array",
+						required: true,
+						items: {
+							type: "object",
+							additionalProperties: false,
+							properties: {
+								url: {
+									type: "string",
+									required: true
+								},
+								title: { type: "string" }
+							}
+						}
 					}
 				}
 			},
 			render: renderBrowserResult
 		},
-		execute: (args, exec) => {
+		execute: async (args, exec) => {
 			exec.signal.throwIfAborted();
 			const parsed = validateHttpUrl(args.url);
 			const title = parsed.hostname || parsed.href;
-			const { delivered } = broker.issue(sessionIdOf(exec), parsed.href, title);
-			return Promise.resolve({
+			const issued = broker.issue(sessionIdOf(exec), parsed.href, title, { readPage: true });
+			const evidence = pageEvidence(await issued.page);
+			exec.signal.throwIfAborted();
+			return {
 				url: parsed.href,
-				delivered
+				delivered: issued.delivered,
+				evidenceStatus: evidence === void 0 ? "unavailable" : "available",
+				...evidence?.content === void 0 ? {} : { content: evidence.content },
+				sources: evidence?.sources ?? []
+			};
+		}
+	})));
+	disposers.push(ctx.tools.register(defineTool({
+		name: "browser_read_current",
+		description: "Read the title, visible article text, and links from the page currently open in this conversation right sidebar. Use it when the user navigated or clicked inside the sidebar browser and asks for a summary of what is now displayed.",
+		parameters: {},
+		output: {
+			schema: {
+				type: "object",
+				additionalProperties: false,
+				properties: {
+					url: { type: "string" },
+					title: { type: "string" },
+					content: { type: "string" },
+					sources: {
+						type: "array",
+						required: true,
+						items: {
+							type: "object",
+							additionalProperties: false,
+							properties: {
+								url: {
+									type: "string",
+									required: true
+								},
+								title: { type: "string" }
+							}
+						}
+					}
+				}
+			},
+			render: renderCurrentPage
+		},
+		execute: (_args, exec) => {
+			exec.signal.throwIfAborted();
+			const page = broker.currentPage(sessionIdOf(exec));
+			const evidence = pageEvidence(page);
+			return Promise.resolve({
+				...page === void 0 ? {} : {
+					url: page.url,
+					title: page.title
+				},
+				...evidence?.content === void 0 ? {} : { content: evidence.content },
+				sources: evidence?.sources ?? []
 			});
 		}
 	})));
@@ -3192,6 +3347,40 @@ async function attachBrowserCommands(broker, ws, req) {
 		}
 		const unsubscribe = broker.subscribe(sessionId, (command) => {
 			if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(command));
+		});
+		ws.on("message", (data) => {
+			let frame;
+			try {
+				frame = JSON.parse(data.toString());
+			} catch {
+				return;
+			}
+			if (typeof frame !== "object" || frame === null || Array.isArray(frame)) return;
+			const row = frame;
+			if (row.type !== "page-content" || typeof row.value !== "object" || row.value === null || Array.isArray(row.value)) return;
+			const value = row.value;
+			if (!Number.isInteger(value.commandId) || value.commandId < 0 || value.sessionId !== sessionId) return;
+			if (typeof value.url !== "string" || typeof value.title !== "string" || typeof value.text !== "string") return;
+			if (!Array.isArray(value.links) || typeof value.truncated !== "boolean") return;
+			if (!/^https?:\/\//iu.test(value.url)) return;
+			const links = value.links.flatMap((candidate) => {
+				if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate)) return [];
+				const link = candidate;
+				if (typeof link.url !== "string" || !/^https?:\/\//iu.test(link.url)) return [];
+				return [{
+					url: link.url.slice(0, 8192),
+					...typeof link.title === "string" ? { title: link.title.slice(0, 300) } : {}
+				}];
+			}).slice(0, 30);
+			broker.acceptPage({
+				commandId: value.commandId,
+				sessionId,
+				url: value.url.slice(0, 8192),
+				title: value.title.slice(0, 500),
+				text: value.text.slice(0, 5e4),
+				links,
+				truncated: value.truncated
+			});
 		});
 		ws.on("close", unsubscribe);
 		ws.on("error", unsubscribe);

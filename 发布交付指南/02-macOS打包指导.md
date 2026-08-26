@@ -45,7 +45,7 @@ git diff --stat <上次发布提交>..HEAD
 - Office/PDF/OCR：核对插件闭包、原生依赖和 OCR 数据。
 - IM 交付或生成文件链路：除文件本身外，核对 `dsh_im_return_file` 的 produced-file 展示元数据，追加“本次产出”可点击与右侧栏预览回归。
 - 登录、模型、浏览器、WebSearch、存储迁移：为最终 DMG 的自动与真人验收追加风险项。时间、时区或其他模型可见运行时上下文改动必须额外覆盖直接问答、基于“今天”的搜索词、新旧会话、重启边界和最终 `.app` 依赖闭包。
-- 搜索供应商或计费路由：核对 `browser_search` 同时完成右栏展示和机器可读证据、独立 `web_search` 保持可用、Exa → Tavily → Antigravity → Firecrawl 搜索降级、本地 → Antigravity → Firecrawl 正文读取降级，以及密钥不进入 DMG。内部计费只能由 GPTAuth OAuth 网关写入当前用户总额度账本；没有服务端证据时不得宣称已完成扣费。
+- 浏览器读取、搜索供应商或计费路由：核对 `browser_search` 同时完成右栏展示和已加载页面的机器可读证据，`browser_open` 能返回正文，用户在右栏内继续导航后 `browser_read_current` 能读取当前页面；独立 `web_search` 保持可用，供应商密钥不进入 DMG。内部计费只能由 GPTAuth OAuth 网关写入当前用户总额度账本；没有服务端证据时不得宣称已完成扣费。
 - 更新逻辑、版本接口、下载地址或安装脚本：追加后台检查、用户拒绝/重试、私有目录下载、DMG 打开、旧数据保留和网站 curl 安装回归；Windows 与 Mac 必须保持同一稳定版本。
 - 仅文档或测试：仍运行适用门禁，但不虚构产品功能变化。
 - 无法归类的运行时变化：暂停打包，先读实现和调用关系并补充门禁。
@@ -107,7 +107,7 @@ Mac 应用图标分为两个用途，打包和验收不得混淆：
 
 侧栏动态验收必须先主动打开并激活下栏终端、Files、Git 或浏览器，再从对话执行 `browser_search`、点击网页链接、PDF/文件正文引用及“本次产出”。对话和 Agent 发起的所有跳转必须进入右侧栏，下栏保持原内容；只有用户在下栏文件树、Git 等面板内部主动点击时才留在下栏。同一资源已在下栏打开也不能改变对话来源固定进入右栏的规则。
 
-搜索与读页门禁必须检查最终 `.app` 中的 ModSearch 安装副本，而不只检查 `vendor`：搜索候选顺序为 Exa、Tavily、Antigravity、Firecrawl；抓取候选顺序为 local、Antigravity、Firecrawl。`browser_search` 必须在右栏导航后返回 `evidenceStatus`、摘要和来源；证据链全部失败时仍保留成功导航，诊断写入日志。`web_search` 工具、原生引用卡片和 `read_page` 均保持独立可用。供应商 Key 及内部网关凭据不得进入仓库或 DMG；正式声明 SSO 钱包扣费前必须保存 GPTAuth 网关的认证、计量与余额变化证据。
+搜索与读页门禁必须检查最终 `.app` 中的 sidebar 与 ModSearch 安装副本，而不只检查 `vendor`：`browser_search` 必须在右栏导航后优先取得已加载页面的只读正文，也可使用搜索服务返回摘要和来源；`browser_open` 与 `browser_read_current` 必须能读取右栏当前页面。搜索服务全部失败但 Chromium 可加载时仍应完成总结，原始供应商、额度、限流和内部联网错误只写轨迹/日志，不进入主对话。`web_search` 工具、原生引用卡片和 `read_page` 均保持独立可用。供应商 Key 及内部网关凭据不得进入仓库或 DMG；正式声明 SSO 钱包扣费前必须保存 GPTAuth 网关的认证、计量与余额变化证据。
 
 Mac runner 上 `file:` 依赖可能因宿主 archive 元数据产生哈希差异。工作流允许一次刷新后必须立即再次执行 `yarn install --immutable`，证明依赖图稳定；不能删除第二次校验，也不能在 Mac runner 重建 Windows 生成的 sidebar bundle。
 

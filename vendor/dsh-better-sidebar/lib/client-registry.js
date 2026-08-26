@@ -6358,6 +6358,31 @@ window.__ModuleLoader__.load({
 		* address-bar navigations (in-frame link clicks are cross-origin and
 		* invisible — a documented limitation).
 		*/
+		const EXTRACT_BROWSER_PAGE_SCRIPT = `(() => {
+  const clean = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+  const roots = [document.querySelector('article'), document.querySelector('main'), document.querySelector('[role="main"]'), document.body].filter(Boolean);
+  let best = '';
+  for (const root of roots) {
+    const clone = root.cloneNode(true);
+    for (const noisy of clone.querySelectorAll('script,style,noscript,svg,nav,footer,aside,form,[aria-hidden="true"]')) noisy.remove();
+    const text = clean(clone.innerText || clone.textContent || '');
+    if (text.length > best.length) best = text;
+  }
+  const limit = 50000;
+  const links = [];
+  const seen = new Set();
+  for (const anchor of document.querySelectorAll('a[href]')) {
+    let href;
+    try { href = new URL(anchor.href, location.href).href; } catch { continue; }
+    if (!/^https?:/i.test(href) || seen.has(href)) continue;
+    const title = clean(anchor.innerText || anchor.getAttribute('aria-label') || anchor.title);
+    if (!title) continue;
+    seen.add(href);
+    links.push({ url: href, title: title.slice(0, 300) });
+    if (links.length >= 30) break;
+  }
+  return { url: location.href, title: clean(document.title), text: best.slice(0, limit), links, truncated: best.length > limit };
+})()`;
 		/**
 		* The browser iframe sandbox tokens. NO allow-same-origin (opaque origin —
 		* no GUI storage/API access), NO allow-top-navigation (a browsed page must
@@ -6394,7 +6419,9 @@ window.__ModuleLoader__.load({
 				forward: false
 			});
 			const browserNavigationId = tab.meta !== null && typeof tab.meta === "object" && !Array.isArray(tab.meta) && typeof tab.meta.browserNavigationId === "number" ? tab.meta.browserNavigationId : void 0;
+			const browserReadRequestId = tab.meta !== null && typeof tab.meta === "object" && !Array.isArray(tab.meta) && typeof tab.meta.browserReadRequestId === "number" ? tab.meta.browserReadRequestId : void 0;
 			const handledNavigationId = (0, react.useRef)(browserNavigationId);
+			const reportedReadId = (0, react.useRef)(void 0);
 			(0, react.useEffect)(() => {
 				if (tab.path === void 0) return;
 				const repeatedRequest = browserNavigationId !== void 0 && browserNavigationId !== handledNavigationId.current;
@@ -6455,6 +6482,18 @@ window.__ModuleLoader__.load({
 					persist(next);
 					syncHistory();
 				};
+				const reportPage = () => {
+					const commandId = browserReadRequestId !== void 0 && reportedReadId.current !== browserReadRequestId ? browserReadRequestId : 0;
+					if (commandId > 0) reportedReadId.current = commandId;
+					view.executeJavaScript(EXTRACT_BROWSER_PAGE_SCRIPT).then((page) => {
+						if (page === null || typeof page !== "object") return;
+						window.__DSH_DESKTOP_BROWSER_CONTENT__?.({
+							commandId,
+							sessionId: props.scope.sessionId,
+							...page
+						});
+					}).catch(() => {});
+				};
 				const failed = (event) => {
 					const detail = event;
 					if (detail.errorCode === -3) return;
@@ -6475,16 +6514,25 @@ window.__ModuleLoader__.load({
 				});
 				view.addEventListener("did-navigate", syncUrl);
 				view.addEventListener("did-navigate-in-page", syncUrl);
-				view.addEventListener("did-stop-loading", syncHistory);
+				const stopped = () => {
+					syncHistory();
+					reportPage();
+				};
+				view.addEventListener("did-stop-loading", stopped);
 				view.addEventListener("did-fail-load", failed);
 				return () => {
 					unsubscribePopup?.();
 					view.removeEventListener("did-navigate", syncUrl);
 					view.removeEventListener("did-navigate-in-page", syncUrl);
-					view.removeEventListener("did-stop-loading", syncHistory);
+					view.removeEventListener("did-stop-loading", stopped);
 					view.removeEventListener("did-fail-load", failed);
 				};
-			}, [nativeWebview, url]);
+			}, [
+				browserReadRequestId,
+				nativeWebview,
+				props.scope.sessionId,
+				url
+			]);
 			const persist = (nextUrl) => {
 				let host = nextUrl;
 				try {
@@ -7708,11 +7756,13 @@ window.__ModuleLoader__.load({
 			if (typeof row.sessionId !== "string" || row.sessionId === "") return null;
 			if (typeof row.url !== "string" || !/^https?:\/\//iu.test(row.url)) return null;
 			if (typeof row.title !== "string" || row.title === "") return null;
+			if (row.readPage !== void 0 && typeof row.readPage !== "boolean") return null;
 			return {
 				id: row.id,
 				sessionId: row.sessionId,
 				url: row.url,
-				title: row.title
+				title: row.title,
+				...row.readPage === true ? { readPage: true } : {}
 			};
 		}
 		/** Land a valid command in the command's own conversation-scoped sidebar. */
@@ -7728,7 +7778,8 @@ window.__ModuleLoader__.load({
 						title: command.title,
 						meta: {
 							...previousMeta,
-							browserNavigationId: command.id
+							browserNavigationId: command.id,
+							...command.readPage === true ? { browserReadRequestId: command.id } : {}
 						}
 					});
 					service.activateTab(activeTab.id, { sessionId: command.sessionId });
@@ -7739,7 +7790,11 @@ window.__ModuleLoader__.load({
 				type: "browser",
 				url: command.url,
 				title: command.title,
-				placement: "right"
+				placement: "right",
+				meta: {
+					browserNavigationId: command.id,
+					...command.readPage === true ? { browserReadRequestId: command.id } : {}
+				}
 			}, { sessionId: command.sessionId });
 		}
 		//#endregion
@@ -7884,6 +7939,13 @@ window.__ModuleLoader__.load({
 				let socket;
 				let retry;
 				let failures = 0;
+				const previousReporter = window.__DSH_DESKTOP_BROWSER_CONTENT__;
+				window.__DSH_DESKTOP_BROWSER_CONTENT__ = (value) => {
+					if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({
+						type: "page-content",
+						value
+					}));
+				};
 				const connect = () => {
 					if (closed) return;
 					const url = new URL("/sidebar/ws/browser-commands", location.origin);
@@ -7913,6 +7975,7 @@ window.__ModuleLoader__.load({
 					closed = true;
 					if (retry !== void 0) window.clearTimeout(retry);
 					socket?.close();
+					window.__DSH_DESKTOP_BROWSER_CONTENT__ = previousReporter;
 				};
 			}, [current, ctx]);
 			const state = snapshot.state;

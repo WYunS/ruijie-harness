@@ -141,6 +141,7 @@ describe('better sidebar produced-file integration', () => {
       url: 'https://cn.bing.com/search?q=right',
       title: '必应搜索：right',
       placement: 'right',
+      meta: { browserNavigationId: 3 },
     }, { sessionId: 'session-a' })
   })
 

@@ -35,9 +35,9 @@ function toolOf(captured: ToolDefinition[], name: string): ToolDefinition {
 }
 
 describe('model-facing sidebar browser tools', () => {
-  it('registers browser_search and browser_open', () => {
+  it('registers search, open, and current-page browser tools', () => {
     const { captured } = mount()
-    expect(captured.map(tool => tool.name)).toEqual(['browser_search', 'browser_open'])
+    expect(captured.map(tool => tool.name)).toEqual(['browser_search', 'browser_open', 'browser_read_current'])
   })
 
   it('pushes a Bing search into the calling session sidebar', async () => {
@@ -48,7 +48,18 @@ describe('model-facing sidebar browser tools', () => {
     })
     const { broker, captured } = mount({ search })
     const received: unknown[] = []
-    broker.subscribe('session-a', command => { received.push(command) })
+    broker.subscribe('session-a', command => {
+      received.push(command)
+      broker.acceptPage({
+        commandId: command.id,
+        sessionId: command.sessionId,
+        url: command.url,
+        title: '必应结果',
+        text: '这是从右侧栏页面直接读取的搜索结果正文，包含足够长度供模型进行新闻总结与引用。',
+        links: [{ url: 'https://news.example/local', title: '右栏新闻' }],
+        truncated: false,
+      })
+    })
 
     const result = await toolOf(captured, 'browser_search').execute({ query: '格列兹曼' }, exec('session-a'))
 
@@ -70,7 +81,18 @@ describe('model-facing sidebar browser tools', () => {
     const warning = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const { broker, captured } = mount({ search: async () => { throw new Error('providers exhausted') } })
     const received: unknown[] = []
-    broker.subscribe('session-a', command => { received.push(command) })
+    broker.subscribe('session-a', command => {
+      received.push(command)
+      broker.acceptPage({
+        commandId: command.id,
+        sessionId: command.sessionId,
+        url: command.url,
+        title: '',
+        text: '',
+        links: [],
+        truncated: false,
+      })
+    })
 
     const result = await toolOf(captured, 'browser_search').execute({ query: 'AI 新闻' }, exec('session-a'))
 
@@ -88,5 +110,27 @@ describe('model-facing sidebar browser tools', () => {
     await toolOf(captured, 'browser_open').execute({ url: 'https://example.com/path' }, exec('session-a'))
 
     expect(received).toEqual([])
+  })
+
+  it('reads a page that the user navigated to inside the right sidebar', async () => {
+    const { broker, captured } = mount()
+    broker.acceptPage({
+      commandId: 0,
+      sessionId: 'session-a',
+      url: 'https://news.example/current',
+      title: '当前新闻',
+      text: '这是用户在右侧栏中主动点开的新闻正文，模型应该能够直接读取并完成准确总结，同时保留新闻原始来源链接供用户核验。',
+      links: [{ url: 'https://news.example/source', title: '原始来源' }],
+      truncated: false,
+    })
+
+    const result = await toolOf(captured, 'browser_read_current').execute({}, exec('session-a'))
+
+    expect(result).toMatchObject({
+      url: 'https://news.example/current',
+      title: '当前新闻',
+      content: expect.stringContaining('新闻正文'),
+      sources: [{ url: 'https://news.example/source', title: '原始来源' }],
+    })
   })
 })

@@ -70,7 +70,8 @@ describe('native sidebar browser', () => {
       'utf8',
     )
     expect(source).toContain('browserNavigationId: command.id')
-    expect(source).toContain('meta: { ...previousMeta, browserNavigationId: command.id }')
+    expect(source).toContain('...previousMeta,')
+    expect(source).toContain('browserReadRequestId: command.id')
   })
 
   it('enables isolated Electron webviews in both desktop shell modes', () => {
@@ -91,6 +92,8 @@ describe('native sidebar browser', () => {
     expect(source).toMatch(/nativeWebview[\s\S]*?<webview/u)
     expect(source).toMatch(/<webview[\s\S]*?allowpopups="true"/u)
     expect(source).toMatch(/if \(nativeWebview\) return/u)
+    expect(source).toContain('executeJavaScript<ExtractedBrowserPage>')
+    expect(source).toContain('__DSH_DESKTOP_BROWSER_CONTENT__')
   })
 
   it('treats ordinary text as a search query instead of a fake HTTPS host', async () => {

@@ -6,6 +6,7 @@ export interface BrowserCommand {
   sessionId: string
   url: string
   title: string
+  readPage?: boolean
 }
 
 /** Parse one untrusted Host push frame. */
@@ -18,7 +19,14 @@ export function parseBrowserCommand(payload: string): BrowserCommand | null {
   if (typeof row.sessionId !== 'string' || row.sessionId === '') return null
   if (typeof row.url !== 'string' || !/^https?:\/\//iu.test(row.url)) return null
   if (typeof row.title !== 'string' || row.title === '') return null
-  return { id: row.id as number, sessionId: row.sessionId, url: row.url, title: row.title }
+  if (row.readPage !== undefined && typeof row.readPage !== 'boolean') return null
+  return {
+    id: row.id as number,
+    sessionId: row.sessionId,
+    url: row.url,
+    title: row.title,
+    ...(row.readPage === true ? { readPage: true } : {}),
+  }
 }
 
 /** Land a valid command in the command's own conversation-scoped sidebar. */
@@ -40,14 +48,24 @@ export function applyBrowserCommand(service: BetterSidebarService, command: Brow
       service.updateTab(activeTab.id, {
         path: command.url,
         title: command.title,
-        meta: { ...previousMeta, browserNavigationId: command.id },
+        meta: {
+          ...previousMeta,
+          browserNavigationId: command.id,
+          ...(command.readPage === true ? { browserReadRequestId: command.id } : {}),
+        },
       })
       service.activateTab(activeTab.id, { sessionId: command.sessionId })
       return
     }
   }
   service.openTab(
-    { type: 'browser', url: command.url, title: command.title, placement: 'right' },
+    {
+      type: 'browser', url: command.url, title: command.title, placement: 'right',
+      meta: {
+        browserNavigationId: command.id,
+        ...(command.readPage === true ? { browserReadRequestId: command.id } : {}),
+      },
+    },
     { sessionId: command.sessionId },
   )
 }
