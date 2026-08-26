@@ -41,6 +41,7 @@ git diff --stat <上次发布提交>..HEAD
 - 共享业务代码：Windows 与 Mac 都受影响，检查是否需要双平台重打和提升版本。
 - Mac 平台代码、原生依赖或窗口行为：追加对应 Mac 门禁。
 - sidebar/vendor：重建并核对源码、生成文件、安装副本和 `yarn.lock`。
+- 侧栏打开目标：追加“对话/Agent/网页/PDF 固定右栏，下栏仅承接用户在下栏面板内主动点击”的归属回归；不能只验证内容能打开。
 - Office/PDF/OCR：核对插件闭包、原生依赖和 OCR 数据。
 - IM 交付或生成文件链路：除文件本身外，核对 `dsh_im_return_file` 的 produced-file 展示元数据，追加“本次产出”可点击与右侧栏预览回归。
 - 登录、模型、浏览器、WebSearch、存储迁移：为最终 DMG 的自动与真人验收追加风险项。时间、时区或其他模型可见运行时上下文改动必须额外覆盖直接问答、基于“今天”的搜索词、新旧会话、重启边界和最终 `.app` 依赖闭包。
@@ -95,7 +96,15 @@ bash -n scripts/install-macos.sh
 
 候选 `.app` 的动态验收必须让真实模型通过 Python 或终端生成一个中文文件名 PDF，再调用 `dsh_im_return_file` 交付。最终回复正文中的 PDF 引用和“本次产出”条目必须同时可点击并能在右侧栏打开；正文使用绝对路径、唯一文件名或相对子路径时都要验证，相对子路径与绝对产物路径只允许唯一后缀匹配，歧义时不得打开错误文件。若共享技能输出 `:codex-file-citation{...}`，渲染兼容补丁必须把它转换成 DSH 原生的行内代码文件引用，页面不得显示指令原文。磁盘存在、聊天正文只出现普通文件名或 `Registered ... for IM delivery` 均不能单独作为证据。
 
-若有意修改 `vendor/dsh-better-sidebar/src`，先审查生成后的 `lib`，再执行一次 `corepack yarn install` 更新 file dependency 哈希和 `yarn.lock`，随后重新运行 immutable 安装、构建和验证。源码、生成后的 `lib`、安装副本和锁文件必须一致。
+若有意修改 `vendor/dsh-better-sidebar/src`，必须先运行 `build:vendor-sidebar` 生成 `vendor/dsh-better-sidebar/lib` 并审查产物，再执行一次 `corepack yarn install` 更新 file dependency 哈希、`dsh-plugin-desktop/node_modules/dsh-better-sidebar` 安装副本和 `yarn.lock`，随后重新运行 immutable 安装、构建和验证。源码、生成后的 `lib`、安装副本和锁文件必须一致；跳过任一步都可能让开发 profile 或最终 `.app` 继续加载旧 `lib/client.js`。
+
+Mac 应用图标分为两个用途，打包和验收不得混淆：
+
+- `build/app-icon.png` 是紫色 RJ 主品牌源图；`scripts/generate-mac-app-icon.mjs` 由它生成带 macOS safe area 的 `build/app-icon-mac.png`。`package.json` 的 `build.mac.icon`、Electron Dock 图标及最终 Finder、Applications、Launchpad、Dock、应用切换器中的主应用图标都必须是紫色 RJ。
+- 菜单栏使用 `tray-iconTemplate.png` 与 `tray-iconTemplate@2x.png` 的黑白 Template RJ，由 macOS 根据浅色/深色菜单栏自动反色。这是平台规范，不应强制改成紫色，也不能把黑白菜单栏图标误判为品牌资源丢失。
+- 最终 `.app` 必须同时检查主应用图标和菜单栏 Template 图标；不能因为开发目录资源正确就跳过安装副本核对。
+
+侧栏动态验收必须先主动打开并激活下栏终端、Files、Git 或浏览器，再从对话执行 `browser_search`、点击网页链接、PDF/文件正文引用及“本次产出”。对话和 Agent 发起的所有跳转必须进入右侧栏，下栏保持原内容；只有用户在下栏文件树、Git 等面板内部主动点击时才留在下栏。同一资源已在下栏打开也不能改变对话来源固定进入右栏的规则。
 
 Mac runner 上 `file:` 依赖可能因宿主 archive 元数据产生哈希差异。工作流允许一次刷新后必须立即再次执行 `yarn install --immutable`，证明依赖图稳定；不能删除第二次校验，也不能在 Mac runner 重建 Windows 生成的 sidebar bundle。
 
