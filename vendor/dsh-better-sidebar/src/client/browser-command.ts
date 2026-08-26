@@ -26,7 +26,6 @@ export function applyBrowserCommand(service: BetterSidebarService, command: Brow
   const snapshot = service.getSnapshot()
   if (snapshot.sessionId === command.sessionId && snapshot.state !== undefined) {
     const activePane = allLeaves(snapshot.state.splits)
-      .concat(allLeaves(snapshot.state.bottomSplits))
       .find(pane => pane.id === snapshot.state?.activePane)
     const activeTab = activePane?.tabs.find(tab => tab.id === activePane.active)
     if (activeTab?.type === 'browser') {
@@ -48,7 +47,7 @@ export function applyBrowserCommand(service: BetterSidebarService, command: Brow
     }
   }
   service.openTab(
-    { type: 'browser', url: command.url, title: command.title },
+    { type: 'browser', url: command.url, title: command.title, placement: 'right' },
     { sessionId: command.sessionId },
   )
 }

@@ -22,8 +22,8 @@
 import type { ReactNode } from 'react'
 import type { Context } from '../context-types.ts'
 import {
-  activateTab as activateTabReducer, allLeaves, closeTab as closeTabReducer, leafWithTab,
-  openTabInActivePane, patchTab, tabOpenIn, togglePanel, treeOf,
+  activateTab as activateTabReducer, allLeaves, closeTab as closeTabReducer, firstLeaf, leafWithTab,
+  moveTab, openTabInActivePane, patchTab, tabOpenIn, togglePanel, treeOf,
   type SidebarSnapshot, type SidebarState, type SidebarStore, type SidebarTab,
 } from './state.ts'
 import { isNarrowWidth } from './breakpoints.ts'
@@ -336,6 +336,8 @@ export interface OpenTabSeed {
   url?: string
   /** JSON-serializable custom state carried on the minted tab (persisted across reloads; v0.12.0+). */
   meta?: unknown
+  /** Landing policy. Conversation/agent opens use `right`; direct panel UI keeps the default `active`. */
+  placement?: 'active' | 'right'
 }
 
 /**
@@ -376,10 +378,11 @@ export interface BetterSidebarService {
    * without switching the UI's active session; when absent the open lands
    * in the currently active session (the pre-0.12 behavior).
    *
-   * A CONTENT open (a `path` or `url` seed) must land in sight: when the
-   * panel hosting the landing pane is collapsed, it is expanded
-   * automatically (the right panel by default, the bottom panel when the
-   * active pane lives there; on narrow viewports the merged drawer opens).
+   * A CONTENT open (a `path` or `url` seed) must land in sight. The default
+   * `placement: 'active'` follows the pane the user is working in;
+   * `placement: 'right'` is for conversation/agent navigation and ignores
+   * an active bottom pane. A deduped tab is moved to the right when needed.
+   * The panel hosting the result is expanded automatically.
    * Type-only opens (the + menu, agent-terminal auto-tabs) never expand —
    * the panel behavior is their caller's business.
    *
@@ -626,7 +629,7 @@ export function createBetterSidebarService(store: SidebarStore): BetterSidebarSe
         const result = descriptor.createTab(state)
         if (result === null) return state
         tab = result.tab
-        next = applyDedupe(state, result.tab, descriptor)
+        next = applyDedupe(state, result.tab, descriptor, seed.placement)
         if (result.patch !== undefined) next = { ...next, ...result.patch }
       } else {
         tab = {
@@ -639,7 +642,7 @@ export function createBetterSidebarService(store: SidebarStore): BetterSidebarSe
           ...(seed.diff !== undefined ? { diff: seed.diff } : {}),
           ...(seed.meta !== undefined ? { meta: seed.meta } : {}),
         }
-        next = applyDedupe(state, tab, descriptor)
+        next = applyDedupe(state, tab, descriptor, seed.placement)
       }
       // Classify the landing against the INPUT state FIRST: a FOCUS fires
       // onActivate with the tab that is active NOW; a real creation fires
@@ -815,7 +818,22 @@ export function createBetterSidebarService(store: SidebarStore): BetterSidebarSe
  * reducer's job — not re-implemented here).
  * `single: true` resolves to the id-key sugar when no explicit key is given.
  */
-function applyDedupe(state: SidebarState, tab: SidebarTab, descriptor: TabDescriptor): SidebarState {
+/** Prefer the active right-hand leaf, falling back safely when the active id belongs to the bottom tree or is stale. */
+function rightLandingPaneId(state: SidebarState): string {
+  if (state.activePane !== null && allLeaves(state.splits).some(leaf => leaf.id === state.activePane)) {
+    return state.activePane
+  }
+  return firstLeaf(state.splits).id
+}
+
+function applyDedupe(state: SidebarState, tab: SidebarTab, descriptor: TabDescriptor, placement: 'active' | 'right' = 'active'): SidebarState {
+  const activateExisting = (paneId: string, tabId: string): SidebarState => {
+    if (placement !== 'right' || treeOf(state, paneId) === 'splits') {
+      return activateTabReducer(state, paneId, tabId)
+    }
+    const targetPane = rightLandingPaneId(state)
+    return moveTab(state, paneId, tabId, targetPane)
+  }
   const dedupeKey = descriptor.dedupeKey ?? (descriptor.single === true ? () => descriptor.id : undefined)
   const key = dedupeKey?.(tab)
   if (key !== undefined) {
@@ -823,10 +841,19 @@ function applyDedupe(state: SidebarState, tab: SidebarTab, descriptor: TabDescri
     // bottom panel focuses an existing instance wherever it lives.
     for (const leaf of allLeaves(state.splits).concat(allLeaves(state.bottomSplits))) {
       const existing = leaf.tabs.find(t => t.type === tab.type && dedupeKey!(t) === key)
-      if (existing !== undefined) return activateTabReducer(state, leaf.id, existing.id)
+      if (existing !== undefined) return activateExisting(leaf.id, existing.id)
     }
   }
-  return openTabInActivePane(state, tab)
+  for (const leaf of allLeaves(state.splits).concat(allLeaves(state.bottomSplits))) {
+    if (leaf.tabs.some(candidate => candidate.id === tab.id)) return activateExisting(leaf.id, tab.id)
+  }
+  const landingState = placement === 'right'
+    ? {
+        ...state,
+        activePane: rightLandingPaneId(state),
+      }
+    : state
+  return openTabInActivePane(landingState, tab)
 }
 
 /** Find which pane hosts a tab id ('' if none). Either tree is searched. */

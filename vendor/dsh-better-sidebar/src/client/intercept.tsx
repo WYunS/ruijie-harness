@@ -15,14 +15,20 @@ import { wrapOpenPath } from './openpath-intercept.ts'
 import css from './sidebar.module.css'
 
 /** Open a file in the sidebar's editor (used by the intercepted row and the explorer). */
-export function openSidebarFile(ctx: Context, store: SidebarStore, sessionId: string, path: string): void {
+export function openSidebarFile(
+  ctx: Context,
+  store: SidebarStore,
+  sessionId: string,
+  path: string,
+  placement: 'active' | 'right' = 'active',
+): void {
   const summary = ctx.sessions.list.getSnapshot().byId[sessionId]
   const absolute = resolveSidebarPath(summary?.cwd, path)
   const at = Math.max(absolute.lastIndexOf('/'), absolute.lastIndexOf('\\'))
   const title = at === -1 ? absolute : absolute.slice(at + 1)
   // Route through the sidebar service so the editor descriptor's dedupeKey
   // (per-path) applies; the id is path-derived so multiple editors coexist.
-  ctx.betterSidebar?.openTab({ type: 'editor', title, path: absolute, id: `editor:${absolute}` })
+  ctx.betterSidebar?.openTab({ type: 'editor', title, path: absolute, id: `editor:${absolute}`, placement })
 }
 
 /** The intercepted produced-files row (visual twin of the deliverables chips). */
@@ -92,7 +98,7 @@ export function registerTurnTailInterception(ctx: Context, store: SidebarStore):
     priority: -1,
     registrant: 'dsh-better-sidebar',
     inject: (sessionId: string) => ({
-      openInSidebar: (path: string) => { openSidebarFile(ctx, store, sessionId, path) },
+      openInSidebar: (path: string) => { openSidebarFile(ctx, store, sessionId, path, 'right') },
       openFolder: () => {
         const cwd = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
         void ctx.workspaces.openPath(resolveSidebarPath(cwd, '.'))
@@ -119,6 +125,6 @@ export function registerOpenPathInterception(ctx: Context, store: SidebarStore):
       const sessions = ctx.sessions.list.getSnapshot()
       return sessions.current === undefined ? undefined : sessions.byId[sessions.current]?.cwd
     },
-    openInSidebar: (path, sessionId) => { openSidebarFile(ctx, store, sessionId, path) },
+    openInSidebar: (path, sessionId, placement) => { openSidebarFile(ctx, store, sessionId, path, placement) },
   })
 }

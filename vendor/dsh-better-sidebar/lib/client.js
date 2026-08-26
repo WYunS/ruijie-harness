@@ -1180,7 +1180,7 @@ window.__ModuleLoader__.load({
 						const result = descriptor.createTab(state);
 						if (result === null) return state;
 						tab = result.tab;
-						next = applyDedupe(state, result.tab, descriptor);
+						next = applyDedupe(state, result.tab, descriptor, seed.placement);
 						if (result.patch !== void 0) next = {
 							...next,
 							...result.patch
@@ -1194,7 +1194,7 @@ window.__ModuleLoader__.load({
 							...seed.diff !== void 0 ? { diff: seed.diff } : {},
 							...seed.meta !== void 0 ? { meta: seed.meta } : {}
 						};
-						next = applyDedupe(state, tab, descriptor);
+						next = applyDedupe(state, tab, descriptor, seed.placement);
 					}
 					const dedupeKey = descriptor.dedupeKey ?? (descriptor.single === true ? () => descriptor.id : void 0);
 					const key = dedupeKey?.(tab);
@@ -1314,14 +1314,27 @@ window.__ModuleLoader__.load({
 		* reducer's job — not re-implemented here).
 		* `single: true` resolves to the id-key sugar when no explicit key is given.
 		*/
-		function applyDedupe(state, tab, descriptor) {
+		/** Prefer the active right-hand leaf, falling back safely when the active id belongs to the bottom tree or is stale. */
+		function rightLandingPaneId(state) {
+			if (state.activePane !== null && allLeaves(state.splits).some((leaf) => leaf.id === state.activePane)) return state.activePane;
+			return firstLeaf(state.splits).id;
+		}
+		function applyDedupe(state, tab, descriptor, placement = "active") {
+			const activateExisting = (paneId, tabId) => {
+				if (placement !== "right" || treeOf(state, paneId) === "splits") return activateTab(state, paneId, tabId);
+				return moveTab(state, paneId, tabId, rightLandingPaneId(state));
+			};
 			const dedupeKey = descriptor.dedupeKey ?? (descriptor.single === true ? () => descriptor.id : void 0);
 			const key = dedupeKey?.(tab);
 			if (key !== void 0) for (const leaf of allLeaves(state.splits).concat(allLeaves(state.bottomSplits))) {
 				const existing = leaf.tabs.find((t) => t.type === tab.type && dedupeKey(t) === key);
-				if (existing !== void 0) return activateTab(state, leaf.id, existing.id);
+				if (existing !== void 0) return activateExisting(leaf.id, existing.id);
 			}
-			return openTabInActivePane(state, tab);
+			for (const leaf of allLeaves(state.splits).concat(allLeaves(state.bottomSplits))) if (leaf.tabs.some((candidate) => candidate.id === tab.id)) return activateExisting(leaf.id, tab.id);
+			return openTabInActivePane(placement === "right" ? {
+				...state,
+				activePane: rightLandingPaneId(state)
+			} : state, tab);
 		}
 		/** Find which pane hosts a tab id ('' if none). Either tree is searched. */
 		function findPaneIdOf(state, tabId) {
@@ -2266,7 +2279,7 @@ window.__ModuleLoader__.load({
 				if (!(/(?:^|[\\/])\.\.?[\\/]?$/u.test(path) || /[\\/]$/u.test(path) || cwd !== void 0 && comparable(path) === comparable(cwd)) && deps.takeoverEnabled()) {
 					const sessionId = deps.currentSessionId();
 					if (sessionId !== void 0) {
-						deps.openInSidebar(path, sessionId);
+						deps.openInSidebar(path, sessionId, "right");
 						return Promise.resolve();
 					}
 				}
@@ -2499,7 +2512,7 @@ window.__ModuleLoader__.load({
 		* and the original row renders unchanged.
 		*/
 		/** Open a file in the sidebar's editor (used by the intercepted row and the explorer). */
-		function openSidebarFile(ctx, store, sessionId, path) {
+		function openSidebarFile(ctx, store, sessionId, path, placement = "active") {
 			const summary = ctx.sessions.list.getSnapshot().byId[sessionId];
 			const absolute = resolveSidebarPath(summary?.cwd, path);
 			const at = Math.max(absolute.lastIndexOf("/"), absolute.lastIndexOf("\\"));
@@ -2508,7 +2521,8 @@ window.__ModuleLoader__.load({
 				type: "editor",
 				title,
 				path: absolute,
-				id: `editor:${absolute}`
+				id: `editor:${absolute}`,
+				placement
 			});
 		}
 		/** The intercepted produced-files row (visual twin of the deliverables chips). */
@@ -2575,7 +2589,7 @@ window.__ModuleLoader__.load({
 				registrant: "dsh-better-sidebar",
 				inject: (sessionId) => ({
 					openInSidebar: (path) => {
-						openSidebarFile(ctx, store, sessionId, path);
+						openSidebarFile(ctx, store, sessionId, path, "right");
 					},
 					openFolder: () => {
 						const cwd = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd;
@@ -2600,8 +2614,8 @@ window.__ModuleLoader__.load({
 					const sessions = ctx.sessions.list.getSnapshot();
 					return sessions.current === void 0 ? void 0 : sessions.byId[sessions.current]?.cwd;
 				},
-				openInSidebar: (path, sessionId) => {
-					openSidebarFile(ctx, store, sessionId, path);
+				openInSidebar: (path, sessionId, placement) => {
+					openSidebarFile(ctx, store, sessionId, path, placement);
 				}
 			});
 		}
@@ -7705,7 +7719,7 @@ window.__ModuleLoader__.load({
 		function applyBrowserCommand(service, command) {
 			const snapshot = service.getSnapshot();
 			if (snapshot.sessionId === command.sessionId && snapshot.state !== void 0) {
-				const activePane = allLeaves(snapshot.state.splits).concat(allLeaves(snapshot.state.bottomSplits)).find((pane) => pane.id === snapshot.state?.activePane);
+				const activePane = allLeaves(snapshot.state.splits).find((pane) => pane.id === snapshot.state?.activePane);
 				const activeTab = activePane?.tabs.find((tab) => tab.id === activePane.active);
 				if (activeTab?.type === "browser") {
 					const previousMeta = activeTab.meta !== null && typeof activeTab.meta === "object" && !Array.isArray(activeTab.meta) ? activeTab.meta : {};
@@ -7724,7 +7738,8 @@ window.__ModuleLoader__.load({
 			service.openTab({
 				type: "browser",
 				url: command.url,
-				title: command.title
+				title: command.title,
+				placement: "right"
 			}, { sessionId: command.sessionId });
 		}
 		//#endregion
@@ -10452,7 +10467,8 @@ window.__ModuleLoader__.load({
 								ctx.betterSidebar?.openTab({
 									type,
 									url,
-									title
+									title,
+									placement: "right"
 								});
 							},
 							selfOrigin: window.location.origin

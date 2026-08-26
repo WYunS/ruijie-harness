@@ -31,7 +31,7 @@ export interface OpenPathInterceptDeps {
   /** Current session cwd; ui-conversation resolves the `.` folder action to this absolute path. */
   currentSessionCwd(): string | undefined
   /** Route the open into the sidebar editor (the established openSidebarFile). */
-  openInSidebar(path: string, sessionId: string): void
+  openInSidebar(path: string, sessionId: string, placement: 'right'): void
 }
 
 /**
@@ -64,7 +64,7 @@ export function wrapOpenPath(workspaces: OpenPathService, deps: OpenPathIntercep
     if (!directoryIntent && deps.takeoverEnabled()) {
       const sessionId = deps.currentSessionId()
       if (sessionId !== undefined) {
-        deps.openInSidebar(path, sessionId)
+        deps.openInSidebar(path, sessionId, 'right')
         return Promise.resolve()
       }
     }

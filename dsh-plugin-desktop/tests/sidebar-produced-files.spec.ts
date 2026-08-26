@@ -10,6 +10,9 @@ import {
 import {
   wrapOpenPath,
 } from 'dsh-better-sidebar/src/client/openpath-intercept.ts'
+import { applyBrowserCommand } from 'dsh-better-sidebar/src/client/browser-command.ts'
+import { createBetterSidebarService } from 'dsh-better-sidebar/src/client/service.ts'
+import type { SidebarState } from 'dsh-better-sidebar/src/client/state.ts'
 import { subscribeTreeRefresh } from 'dsh-better-sidebar/src/client/tree-refresh.ts'
 import {
   ARTIFACT_REGISTRATION_PROMPT,
@@ -27,6 +30,120 @@ afterEach(async () => {
 })
 
 describe('better sidebar produced-file integration', () => {
+  it('moves a deduped bottom file into the right panel for a conversation-originated open', () => {
+    vi.stubGlobal('window', { innerWidth: 1440 })
+    let state: SidebarState = {
+      panelOpen: false,
+      width: 400,
+      activePane: 'bottom-pane',
+      nextTerminal: 1,
+      nextBrowser: 1,
+      expanded: [],
+      splits: { kind: 'leaf', id: 'right-pane', tabs: [], active: null },
+      bottomOpen: true,
+      bottomHeight: 220,
+      bottomOpenedOnce: true,
+      bottomSplits: {
+        kind: 'leaf',
+        id: 'bottom-pane',
+        tabs: [{ id: 'editor:report.pdf', type: 'editor', title: 'report.pdf', path: 'report.pdf' }],
+        active: 'editor:report.pdf',
+      },
+    }
+    const store = {
+      getPrefs: () => ({ tabsEnabled: {}, viewersEnabled: {} }),
+      getSnapshot: () => ({ sessionId: 'session-a', state }),
+      reduce: (reducer: (current: SidebarState) => SidebarState) => { state = reducer(state) },
+      reduceFor: (_sessionId: string, reducer: (current: SidebarState) => SidebarState) => { state = reducer(state) },
+    }
+    const service = createBetterSidebarService(store as never)
+    service.registerTab({
+      id: 'editor',
+      title: 'Files',
+      dedupeKey: tab => tab.path,
+      component: () => null,
+    })
+
+    service.openTab({
+      type: 'editor',
+      id: 'editor:report.pdf',
+      title: 'report.pdf',
+      path: 'report.pdf',
+      placement: 'right',
+    } as never)
+
+    expect(state.splits.kind === 'leaf' ? state.splits.tabs.map(tab => tab.id) : []).toEqual(['editor:report.pdf'])
+    expect(state.bottomSplits.kind === 'leaf' ? state.bottomSplits.tabs : []).toEqual([])
+    expect(state.activePane).toBe('right-pane')
+    expect(state.panelOpen).toBe(true)
+  })
+
+  it('keeps a direct bottom-panel file open in the bottom panel', () => {
+    vi.stubGlobal('window', { innerWidth: 1440 })
+    let state: SidebarState = {
+      panelOpen: true,
+      width: 400,
+      activePane: 'bottom-pane',
+      nextTerminal: 1,
+      nextBrowser: 1,
+      expanded: [],
+      splits: { kind: 'leaf', id: 'right-pane', tabs: [], active: null },
+      bottomOpen: true,
+      bottomHeight: 220,
+      bottomOpenedOnce: true,
+      bottomSplits: { kind: 'leaf', id: 'bottom-pane', tabs: [], active: null },
+    }
+    const store = {
+      getPrefs: () => ({ tabsEnabled: {}, viewersEnabled: {} }),
+      getSnapshot: () => ({ sessionId: 'session-a', state }),
+      reduce: (reducer: (current: SidebarState) => SidebarState) => { state = reducer(state) },
+      reduceFor: (_sessionId: string, reducer: (current: SidebarState) => SidebarState) => { state = reducer(state) },
+    }
+    const service = createBetterSidebarService(store as never)
+    service.registerTab({ id: 'editor', title: 'Files', component: () => null })
+
+    service.openTab({ type: 'editor', id: 'editor:local.txt', title: 'local.txt', path: 'local.txt' })
+
+    expect(state.splits.kind === 'leaf' ? state.splits.tabs : []).toEqual([])
+    expect(state.bottomSplits.kind === 'leaf' ? state.bottomSplits.tabs.map(tab => tab.id) : []).toEqual(['editor:local.txt'])
+    expect(state.activePane).toBe('bottom-pane')
+  })
+
+  it('never reuses a bottom-panel browser for a model command', () => {
+    const service = {
+      getSnapshot: () => ({
+        sessionId: 'session-a',
+        state: {
+          activePane: 'bottom-pane',
+          splits: { kind: 'leaf', id: 'right-pane', active: null, tabs: [] },
+          bottomSplits: {
+            kind: 'leaf', id: 'bottom-pane', active: 'browser:1',
+            tabs: [{ id: 'browser:1', type: 'browser', title: 'bottom', path: 'https://example.com' }],
+          },
+        },
+      }),
+      openTab: vi.fn(),
+      updateTab: vi.fn(),
+      activateTab: vi.fn(),
+    }
+
+    applyBrowserCommand(service as never, {
+      id: 3,
+      sessionId: 'session-a',
+      url: 'https://cn.bing.com/search?q=right',
+      title: '必应搜索：right',
+    })
+
+    expect(service.updateTab).not.toHaveBeenCalled()
+    expect(service.activateTab).not.toHaveBeenCalled()
+    expect(service.openTab).toHaveBeenCalledWith({
+      type: 'browser',
+      url: 'https://cn.bing.com/search?q=right',
+      title: '必应搜索：right',
+      placement: 'right',
+    }, { sessionId: 'session-a' })
+  })
+
   it('reads rc.8 turn-scoped deliverables from the turn-tail owner', () => {
     const owner = {
       seq: 12,
@@ -66,7 +183,7 @@ describe('better sidebar produced-file integration', () => {
     expect(original).toHaveBeenNthCalledWith(1, '.')
     expect(original).toHaveBeenNthCalledWith(2, 'C:\\Users\\Yunsh\\Desktop\\1')
     expect(openInSidebar).toHaveBeenCalledOnce()
-    expect(openInSidebar).toHaveBeenCalledWith('report.pdf', 'session-a')
+    expect(openInSidebar).toHaveBeenCalledWith('report.pdf', 'session-a', 'right')
     dispose()
   })
 
