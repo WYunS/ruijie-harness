@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { readFileSync } from 'node:fs'
@@ -49,10 +49,11 @@ describe('cross-workspace session move runtime patch', () => {
   it('moves a session to another workspace and preserves that grouping after restart', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-workspace-cross-move-'))
     roots.push(root)
-    const sourcePath = join(root, 'source')
-    const targetPath = join(root, 'target')
+    const sourcePathInput = join(root, 'source')
+    const targetPathInput = join(root, 'target')
     const storageRoot = join(root, 'storage')
-    await Promise.all([mkdir(sourcePath), mkdir(targetPath)])
+    await Promise.all([mkdir(sourcePathInput), mkdir(targetPathInput)])
+    const [sourcePath, targetPath] = await Promise.all([realpath(sourcePathInput), realpath(targetPathInput)])
     const sessionId = SessionId('session-to-move')
 
     const first = await openRegistry(storageRoot, sessionId, sourcePath)
@@ -75,9 +76,10 @@ describe('cross-workspace session move runtime patch', () => {
   it('restores an archived session without changing its workspace position', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-workspace-unarchive-'))
     roots.push(root)
-    const sourcePath = join(root, 'source')
+    const sourcePathInput = join(root, 'source')
     const storageRoot = join(root, 'storage')
-    await mkdir(sourcePath)
+    await mkdir(sourcePathInput)
+    const sourcePath = await realpath(sourcePathInput)
     const sessionId = SessionId('session-to-restore')
     const opened = await openRegistry(storageRoot, sessionId, sourcePath)
     await opened.registry.archiveSession(sessionId)
