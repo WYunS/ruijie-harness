@@ -473,9 +473,9 @@ Get-Item -LiteralPath $exe |
 | 上版备份 | `Ruijie-Harness-2.0.7-x64-Setup.exe` | 344285426 | 328.34 | `875576C9A857D9B96EE913CDF27A94DF905110C44E8338398B74C652F8A731E3` | `NotSigned` |
 | 历史正式包 | `Ruijie-Harness-2.0.8-x64-Setup.exe` | 344287016 | 328.34 | `697EC1ECA5010CDC98521DC97DF24D70FB62626DF5E0710D48C15BAE69292691` | `NotSigned` |
 | 最近历史正式包 | `Ruijie-Harness-2.0.9-x64-Setup.exe` | 354214480 | 337.81 | `AE03CACD2420E545F1AC5A04CEDC70616F473B953A6D1A1307DD515562067580` | `NotSigned` |
-| 当前 Windows 候选包 | `Ruijie-Harness-2.1.0-x64-Setup.exe` | 354368545 | 337.95 | `D080B577FB1A5DFBD5347996AC5B3FA362BE2D2924401F343FB60EA133D0F617` | `NotSigned` |
+| 当前 Windows 候选包 | `Ruijie-Harness-2.1.0-x64-Setup.exe` | 354378546 | 337.96 | `34D205285D115C57E1A9C25C602D86D66BD07E936E5D6C925E3D5F6E425AFF43` | `NotSigned` |
 
-`2.1.0` Windows 候选包生成于产品提交 `a6dd4882e90911ff57fc1dadeeef165b0be82374`。`node scripts/verify-win-installer.ts`、完整 headless gate、Windows 关键测试与真实 Electron WebView 连续性 `20/20` 均已通过；本轮按用户要求未安装，因此首次安装、保留数据升级、真实联网与跨版本自动升级仍标记为未执行，不能仅凭本快照宣称完成正式发布验收。
+`2.1.0` Windows 候选包生成于产品提交 `929d4007692cba3a7639218f0677c05a6d236325`。`node scripts/verify-win-installer.ts`、完整 headless gate、Windows 关键测试（含侧栏页面正文读取、浏览器搜索证据与 ModSearch 供应商顺序）以及真实 Electron WebView 连续性 `20/20` 均已通过；本轮按用户要求未安装，因此首次安装、保留数据升级、真实联网与跨版本自动升级仍标记为未执行，不能仅凭本快照宣称完成正式发布验收。
 
 `node scripts/verify-win-installer.ts` 已对 2.0.8 通过验证。该安装包包含 profile 框架单例修复，产品源码 commit 为 `5d90929a86d99a871e18497be3bed37a319b2dad`。此快照只证明构建产物结构、打包内容检查与发布门禁通过；由于本轮没有安装授权，安装后的联网、登录、侧栏、Office、搜索、PDF 和真实保留数据升级仍须按第 10 节验收。
 
