@@ -82,6 +82,35 @@ describe('dynamic macOS release acceptance plan', () => {
     expect(plan.find(item => item.id === 'restart-persistence')?.reasons).toContain('adjacent:auth')
   })
 
+  it('maps the current desktop UI, search, composition, and update runtime surfaces', () => {
+    const plan = buildMacAcceptancePlan([
+      'dsh-plugin-desktop/src/client/index.ts',
+      'dsh-plugin-desktop/src/client/ruijie-account-card.tsx',
+      'dsh-plugin-desktop/src/client/search-recovery-presentation.ts',
+      'dsh-plugin-desktop/src/client/sidebar-shortcuts.tsx',
+      'dsh-plugin-desktop/src/client/styles.ts',
+      'dsh-plugin-desktop/src/index.ts',
+      'dsh-plugin-desktop/src/main.ts',
+      'dsh-plugin-desktop/src/profile.ts',
+      'dsh-plugin-desktop/src/search-recovery-policy.ts',
+      'dsh-plugin-desktop/src/search-recovery.ts',
+      'dsh-plugin-desktop/src/system-proxy.ts',
+      'dsh-plugin-desktop/src/update-checker.ts',
+      'dsh-plugin-desktop/src/update-download.ts',
+      'vendor/modsearch/dist/main.js',
+      'vendor/modsearch/dsh/index.js',
+    ])
+
+    expect(plan.some(item => item.id === 'unmapped-runtime-review')).toBe(false)
+    expect(plan.find(item => item.id === 'sidebar-controls')?.reasons).toContain('changed:desktop-ui')
+    expect(plan.find(item => item.id === 'browser-navigation')?.reasons).toContain('changed:browser')
+    expect(plan.find(item => item.id === 'install-and-first-launch')?.reasons).toEqual(expect.arrayContaining([
+      'changed:packaging',
+      'changed:updates',
+    ]))
+    expect(plan.find(item => item.id === 'restart-persistence')?.reasons).toContain('changed:updates')
+  })
+
   it('marks an unmapped runtime change as a blocking manual review', () => {
     const plan = buildMacAcceptancePlan(['dsh-plugin-desktop/src/new-runtime-surface.ts'])
     expect(plan).toContainEqual(expect.objectContaining({

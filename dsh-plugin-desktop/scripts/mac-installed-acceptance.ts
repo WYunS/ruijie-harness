@@ -69,7 +69,7 @@ const RISK_RULES: readonly RiskRule[] = [
   },
   {
     risk: 'browser',
-    pattern: /(?:browser|webview|web[-_]?search)/iu,
+    pattern: /(?:browser|webview|web[-_]?search|search-recovery|system-proxy|modsearch)/iu,
     checks: ['browser-navigation'],
   },
   {
@@ -80,8 +80,22 @@ const RISK_RULES: readonly RiskRule[] = [
   },
   {
     risk: 'packaging',
-    pattern: /(?:package-mac|mac-universal|electron|window-options|\.github\/workflows\/macos)/iu,
+    pattern: /(?:package-mac|mac-universal|electron|window-options|\.github\/workflows\/macos|dsh-plugin-desktop\/src\/(?:index|main|profile)\.ts$)/iu,
     checks: ['install-and-first-launch'],
+  },
+  {
+    risk: 'desktop-ui',
+    pattern: /dsh-plugin-desktop\/src\/client\/(?:index|ruijie-account-card|sidebar-shortcuts|styles)\.(?:ts|tsx)$/iu,
+    checks: ['sidebar-controls'],
+    adjacent: {
+      'protected-login': 'adjacent:desktop-ui',
+      'restart-persistence': 'adjacent:desktop-ui',
+    },
+  },
+  {
+    risk: 'updates',
+    pattern: /dsh-plugin-desktop\/src\/(?:update-checker|update-download|updates)\.ts$/iu,
+    checks: ['install-and-first-launch', 'restart-persistence'],
   },
 ]
 
