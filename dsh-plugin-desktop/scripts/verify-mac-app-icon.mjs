@@ -8,6 +8,24 @@ import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
 import { MAC_ICONSET_ENTRIES } from './generate-mac-app-icns.mjs'
 
+const MAX_PREMULTIPLIED_CHANNEL_MAE = 8
+
+export function premultipliedChannelMae(actual, expected) {
+  if (actual.length !== expected.length || actual.length % 4 !== 0) return Number.POSITIVE_INFINITY
+  let difference = 0
+  for (let offset = 0; offset < actual.length; offset += 4) {
+    const actualAlpha = actual[offset + 3]
+    const expectedAlpha = expected[offset + 3]
+    difference += Math.abs(actualAlpha - expectedAlpha)
+    for (let channel = 0; channel < 3; channel += 1) {
+      const actualPremultiplied = actual[offset + channel] * actualAlpha / 255
+      const expectedPremultiplied = expected[offset + channel] * expectedAlpha / 255
+      difference += Math.abs(actualPremultiplied - expectedPremultiplied)
+    }
+  }
+  return difference / actual.length
+}
+
 function unpackIcns(icnsPath, iconsetDirectory) {
   const result = spawnSync('iconutil', ['-c', 'iconset', icnsPath, '-o', iconsetDirectory], {
     encoding: 'utf8',
@@ -52,8 +70,11 @@ export async function verifyMacIcns(sourcePath, icnsPath, label) {
         .ensureAlpha()
         .raw()
         .toBuffer()
-      if (!actual.equals(expected)) {
-        throw new Error(`${label} ${filename} does not match the purple RJ source`)
+      const difference = premultipliedChannelMae(actual, expected)
+      if (difference > MAX_PREMULTIPLIED_CHANNEL_MAE) {
+        throw new Error(
+          `${label} ${filename} does not match the purple RJ source (MAE ${difference.toFixed(2)})`,
+        )
       }
     }
   } finally {

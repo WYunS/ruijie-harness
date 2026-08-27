@@ -8,6 +8,7 @@ import {
   generateMacIconsetPngs,
   MAC_ICONSET_ENTRIES,
 } from '../scripts/generate-mac-app-icns.mjs'
+import { premultipliedChannelMae } from '../scripts/verify-mac-app-icon.mjs'
 
 const temporaryRoots: string[] = []
 
@@ -16,6 +17,17 @@ afterEach(() => {
 })
 
 describe('macOS multi-resolution application icon', () => {
+  it('compares visible icon pixels while ignoring hidden transparent RGB data', () => {
+    expect(premultipliedChannelMae(
+      Buffer.from([255, 0, 255, 0, 128, 64, 192, 255]),
+      Buffer.from([0, 255, 0, 0, 128, 64, 192, 255]),
+    )).toBe(0)
+    expect(premultipliedChannelMae(
+      Buffer.from([128, 64, 192, 255]),
+      Buffer.from([64, 128, 32, 255]),
+    )).toBeGreaterThan(8)
+  })
+
   it('renders every Finder icon slot from the purple RJ source', async () => {
     const root = mkdtempSync(join(tmpdir(), 'ruijie-mac-icon-test-'))
     temporaryRoots.push(root)
