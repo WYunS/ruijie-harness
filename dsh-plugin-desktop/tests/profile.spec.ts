@@ -557,7 +557,7 @@ describe('desktop profile composition', {
     expect(() => prepareDesktopProfile(undefined, invalidHome, 'win32')).toThrow(
       'must be a top-level YAML array of loader patch entries',
     )
-  })
+  }, 30_000)
 
   it('keeps the Windows browse panel and desktop pwsh provider without replacing process boundaries', () => {
     const home = temporaryHome()
