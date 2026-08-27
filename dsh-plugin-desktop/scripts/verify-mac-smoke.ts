@@ -13,6 +13,12 @@ export interface MacSmokeVerificationOptions {
   readonly distDir: string
   /** Installed application name inside the mounted image. */
   readonly productName: string
+  /** Absolute purple RJ source used to validate every packaged icon layer. */
+  readonly iconSource: string
+  /** Absolute verifier for application and mounted-volume ICNS files. */
+  readonly iconVerifier: string
+  /** Node executable used to run the icon verifier. */
+  readonly nodeExecutable: string
   /** Return regular DMG files in the distribution directory. */
   readonly listDmgs: (distDir: string) => readonly string[]
   /** Create a private empty mount point. */
@@ -53,6 +59,9 @@ function defaultOptions(): MacSmokeVerificationOptions {
       ? join(packageRoot, 'dist', 'mac-internal')
       : resolve(process.argv[2]),
     productName: '锐捷 Harness',
+    iconSource: join(packageRoot, 'build', 'app-icon-mac.png'),
+    iconVerifier: fileURLToPath(new URL('./verify-mac-app-icon.mjs', import.meta.url)),
+    nodeExecutable: process.execPath,
     listDmgs,
     makeMountPoint: () => mkdtempSync(join(tmpdir(), 'dsh-desktop-dmg-smoke-')),
     run,
@@ -125,6 +134,13 @@ export function verifyMacSmoke(
     if (!appAsarStat.isFile || appAsarStat.size === 0) {
       throw new Error(`packaged application archive is empty: ${appAsarPath}`)
     }
+
+    options.run(options.nodeExecutable, [
+      options.iconVerifier,
+      options.iconSource,
+      join(appPath, 'Contents', 'Resources', 'app.icns'),
+      join(mountPoint, '.VolumeIcon.icns'),
+    ])
 
     const unpackedRoot = `${appAsarPath}.unpacked`
     for (const entry of MACOS_UNIVERSAL_NATIVE_ENTRIES) {

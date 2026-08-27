@@ -37,4 +37,16 @@ source = replaceOnce(
   '\t\t\t\t\ttitle: t("row.title"),\n\t\t\t\t\tcollapsedContent: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", { type: "button", style: { marginLeft: "auto", border: "1px solid var(--dsw-alias-border-l2)", borderRadius: "8px", padding: "2px 10px", color: "var(--dsw-alias-label-primary)", background: "transparent", cursor: "pointer", font: "inherit", fontSize: "12px", lineHeight: "18px" }, onClick: (event) => { event.stopPropagation(); resetAll(); }, children: t("actions.reset") }),\n\t\t\t\t\tkeepContentWhenOpen: true,\n\t\t\t\t\topen,',
   'always-visible reset action',
 )
+source = replaceOnce(
+  source,
+  'const DEFAULT_SETTINGS = {\n\t\t\taccent: "#4176e6",',
+  'const DEFAULT_SETTINGS = {\n\t\t\taccent: "",',
+  'stock accent default',
+)
+source = replaceOnce(
+  source,
+  '\t\t\t\treturn sanitizeSettings(JSON.parse(raw));',
+  '\t\t\t\tconst settings = sanitizeSettings(JSON.parse(raw));\n\t\t\t\tif ((settings.preset === "" || settings.preset === "default") && settings.accent === "#4176e6") settings.accent = "";\n\t\t\t\treturn settings;',
+  'legacy default-accent migration',
+)
 await writeFile(clientPath, source)

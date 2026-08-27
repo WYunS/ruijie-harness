@@ -36,6 +36,10 @@ export interface MacReleaseOptions {
   readonly log: (message: string) => void
   /** Validate and prepare both architecture-specific runtime trees. */
   readonly prepareRuntime: () => void
+  /** Absolute script that creates the explicit multi-resolution ICNS. */
+  readonly iconGenerator: string
+  /** Node executable used for package-local scripts. */
+  readonly nodeExecutable: string
 }
 
 function listCodeSigningIdentities(env: NodeJS.ProcessEnv): string {
@@ -71,6 +75,8 @@ function defaultReleaseOptions(): MacReleaseOptions {
     run,
     log: message => console.log(message),
     prepareRuntime: () => prepareInstalledMacUniversalRuntime(desktopRoot),
+    iconGenerator: fileURLToPath(new URL('./generate-mac-app-icns.mjs', import.meta.url)),
+    nodeExecutable: process.execPath,
   }
 }
 
@@ -95,6 +101,12 @@ export function releaseMac(options: MacReleaseOptions = defaultReleaseOptions())
   options.run('yarn', ['run', 'check'], resolve(options.desktopRoot, '..'), buildEnvironment)
   options.resetOutput()
   options.prepareRuntime()
+  options.run(
+    options.nodeExecutable,
+    [options.iconGenerator],
+    options.desktopRoot,
+    buildEnvironment,
+  )
   options.run('yarn', [
     'exec', 'electron-builder', '--mac', 'dmg', '--universal',
     '--config.forceCodeSigning=true', '--config.mac.notarize=true',

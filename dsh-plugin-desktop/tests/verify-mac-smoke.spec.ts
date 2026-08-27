@@ -56,6 +56,9 @@ function options(
   const value: MacSmokeVerificationOptions = {
     distDir: '/release/dist',
     productName: 'DSH Desktop',
+    iconSource: '/repo/dsh-plugin-desktop/build/app-icon-mac.png',
+    iconVerifier: '/repo/dsh-plugin-desktop/scripts/verify-mac-app-icon.mjs',
+    nodeExecutable: '/usr/local/bin/node',
     listDmgs: () => ['/release/dist/DSH Desktop-2.0.1.dmg'],
     makeMountPoint: () => '/private/tmp/dsh-desktop-dmg-smoke-test',
     run: (command, args) => { calls.push({ command, args: [...args] }) },
@@ -119,6 +122,15 @@ describe('macOS DMG smoke artifact verification', () => {
         args: [value.executable, '-verify_arch', 'x86_64'],
       },
       { command: 'lipo', args: [value.executable, '-verify_arch', 'arm64'] },
+      {
+        command: '/usr/local/bin/node',
+        args: [
+          '/repo/dsh-plugin-desktop/scripts/verify-mac-app-icon.mjs',
+          '/repo/dsh-plugin-desktop/build/app-icon-mac.png',
+          join(appPath, 'Contents', 'Resources', 'app.icns'),
+          join(value.root, '.VolumeIcon.icns'),
+        ],
+      },
       ...MACOS_UNIVERSAL_NATIVE_ENTRIES.map(entry => ({
         command: 'lipo',
         args: [join(`${value.appAsar}.unpacked`, entry.path), '-verify_arch', entry.arch],

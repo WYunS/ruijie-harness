@@ -31,6 +31,7 @@ const manifest = JSON.parse(readFileSync(new URL('package.json', packageRoot), '
       target?: unknown
       x64ArchFiles?: unknown
     }
+    dmg?: { icon?: unknown }
     win?: { icon?: unknown; target?: unknown; artifactName?: unknown; executableName?: unknown }
     nsis?: Record<string, unknown>
     portable?: Record<string, unknown>
@@ -456,7 +457,8 @@ describe('published package surface', () => {
       'package.json',
       '!node_modules/node-pty/build/**',
     ])
-    expect(manifest.build?.mac?.icon).toBe('build/app-icon-mac.png')
+    expect(manifest.build?.mac?.icon).toBe('build/app-icon-mac.icns')
+    expect(manifest.build?.dmg?.icon).toBe('build/app-icon-mac.icns')
     expect(manifest.build?.mac?.mergeASARs).toBe(false)
     expect(manifest.build?.win?.icon).toBe('build/app-icon.png')
     expect(manifest.build?.win?.executableName).toBe('Ruijie-Harness')
@@ -659,6 +661,30 @@ describe('published package surface', () => {
       trimOffsetLeft: -100,
       trimOffsetTop: -100,
     }))
+  })
+
+  it('builds every macOS icon size explicitly before packaging', () => {
+    const generator = readFileSync(new URL('scripts/generate-mac-app-icns.mjs', packageRoot), 'utf8')
+
+    for (const filename of [
+      'icon_16x16.png',
+      'icon_16x16@2x.png',
+      'icon_32x32.png',
+      'icon_32x32@2x.png',
+      'icon_128x128.png',
+      'icon_128x128@2x.png',
+      'icon_256x256.png',
+      'icon_256x256@2x.png',
+      'icon_512x512.png',
+      'icon_512x512@2x.png',
+    ]) expect(generator).toContain(filename)
+    expect(generator).toContain("spawnSync('iconutil'")
+    expect(generator).toContain("['-c', 'icns'")
+
+    const verifier = readFileSync(new URL('scripts/verify-mac-app-icon.mjs', packageRoot), 'utf8')
+    expect(verifier).toContain("['-c', 'iconset'")
+    expect(verifier).toContain('DMG volume icon')
+    expect(verifier).toContain('does not match the purple RJ source')
   })
 
   it('keeps Electron out of production dependencies consumed by electron-builder', () => {

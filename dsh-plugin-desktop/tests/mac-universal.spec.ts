@@ -12,10 +12,26 @@ describe('universal macOS native runtime preparation', () => {
 
     prepareMacUniversalRuntime({ desktopRoot, exists: () => true, chmod })
 
-    expect(chmod.mock.calls).toEqual([
+    expect(chmod.mock.calls).toHaveLength(4)
+    expect(chmod.mock.calls).toEqual(expect.arrayContaining([
       [join(desktopRoot, 'node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper'), 0o755],
       [join(desktopRoot, 'node_modules/node-pty/prebuilds/darwin-x64/spawn-helper'), 0o755],
-    ])
+      [join(desktopRoot, 'node_modules/dsh-better-sidebar/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper'), 0o755],
+      [join(desktopRoot, 'node_modules/dsh-better-sidebar/node_modules/node-pty/prebuilds/darwin-x64/spawn-helper'), 0o755],
+    ]))
+  })
+
+  it('guards the nested node-pty runtime actually loaded by the sidebar terminal', () => {
+    for (const arch of ['arm64', 'x64'] as const) {
+      expect(MACOS_UNIVERSAL_NATIVE_ENTRIES).toContainEqual({
+        arch: arch === 'x64' ? 'x86_64' : arch,
+        path: `node_modules/dsh-better-sidebar/node_modules/node-pty/prebuilds/darwin-${arch}/pty.node`,
+      })
+      expect(MACOS_UNIVERSAL_NATIVE_ENTRIES).toContainEqual({
+        arch: arch === 'x64' ? 'x86_64' : arch,
+        path: `node_modules/dsh-better-sidebar/node_modules/node-pty/prebuilds/darwin-${arch}/spawn-helper`,
+      })
+    }
   })
 
   it('fails before changing permissions when one architecture is incomplete', () => {

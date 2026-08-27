@@ -38,6 +38,7 @@ function options(calls: CommandCall[], logs: string[] = []): MacInternalPackageO
     prepareRuntime: () => undefined,
     builderCli: '/repo/node_modules/electron-builder/cli.js',
     verifier: '/repo/dsh-plugin-desktop/scripts/verify-mac-smoke.ts',
+    iconGenerator: '/repo/dsh-plugin-desktop/scripts/generate-mac-app-icns.mjs',
     acceptanceVerifier: '/repo/dsh-plugin-desktop/scripts/verify-mac-installed-app.mjs',
     nodeExecutable: '/usr/local/bin/node',
     run: (command, args, cwd, env) => {
@@ -54,7 +55,7 @@ describe('internal macOS DMG packaging', () => {
 
     packageMacInternal(options(calls, logs))
 
-    expect(calls).toHaveLength(4)
+    expect(calls).toHaveLength(5)
     expect(calls[0]).toEqual({
       command: 'corepack',
       args: ['yarn', 'workspace', 'dsh-plugin-desktop', 'check:mac-package'],
@@ -62,6 +63,12 @@ describe('internal macOS DMG packaging', () => {
       env: { PATH: '/usr/bin:/bin', SAFE_VALUE: 'kept' },
     })
     expect(calls[1]).toEqual({
+      command: '/usr/local/bin/node',
+      args: ['/repo/dsh-plugin-desktop/scripts/generate-mac-app-icns.mjs'],
+      cwd: '/repo/dsh-plugin-desktop',
+      env: { PATH: '/usr/bin:/bin', SAFE_VALUE: 'kept' },
+    })
+    expect(calls[2]).toEqual({
       command: '/usr/local/bin/node',
       args: [
         '/repo/node_modules/electron-builder/cli.js',
@@ -81,7 +88,7 @@ describe('internal macOS DMG packaging', () => {
         CSC_IDENTITY_AUTO_DISCOVERY: 'false',
       },
     })
-    expect(calls[2]).toEqual({
+    expect(calls[3]).toEqual({
       command: '/usr/local/bin/node',
       args: [
         '/repo/dsh-plugin-desktop/scripts/verify-mac-smoke.ts',
@@ -90,7 +97,7 @@ describe('internal macOS DMG packaging', () => {
       cwd: '/repo/dsh-plugin-desktop',
       env: { PATH: '/usr/bin:/bin', SAFE_VALUE: 'kept' },
     })
-    expect(calls[3]).toEqual({
+    expect(calls[4]).toEqual({
       command: '/usr/local/bin/node',
       args: [
         '/repo/dsh-plugin-desktop/scripts/verify-mac-installed-app.mjs',
@@ -117,8 +124,9 @@ describe('internal macOS DMG packaging', () => {
 
     packageMacInternal(value)
 
-    expect(calls).toHaveLength(3)
-    expect(calls[0]?.args).toEqual([
+    expect(calls).toHaveLength(4)
+    expect(calls[0]?.args).toEqual(['/repo/dsh-plugin-desktop/scripts/generate-mac-app-icns.mjs'])
+    expect(calls[1]?.args).toEqual([
       '/repo/node_modules/electron-builder/cli.js',
       '--mac',
       'dmg',
@@ -129,7 +137,7 @@ describe('internal macOS DMG packaging', () => {
       '--config.npmRebuild=false',
       '--config.directories.output=/repo/dsh-plugin-desktop/dist/mac-internal',
     ])
-    expect(calls[2]?.args).toEqual([
+    expect(calls[3]?.args).toEqual([
       '/repo/dsh-plugin-desktop/scripts/verify-mac-installed-app.mjs',
       '/repo/dsh-plugin-desktop/dist/mac-internal',
     ])
@@ -148,7 +156,7 @@ describe('internal macOS DMG packaging', () => {
 
     packageMacInternal(value)
 
-    expect(calls).toHaveLength(2)
+    expect(calls).toHaveLength(3)
     expect(calls.at(-1)?.args).toEqual([
       '/repo/dsh-plugin-desktop/scripts/verify-mac-smoke.ts',
       '/repo/dsh-plugin-desktop/dist/mac-internal',

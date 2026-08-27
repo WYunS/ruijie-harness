@@ -16,6 +16,7 @@ gen_pdf.py
 
 dsh-plugin-desktop/dist/
 dsh-plugin-desktop/lib/
+dsh-plugin-desktop/build/app-icon-mac.icns
 dsh-community-market/lib/
 
 .env.yarn

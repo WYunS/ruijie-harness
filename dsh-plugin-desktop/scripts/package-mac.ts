@@ -32,6 +32,8 @@ export interface MacInternalPackageOptions {
   readonly builderCli: string
   /** Absolute packaged-DMG verification script. */
   readonly verifier: string
+  /** Absolute script that creates the explicit multi-resolution ICNS. */
+  readonly iconGenerator: string
   /** Absolute installed-application acceptance script. */
   readonly acceptanceVerifier: string
   /** Node executable used to run package-local scripts. */
@@ -77,6 +79,7 @@ function defaultOptions(): MacInternalPackageOptions {
     prepareRuntime: () => prepareInstalledMacUniversalRuntime(desktopRoot),
     builderCli: require.resolve('electron-builder/cli.js'),
     verifier: fileURLToPath(new URL('./verify-mac-smoke.ts', import.meta.url)),
+    iconGenerator: fileURLToPath(new URL('./generate-mac-app-icns.mjs', import.meta.url)),
     acceptanceVerifier: fileURLToPath(new URL('./verify-mac-installed-app.mjs', import.meta.url)),
     nodeExecutable: process.execPath,
     run,
@@ -123,6 +126,12 @@ export function packageMacInternal(options: MacInternalPackageOptions = defaultO
   }
   options.resetOutput()
   options.prepareRuntime()
+  options.run(
+    options.nodeExecutable,
+    [options.iconGenerator],
+    options.desktopRoot,
+    cleanEnvironment,
+  )
   options.run(
     options.nodeExecutable,
     [

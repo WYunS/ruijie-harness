@@ -102,11 +102,14 @@ bash -n scripts/install-macos.sh
 
 Mac 应用图标分为两个用途，打包和验收不得混淆：
 
-- `build/app-icon.png` 是紫色 RJ 主品牌源图；`scripts/generate-mac-app-icon.mjs` 由它生成带 macOS safe area 的 `build/app-icon-mac.png`。`package.json` 的 `build.mac.icon`、Electron Dock 图标及最终 Finder、Applications、Launchpad、Dock、应用切换器中的主应用图标都必须是紫色 RJ。
+- `build/app-icon.png` 是紫色 RJ 主品牌源图；`scripts/generate-mac-app-icon.mjs` 由它生成带 macOS safe area 的 `build/app-icon-mac.png`。Mac 打包前必须再由 `scripts/generate-mac-app-icns.mjs` 显式生成 16、32、128、256、512 像素及各 @2x 槽位的 `build/app-icon-mac.icns`；不得让 electron-builder 直接从 16-bit PNG 隐式转换。`package.json` 的 `build.mac.icon` 和 `build.dmg.icon` 都必须指向该 ICNS。
+- `scripts/verify-mac-app-icon.mjs` 必须在挂载最终 DMG 后解包 `.app/Contents/Resources/app.icns` 和卷根目录 `.VolumeIcon.icns`，逐层与紫色 RJ 源图比对。任一小尺寸槽位缺失、尺寸错误或像素不符都必须阻断交付；不能只看 DMG 窗口内的大图标。
 - 菜单栏使用 `tray-iconTemplate.png` 与 `tray-iconTemplate@2x.png` 的黑白 Template RJ，由 macOS 根据浅色/深色菜单栏自动反色。这是平台规范，不应强制改成紫色，也不能把黑白菜单栏图标误判为品牌资源丢失。
-- 最终 `.app` 必须同时检查主应用图标和菜单栏 Template 图标；不能因为开发目录资源正确就跳过安装副本核对。
+- 最终 `.app` 必须同时检查主应用图标和菜单栏 Template 图标；不能因为开发目录资源正确就跳过安装副本核对。同一 bundle id、安装路径和卷名可能触发 IconServices/Finder 缓存；新包首次验收应使用新版本号和新产物，先卸载旧卷再挂载。机器校验正确但界面仍显示旧图时，可重启 Finder 后复验，但清缓存不能代替包内 ICNS 门禁。
 
 侧栏动态验收必须先主动打开并激活下栏终端、Files、Git 或浏览器，再从对话执行 `browser_search`、点击网页链接、PDF/文件正文引用及“本次产出”。对话和 Agent 发起的所有跳转必须进入右侧栏，下栏保持原内容；只有用户在下栏文件树、Git 等面板内部主动点击时才留在下栏。同一资源已在下栏打开也不能改变对话来源固定进入右栏的规则。
+
+Mac 下栏终端实际由 `dsh-better-sidebar` 内嵌的 `node-pty` 启动，不是 desktop 根目录的另一版 `node-pty`。universal 准备和最终 DMG 验证必须同时覆盖两份依赖的 `darwin-arm64`/`darwin-x64` `pty.node` 与 `spawn-helper`，并在打包前将两个内嵌 `spawn-helper` 修复为 `0755`。只验证根目录 helper 会在最终 `.app` 中出现 `posix_spawnp failed`，必须阻断 DMG。
 
 搜索与读页门禁必须检查最终 `.app` 中的 sidebar 与 ModSearch 安装副本，而不只检查 `vendor`：`browser_search` 必须在右栏导航后优先取得已加载页面的只读正文，也可使用搜索服务返回摘要和来源；`browser_open` 与 `browser_read_current` 必须能读取右栏当前页面。搜索服务全部失败但 Chromium 可加载时仍应完成总结，原始供应商、额度、限流和内部联网错误只写轨迹/日志，不进入主对话。`web_search` 工具、原生引用卡片和 `read_page` 均保持独立可用。供应商 Key 及内部网关凭据不得进入仓库或 DMG；正式声明 SSO 钱包扣费前必须保存 GPTAuth 网关的认证、计量与余额变化证据。
 
@@ -118,7 +121,7 @@ Mac runner 上 `file:` 依赖可能因宿主 archive 元数据产生哈希差异
 
 内置插件门禁必须同时证明 `dsh-ui-appearance@0.1.4` 与 `@xmanrui/dsh-im@2.0.0` 是 desktop deploy root 的精确生产依赖，组合后分别只有一个已启用的 `ui-appearance`、`im-channels` row，并能从最终 `.app` 物理运行树解析两个包；旧 `dsh-lark-channel` 不得残留。二者必须随 DMG 提供，不能依赖开发机插件缓存或要求员工从市场补装。`verify:licenses` 与 notices 必须覆盖新增闭包；`@tencent-connect/qqbot-connector@1.2.0` 只允许准确包名的业务批准例外并须如实标记为 `UNLICENSED (business-approved exception)`，不得放宽全局许可证白名单或伪造许可证。
 
-全新 profile 启动后，九个 IM 渠道必须全部休眠：不打开浏览器、不弹授权窗/二维码、不连接外部平台、不反复提示凭据。用户只有主动点击侧栏“IM机器人”（位于设置正上方）或进入“设置 → 插件 → IM机器人”、选择渠道并点击添加/接入后，才进入扫码、Token 或应用凭据配置；取消或关闭后不得自动重开。账号/额度位于 IM 上方；“IM机器人”必须与原生“设置”使用相同文字颜色、行高和左边界，机器人与齿轮图标视觉尺寸一致，点击必须直达 IM 配置而非插件市场。外观位于“通用设置”顶部并明确命名为“界面外观（颜色、壁纸与透明度）”，收起状态也要显示“一键恢复默认”；修改多项外观后点击它应一次回到原版且不清除登录、会话或 IM 配置。改变强调色不得改变原版用户消息气泡颜色。各平台凭据不得打入 DMG。搜索及普通工具恢复都属于固定门禁：备用方式成功后继续完成任务，主“对话”视图不显示中间失败行、红/黄状态、错误文字或 `Error` 技术文本；完整失败详情只在“轨迹”和日志中可追溯。仅整个回合最终失败时显示原有红色终局错误。WhatsApp 代理实现必须使用 desktop deploy root 直接声明的 `https-proxy-agent@7.0.6`，最终 `.app` 物理运行树必须可解析该包，不能引用上游压缩 bundle 的临时变量名。主动生成二维码遇到断网、无效代理或服务异常时必须留在 IM 页面并显示可读错误，不得退出或重启 `.app`，也不得显示 `ReferenceError` 或 RPC schema 校验 JSON；代理兼容不能破坏无代理网络或应用启动。
+全新 profile 启动后，九个 IM 渠道必须全部休眠：不打开浏览器、不弹授权窗/二维码、不连接外部平台、不反复提示凭据。用户只有主动点击侧栏“IM机器人”（位于设置正上方）或进入“设置 → 插件 → IM机器人”、选择渠道并点击添加/接入后，才进入扫码、Token 或应用凭据配置；取消或关闭后不得自动重开。账号/额度位于 IM 上方；“IM机器人”必须与原生“设置”使用相同文字颜色、行高和左边界，机器人与齿轮图标视觉尺寸一致，点击必须直达 IM 配置而非插件市场。外观位于“通用设置”顶部并明确命名为“界面外观（颜色、壁纸与透明度）”，收起状态也要显示“一键恢复默认”；首次启动和恢复默认时不覆盖气泡色，由系统浅色/深色主题分别提供原版颜色。用户主动修改“主色”后，用户消息气泡应与按钮、链接和选中态一起跟随；点击恢复默认后必须撤销该覆盖并回到当前系统主题的原版气泡色，且不清除登录、会话或 IM 配置。各平台凭据不得打入 DMG。搜索及普通工具恢复都属于固定门禁：备用方式成功后继续完成任务，主“对话”视图不显示中间失败行、红/黄状态、错误文字或 `Error` 技术文本；完整失败详情只在“轨迹”和日志中可追溯。仅整个回合最终失败时显示原有红色终局错误。WhatsApp 代理实现必须使用 desktop deploy root 直接声明的 `https-proxy-agent@7.0.6`，最终 `.app` 物理运行树必须可解析该包，不能引用上游压缩 bundle 的临时变量名。主动生成二维码遇到断网、无效代理或服务异常时必须留在 IM 页面并显示可读错误，不得退出或重启 `.app`，也不得显示 `ReferenceError` 或 RPC schema 校验 JSON；代理兼容不能破坏无代理网络或应用启动。
 
 联网降噪不得靠关闭 `web_search`、ModSearch 或浏览器工具通过。最终 `.app` 的自动验收负责证明工具和呈现链路仍在，真人验收必须用“联网搜索今天 AI 圈发生的大事”证明真实 `web_search` 返回来源、多个来源可读取、`browser_search` 可见且同词重搜会重新加载；再用确定不可访问的 URL 证明失败后换路完成、“对话”静默而“轨迹”保留证据。正常搜索缺失时不得因界面无红字而放行。
 

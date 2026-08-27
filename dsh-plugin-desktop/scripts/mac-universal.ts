@@ -44,6 +44,14 @@ export const MACOS_UNIVERSAL_NATIVE_ENTRIES = [
     path: 'node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper',
   },
   {
+    arch: 'arm64',
+    path: 'node_modules/dsh-better-sidebar/node_modules/node-pty/prebuilds/darwin-arm64/pty.node',
+  },
+  {
+    arch: 'arm64',
+    path: 'node_modules/dsh-better-sidebar/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper',
+  },
+  {
     arch: 'x86_64',
     path: 'node_modules/@img/sharp-darwin-x64/lib/sharp-darwin-x64-0.35.3.node',
   },
@@ -79,12 +87,22 @@ export const MACOS_UNIVERSAL_NATIVE_ENTRIES = [
     arch: 'x86_64',
     path: 'node_modules/node-pty/prebuilds/darwin-x64/spawn-helper',
   },
+  {
+    arch: 'x86_64',
+    path: 'node_modules/dsh-better-sidebar/node_modules/node-pty/prebuilds/darwin-x64/pty.node',
+  },
+  {
+    arch: 'x86_64',
+    path: 'node_modules/dsh-better-sidebar/node_modules/node-pty/prebuilds/darwin-x64/spawn-helper',
+  },
 ] as const satisfies readonly { readonly arch: MacUniversalArch; readonly path: string }[]
 
 /** Generated host-architecture files that must never shadow the prebuilt pair. */
 export const FORBIDDEN_MACOS_UNIVERSAL_ENTRIES = [
   'node_modules/node-pty/build/Release/pty.node',
   'node_modules/node-pty/build/Release/spawn-helper',
+  'node_modules/dsh-better-sidebar/node_modules/node-pty/build/Release/pty.node',
+  'node_modules/dsh-better-sidebar/node_modules/node-pty/build/Release/spawn-helper',
 ] as const
 
 /** Injectable filesystem seam for source-runtime preparation. */

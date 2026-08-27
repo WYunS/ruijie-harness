@@ -22,4 +22,17 @@ describe('UI appearance discoverability patch', () => {
     }
     expect(manifest.scripts.build).toContain('node scripts/patch-dsh-ui-appearance-runtime.mjs')
   })
+
+  it('starts and resets to stock bubbles while allowing an explicit accent to recolor them', () => {
+    const packagePath = require.resolve('dsh-ui-appearance/package.json')
+    const clientPath = new URL('./lib/client.js', `file:///${packagePath.replaceAll('\\', '/')}`)
+    const source = readFileSync(clientPath, 'utf8')
+
+    expect(source).toContain('const DEFAULT_SETTINGS = {\n\t\t\taccent: "",')
+    expect(source).toContain('settings.preset === "default") && settings.accent === "#4176e6"')
+    expect(source).toContain('emit("--dsw-specific-bubble", light, dark)')
+    expect(source).toContain('emit("--dsw-specific-bubble-highlight", light, dark)')
+    expect(source).toContain('translucent("--dsw-specific-bubble", accent, void 0)')
+    expect(source).toContain('translucent("--dsw-specific-bubble-highlight", accent, void 0)')
+  })
 })
