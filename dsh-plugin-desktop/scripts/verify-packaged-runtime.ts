@@ -1,6 +1,6 @@
 /** Fail-loud verification of the runtime entries sealed into Electron's app.asar. */
 
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join, relative, sep } from 'node:path'
@@ -102,6 +102,12 @@ export const REQUIRED_WINDOWS_X64_NODE_PTY_ENTRIES = [
   'node_modules/node-pty/prebuilds/win32-x64/conpty/conpty.dll',
 ] as const
 
+/** Unix terminal implementations whose ASAR correction must be idempotent. */
+export const REQUIRED_MACOS_NODE_PTY_RUNTIME_ENTRIES = [
+  'node_modules/node-pty/lib/unixTerminal.js',
+  'node_modules/dsh-better-sidebar/node_modules/node-pty/lib/unixTerminal.js',
+] as const
+
 /** CPU-specific runtime assets that must coexist in a universal macOS application. */
 export const REQUIRED_MACOS_UNIVERSAL_ENTRIES = [
   ...MACOS_UNIVERSAL_NATIVE_ENTRIES.map(entry => entry.path),
@@ -138,6 +144,25 @@ export type ArchiveLister = (archivePath: string, options: { isPack: boolean }) 
 
 /** Injectable physical-file probe used by focused tests. */
 export type FileProbe = (filename: string) => boolean
+
+/** Injectable text reader used by macOS node-pty closure verification. */
+export type TextFileReader = (filename: string, encoding: BufferEncoding) => string
+
+/** Reject a macOS package that can generate app.asar.unpacked.unpacked. */
+export function verifyMacNodePtyRuntime(
+  unpackedRoot: string,
+  read: TextFileReader = readFileSync,
+): void {
+  for (const entry of REQUIRED_MACOS_NODE_PTY_RUNTIME_ENTRIES) {
+    const source = read(join(unpackedRoot, entry), 'utf8')
+    if (
+      !source.includes("replace(/app\\.asar(?!\\.unpacked)/, 'app.asar.unpacked')")
+      || source.includes("replace('app.asar', 'app.asar.unpacked')")
+    ) {
+      throw new Error(`macOS node-pty runtime can duplicate app.asar.unpacked: ${entry}`)
+    }
+  }
+}
 
 /** Injectable Node package resolver used by focused tests. */
 export type PackageResolver = (specifier: string) => string
@@ -414,6 +439,9 @@ export async function afterPack(
   smoke: PackagedDiagnosticWorkerSmoke = smokePackagedDiagnosticWorker,
 ): Promise<void> {
   verify(context)
+  if (context.electronPlatformName === 'darwin') {
+    verifyMacNodePtyRuntime(resolvePackagedUnpackedRoot(context))
+  }
   await smoke(resolvePackagedUnpackedRoot(context))
 }
 

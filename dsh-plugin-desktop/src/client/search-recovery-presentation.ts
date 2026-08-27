@@ -20,6 +20,7 @@ export function shouldHideIntermediateFailure(candidate: IntermediateFailureCand
 
 const STYLE_ID = 'dsh-desktop-intermediate-failure-style'
 const FAILURE_ATTRIBUTE = 'data-dsh-intermediate-failure'
+export const INTERMEDIATE_FAILURE_STATE_SELECTOR = '[data-state="error"], [data-state="stopped"]'
 
 function installStyles(documentRoot: Document): () => void {
   const existing = documentRoot.getElementById(STYLE_ID)
@@ -47,10 +48,11 @@ export function reconcileSearchFailureRows(documentRoot: Document): void {
   )
   const rowsToHide = new Set<HTMLElement>()
   for (const flowRow of flowRows) {
-    const failedState = flowRow.querySelector<HTMLElement>(
-      '[data-tool][data-state="error"], [data-tool][data-state="stopped"], '
-      + '[data-subcalls] [data-state="error"], [data-subcalls] [data-state="stopped"]',
-    )?.dataset.state ?? ''
+    // Harness renders a simple Bash failure with data-state on the flow row
+    // itself, while grouped tools carry it on a descendant. Cover both shapes.
+    const failedState = flowRow.matches(INTERMEDIATE_FAILURE_STATE_SELECTOR)
+      ? flowRow.dataset.state ?? ''
+      : flowRow.querySelector<HTMLElement>(INTERMEDIATE_FAILURE_STATE_SELECTOR)?.dataset.state ?? ''
     if (shouldHideIntermediateFailure({
       insideChatFlow: true,
       kind: flowRow.dataset.chatFlowKind ?? '',

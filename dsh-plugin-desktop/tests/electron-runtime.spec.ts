@@ -102,7 +102,15 @@ const electron = vi.hoisted(() => {
     setZoomLevel: vi.fn((level: number) => { zoomLevel = level }),
     setWindowOpenHandler: vi.fn(),
   }
-  const nativeTheme = { themeSource: 'system' }
+  const nativeThemeListeners = new Set<() => void>()
+  const nativeTheme = {
+    themeSource: 'system',
+    shouldUseDarkColors: false,
+    on: vi.fn((_event: string, listener: () => void) => { nativeThemeListeners.add(listener) }),
+    off: vi.fn((_event: string, listener: () => void) => { nativeThemeListeners.delete(listener) }),
+    emitUpdated() { for (const listener of nativeThemeListeners) listener() },
+    resetListeners() { nativeThemeListeners.clear() },
+  }
 
   class BrowserWindow {
     readonly webContents = webContents
@@ -127,6 +135,7 @@ const electron = vi.hoisted(() => {
     readonly loadURL = loadURL
     readonly removeMenu = vi.fn()
     readonly setBackgroundMaterial = vi.fn()
+    readonly setTitleBarOverlay = vi.fn()
   }
 
   class Tray {
@@ -278,6 +287,8 @@ describe('Electron desktop runtime', () => {
     electron.dialog.showSaveDialog.mockResolvedValue({ canceled: true, filePath: undefined })
     electron.shell.openPath.mockResolvedValue('')
     electron.nativeTheme.themeSource = 'system'
+    electron.nativeTheme.shouldUseDarkColors = false
+    electron.nativeTheme.resetListeners()
     electron.resetZoomLevel()
   })
 
@@ -340,7 +351,7 @@ describe('Electron desktop runtime', () => {
       expect(options).not.toHaveProperty(option)
     }
     expect(electron.browserWindows[0]?.accessibleTitle).toBe('DeepSeek Harness Desktop')
-    expect(spec.readThemeSource).not.toHaveBeenCalled()
+    expect(spec.readThemeSource).toHaveBeenCalledOnce()
     expect(electron.nativeTheme.themeSource).toBe('system')
     expect(electron.browserWindows[0]?.removeMenu).not.toHaveBeenCalled()
     expect(electron.app.dock.setIcon).toHaveBeenCalledWith(electron.appIcon)
@@ -387,6 +398,36 @@ describe('Electron desktop runtime', () => {
 
     await release()
     expect(electron.trays[0]?.off).toHaveBeenCalledWith('click', expect.any(Function))
+  })
+
+  it('uses the Harness theme for Windows caption colors even when Windows uses another theme', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    electron.nativeTheme.shouldUseDarkColors = false
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const runtime = new ElectronDesktopRuntime(async () => {})
+    const release = runtime.schedule({ ...spec, readThemeSource: () => 'dark' })
+
+    await runtime.mountScheduled()
+    expect(electron.browserWindowOptions[0]).toEqual(expect.objectContaining({
+      titleBarOverlay: { color: '#00000000', symbolColor: '#ffffff', height: 32 },
+    }))
+
+    runtime.setThemeSource('light')
+    expect(electron.browserWindows[0]?.setTitleBarOverlay).toHaveBeenLastCalledWith({
+      color: '#00000000',
+      symbolColor: '#111318',
+      height: 32,
+    })
+
+    electron.nativeTheme.shouldUseDarkColors = true
+    runtime.setThemeSource('system')
+    electron.nativeTheme.emitUpdated()
+    expect(electron.browserWindows[0]?.setTitleBarOverlay).toHaveBeenLastCalledWith({
+      color: '#00000000',
+      symbolColor: '#ffffff',
+      height: 32,
+    })
+    await release()
   })
 
   it('selects the restricted Linux platform adapter once for native capabilities', async () => {

@@ -5,6 +5,7 @@ import {
   advancedWindowOptions,
   compatibilityWindowOptions,
   desktopWindowOptions,
+  windowsTitleBarOverlay,
 } from '../src/window-options.ts'
 import { WINDOWS_TITLEBAR_HEIGHT } from '../src/window-chrome.ts'
 
@@ -79,6 +80,19 @@ describe('compatibility BrowserWindow options', () => {
     })
   })
 
+  it('keeps Windows caption symbols visible in both light and dark themes', () => {
+    expect(windowsTitleBarOverlay(false)).toEqual({
+      color: '#00000000',
+      symbolColor: '#111318',
+      height: WINDOWS_TITLEBAR_HEIGHT,
+    })
+    expect(windowsTitleBarOverlay(true)).toEqual({
+      color: '#00000000',
+      symbolColor: '#ffffff',
+      height: WINDOWS_TITLEBAR_HEIGHT,
+    })
+  })
+
   it('rejects an advanced spec before BrowserWindow construction', () => {
     expect(() => compatibilityWindowOptions(
       { ...spec, mode: 'advanced' },
@@ -116,7 +130,7 @@ describe('compatibility BrowserWindow options', () => {
       titleBarStyle: 'hidden',
       titleBarOverlay: {
         color: '#00000000',
-        symbolColor: '#7f858f',
+        symbolColor: '#111318',
         height: WINDOWS_TITLEBAR_HEIGHT,
       },
       backgroundMaterial: 'mica',

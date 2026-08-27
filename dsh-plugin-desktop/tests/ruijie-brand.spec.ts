@@ -105,4 +105,9 @@ describe('Ruijie Harness rc.8 brand slots', () => {
       'div:has(> span > [data-slot="conversation.hero.brand.mark"] > .ruijieHarnessHeroBrandMark) > span:last-child { display: none; }',
     )
   })
+
+  it('keeps the Harness badge transparent so dark mode cannot show a white tile', () => {
+    expect(RUIJIE_BRAND_STYLES).toMatch(/\.ruijieHarnessBadge[^}]+background:\s*transparent;/su)
+    expect(RUIJIE_BRAND_STYLES).not.toMatch(/\.ruijieHarnessBadge[^}]+background:\s*#fff;/su)
+  })
 })

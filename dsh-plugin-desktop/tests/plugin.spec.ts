@@ -240,7 +240,9 @@ describe('desktop Host plugin', () => {
     expect(harness.shell()?.trayIcons.bluePath.endsWith(join('build', 'tray-icon-blue.png'))).toBe(true)
     expect(harness.shell()?.readThemeSource()).toBe('system')
     harness.notifyTheme('dark')
-    expect(harness.setThemeSource).not.toHaveBeenCalled()
+    expect(harness.setThemeSource).toHaveBeenCalledWith('dark')
+    harness.notifyTheme('light')
+    expect(harness.setThemeSource).toHaveBeenLastCalledWith('light')
 
     await harness.shell()?.requestModeChange('advanced')
     expect(harness.update).toHaveBeenCalledWith({ mode: 'advanced' })

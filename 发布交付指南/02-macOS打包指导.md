@@ -109,7 +109,7 @@ Mac 应用图标分为两个用途，打包和验收不得混淆：
 
 侧栏动态验收必须先主动打开并激活下栏终端、Files、Git 或浏览器，再从对话执行 `browser_search`、点击网页链接、PDF/文件正文引用及“本次产出”。对话和 Agent 发起的所有跳转必须进入右侧栏，下栏保持原内容；只有用户在下栏文件树、Git 等面板内部主动点击时才留在下栏。同一资源已在下栏打开也不能改变对话来源固定进入右栏的规则。
 
-Mac 下栏终端实际由 `dsh-better-sidebar` 内嵌的 `node-pty` 启动，不是 desktop 根目录的另一版 `node-pty`。universal 准备和最终 DMG 验证必须同时覆盖两份依赖的 `darwin-arm64`/`darwin-x64` `pty.node` 与 `spawn-helper`，并在打包前将两个内嵌 `spawn-helper` 修复为 `0755`。只验证根目录 helper 会在最终 `.app` 中出现 `posix_spawnp failed`，必须阻断 DMG。
+Mac 下栏终端实际由 `dsh-better-sidebar` 内嵌的 `node-pty` 启动，不是 desktop 根目录的另一版 `node-pty`。universal 准备和最终 DMG 验证必须同时覆盖两份依赖的 `darwin-arm64`/`darwin-x64` `pty.node` 与 `spawn-helper`，并在打包前将两个内嵌 `spawn-helper` 修复为 `0755`。`build` 必须执行幂等的 `scripts/patch-node-pty-runtime.mjs`，把两份 `unixTerminal.js` 的 ASAR 替换限制为 `/app\.asar(?!\.unpacked)/`；`afterPack` 必须读取最终 `app.asar.unpacked` 中的两份文件再次断言，禁止出现会把 `app.asar.unpacked` 变成 `app.asar.unpacked.unpacked` 的旧写法。该补丁只修改 Unix runtime，不得改动 Windows ConPTY。只验证根目录 helper 或只手工修改当前 Mac 的 `node_modules` 都不算完成，任一缺失必须阻断 DMG。
 
 搜索与读页门禁必须检查最终 `.app` 中的 sidebar 与 ModSearch 安装副本，而不只检查 `vendor`：`browser_search` 必须在右栏导航后优先取得已加载页面的只读正文，也可使用搜索服务返回摘要和来源；`browser_open` 与 `browser_read_current` 必须能读取右栏当前页面。搜索服务全部失败但 Chromium 可加载时仍应完成总结，原始供应商、额度、限流和内部联网错误只写轨迹/日志，不进入主对话。`web_search` 工具、原生引用卡片和 `read_page` 均保持独立可用。供应商 Key 及内部网关凭据不得进入仓库或 DMG；正式声明 SSO 钱包扣费前必须保存 GPTAuth 网关的认证、计量与余额变化证据。
 

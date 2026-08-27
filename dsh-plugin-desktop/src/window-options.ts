@@ -4,6 +4,17 @@ import type { BrowserWindowConstructorOptions, NativeImage } from 'electron'
 import type { DesktopPlatform, DesktopShellSpec } from './runtime.ts'
 import { WINDOWS_TITLEBAR_HEIGHT } from './window-chrome.ts'
 
+/** High-contrast native caption overlay for the active Windows palette. */
+export function windowsTitleBarOverlay(dark: boolean): Electron.TitleBarOverlay {
+  return {
+    // Keep the page's own titlebar surface visible; only the native caption
+    // glyphs follow the current Harness theme.
+    color: '#00000000',
+    symbolColor: dark ? '#ffffff' : '#111318',
+    height: WINDOWS_TITLEBAR_HEIGHT,
+  }
+}
+
 /**
  * Build a secure BrowserWindow while preserving the operating system frame.
  * @param spec - shell values resolved from the active Cordis row.
@@ -16,6 +27,7 @@ export function compatibilityWindowOptions(
   icon: NativeImage,
   platform: DesktopPlatform,
   preload: string,
+  dark = false,
 ): BrowserWindowConstructorOptions {
   if (spec.mode !== 'compatibility') {
     throw new Error(`dsh-plugin-desktop: unsupported compatibility window mode ${spec.mode}`)
@@ -40,11 +52,7 @@ export function compatibilityWindowOptions(
   if (platform === 'win32') {
     options.autoHideMenuBar = true
     options.titleBarStyle = 'hidden'
-    options.titleBarOverlay = {
-      color: '#00000000',
-      symbolColor: '#111318',
-      height: WINDOWS_TITLEBAR_HEIGHT,
-    }
+    options.titleBarOverlay = windowsTitleBarOverlay(dark)
   }
   return options
 }
@@ -61,6 +69,7 @@ export function advancedWindowOptions(
   icon: NativeImage,
   platform: DesktopPlatform,
   preload: string,
+  dark = false,
 ): BrowserWindowConstructorOptions {
   if (spec.mode !== 'advanced') {
     throw new Error(`dsh-plugin-desktop: unsupported advanced window mode ${spec.mode}`)
@@ -100,11 +109,7 @@ export function advancedWindowOptions(
       ...options,
       autoHideMenuBar: true,
       titleBarStyle: 'hidden',
-      titleBarOverlay: {
-        color: '#00000000',
-        symbolColor: '#7f858f',
-        height: WINDOWS_TITLEBAR_HEIGHT,
-      },
+      titleBarOverlay: windowsTitleBarOverlay(dark),
       backgroundColor: '#00000000',
       backgroundMaterial: 'mica',
       hasShadow: true,
@@ -127,8 +132,9 @@ export function desktopWindowOptions(
   icon: NativeImage,
   platform: DesktopPlatform,
   preload: string,
+  dark = false,
 ): BrowserWindowConstructorOptions {
   return spec.mode === 'compatibility'
-    ? compatibilityWindowOptions(spec, icon, platform, preload)
-    : advancedWindowOptions(spec, icon, platform, preload)
+    ? compatibilityWindowOptions(spec, icon, platform, preload, dark)
+    : advancedWindowOptions(spec, icon, platform, preload, dark)
 }

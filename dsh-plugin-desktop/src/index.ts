@@ -333,12 +333,10 @@ export function apply(ctx: Context, config: Config): void {
       if (pending !== undefined) clearImmediate(pending)
     }
   }, 'dsh-plugin-desktop: restart after startup setting change')
-  if (config.mode === 'advanced') {
-    ctx.on('settings/updated', (namespace, next) => {
-      if (namespace !== UI_THEME_SETTINGS_NAMESPACE) return
-      runtime.setThemeSource((next as ThemeSettings).preference)
-    })
-  }
+  ctx.on('settings/updated', (namespace, next) => {
+    if (namespace !== UI_THEME_SETTINGS_NAMESPACE) return
+    runtime.setThemeSource((next as ThemeSettings).preference)
+  })
   ctx.on('settings/updated', (namespace, next) => {
     if (namespace !== UI_LOCALE_SETTINGS_NAMESPACE) return
     runtime.setLocalePreference((next as LocaleSettings).preference)
@@ -357,7 +355,7 @@ export function apply(ctx: Context, config: Config): void {
       readThemeSource: () => {
         const theme = ctx.settings.get(UI_THEME_SETTINGS_NAMESPACE) as ThemeSettings | undefined
         if (theme === undefined) {
-          throw new Error('dsh-plugin-desktop: advanced shell requires the ui-theme settings namespace')
+          throw new Error('dsh-plugin-desktop: native shell requires the ui-theme settings namespace')
         }
         return theme.preference
       },

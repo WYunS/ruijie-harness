@@ -11,10 +11,10 @@ import {
 import { formatDesktopExitCode } from './desktop-logger.ts'
 import { editorContextMenuRoles } from './editor-context-menu.ts'
 import type { ElectronPlatformStrategy } from './electron-platform.ts'
-import type { DesktopShellSpec } from './runtime.ts'
+import type { DesktopShellSpec, DesktopThemeSource } from './runtime.ts'
 import { DESKTOP_SIDEBAR_POPUP_CHANNEL } from './sidebar-popup-bridge-contract.ts'
 import { prepareTrayIcon } from './tray-icons.ts'
-import { desktopWindowOptions } from './window-options.ts'
+import { desktopWindowOptions, windowsTitleBarOverlay } from './window-options.ts'
 
 const MIN_ZOOM_LEVEL = -4
 const MAX_ZOOM_LEVEL = 4
@@ -49,6 +49,7 @@ export class ElectronShellGeneration {
   private mounted = false
   private released = false
   private cleanupListeners: (() => void) | undefined
+  private themeSource: DesktopThemeSource = 'system'
 
   constructor(private readonly options: ElectronShellGenerationOptions) {}
 
@@ -64,13 +65,23 @@ export class ElectronShellGeneration {
     }
     platform.configureApplication(icon)
     const origin = new URL(spec.url).origin
-    if (spec.mode === 'advanced') nativeTheme.themeSource = spec.readThemeSource()
-    const window = new BrowserWindow(desktopWindowOptions(spec, icon, platform.platform, this.options.preloadPath))
+    this.themeSource = spec.readThemeSource()
+    if (spec.mode === 'advanced') nativeTheme.themeSource = this.themeSource
+    const dark = this.themeSource === 'dark'
+      || (this.themeSource === 'system' && nativeTheme.shouldUseDarkColors)
+    const window = new BrowserWindow(desktopWindowOptions(
+      spec,
+      icon,
+      platform.platform,
+      this.options.preloadPath,
+      dark,
+    ))
     window.accessibleTitle = spec.windowTitle
     platform.configureWindow(window)
     this.window = window
 
     const show = (): void => { this.show() }
+    const syncWindowsCaption = (): void => { this.refreshThemeChrome() }
     const close = (event: Electron.Event): void => {
       if (this.options.isQuitting()) return
       event.preventDefault()
@@ -168,6 +179,7 @@ export class ElectronShellGeneration {
     }
 
     app.on('activate', show)
+    nativeTheme.on('updated', syncWindowsCaption)
     window.on('close', close)
     window.on('page-title-updated', preserveBlankTitle)
     window.webContents.on('before-input-event', handleZoomShortcut)
@@ -194,6 +206,7 @@ export class ElectronShellGeneration {
     let tray: Tray | undefined
     this.cleanupListeners = () => {
       app.off('activate', show)
+      nativeTheme.off('updated', syncWindowsCaption)
       window.off('close', close)
       window.off('page-title-updated', preserveBlankTitle)
       window.off('ready-to-show', show)
@@ -250,6 +263,15 @@ export class ElectronShellGeneration {
 
   refreshThemeMaterial(): void {
     if (this.window !== undefined && !this.window.isDestroyed()) this.options.platform.refreshThemeMaterial(this.window)
+  }
+
+  /** Keep native Windows caption controls aligned with the Harness theme. */
+  refreshThemeChrome(source: DesktopThemeSource = this.themeSource): void {
+    this.themeSource = source
+    const window = this.window
+    if (this.options.platform.platform !== 'win32' || window === undefined || window.isDestroyed()) return
+    const dark = source === 'dark' || (source === 'system' && nativeTheme.shouldUseDarkColors)
+    window.setTitleBarOverlay(windowsTitleBarOverlay(dark))
   }
 
   async release(): Promise<void> {

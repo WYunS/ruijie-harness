@@ -25,7 +25,7 @@ export const RUIJIE_BRAND_STYLES = `
 }
 .ruijieHarnessBrandName { height: 24px; margin-left: 0; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .ruijieHarnessBrandLogo { display: block; width: 112px; height: 20px; object-fit: contain; }
-.ruijieHarnessBadge { box-sizing: border-box; height: 20px; padding: 2px 5px 1px; border: 1px solid #d71920; border-radius: 5px; color: #d71920; background: #fff; display: inline-flex; align-items: center; font: 700 10px/1 "Segoe UI", Arial, sans-serif; letter-spacing: .55px; }
+.ruijieHarnessBadge { box-sizing: border-box; height: 20px; padding: 2px 5px 1px; border: 1px solid #d71920; border-radius: 5px; color: #d71920; background: transparent; display: inline-flex; align-items: center; font: 700 10px/1 "Segoe UI", Arial, sans-serif; letter-spacing: .55px; }
 span:has(> [data-slot="sidebar.brand.mark"] > .ruijieHarnessSidebarBrandMark):has(+ span > [data-slot="sidebar.brand.name"] > .ruijieHarnessBrandName) { display: none; }
 div:has(> span > [data-slot="conversation.hero.brand.mark"] > .ruijieHarnessHeroBrandMark) { grid-template-columns: 34px auto; }
 div:has(> span > [data-slot="conversation.hero.brand.mark"] > .ruijieHarnessHeroBrandMark) > span:last-child { display: none; }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  INTERMEDIATE_FAILURE_STATE_SELECTOR,
   SEARCH_RECOVERY_PROMPT,
   shouldHideIntermediateFailure,
 } from '../src/client/search-recovery-presentation.ts'
@@ -22,6 +23,11 @@ describe('quiet intermediate failure presentation', () => {
   it('does not alter error rows outside the conversation flow such as the trace view', () => {
     expect(shouldHideIntermediateFailure({ insideChatFlow: false, kind: 'tool-call', state: 'error' }))
       .toBe(false)
+  })
+
+  it('recognises a failed Bash row when the state is carried by the row itself', () => {
+    expect(INTERMEDIATE_FAILURE_STATE_SELECTOR).toContain('[data-state="error"]')
+    expect(INTERMEDIATE_FAILURE_STATE_SELECTOR).toContain('[data-state="error"]')
   })
 
   it('teaches the agent to switch methods and continue instead of retrying forever', () => {

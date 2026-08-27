@@ -6,6 +6,7 @@ import {
   afterPack,
   REQUIRED_PACKAGED_RUNTIME_ENTRIES,
   REQUIRED_MACOS_UNIVERSAL_ENTRIES,
+  REQUIRED_MACOS_NODE_PTY_RUNTIME_ENTRIES,
   REQUIRED_UNPACKED_PACKAGE_SPECIFIERS,
   REQUIRED_UNPACKED_RUNTIME_ENTRIES,
   REQUIRED_WINDOWS_X64_NODE_PTY_ENTRIES,
@@ -14,6 +15,7 @@ import {
   smokePackagedDiagnosticWorker,
   verifyUnpackedArchiveMirror,
   verifyPackagedRuntime,
+  verifyMacNodePtyRuntime,
   type ArchiveLister,
   type FileProbe,
   type PackageResolver,
@@ -111,6 +113,19 @@ describe('packaged desktop runtime verification', () => {
       'node_modules/node-pty/prebuilds/win32-x64/conpty/OpenConsole.exe',
       'node_modules/node-pty/prebuilds/win32-x64/conpty/conpty.dll',
     ])
+  })
+
+  it('rejects either macOS terminal runtime when its ASAR rewrite can duplicate unpacked', () => {
+    const unpackedRoot = join('/build', 'app.asar.unpacked')
+    const guarded = "helperPath = helperPath.replace(/app\\.asar(?!\\.unpacked)/, 'app.asar.unpacked');"
+    for (const broken of REQUIRED_MACOS_NODE_PTY_RUNTIME_ENTRIES) {
+      expect(() => verifyMacNodePtyRuntime(unpackedRoot, filename => (
+        filename === join(unpackedRoot, broken)
+          ? "helperPath = helperPath.replace('app.asar', 'app.asar.unpacked');"
+          : guarded
+      ))).toThrow(`macOS node-pty runtime can duplicate app.asar.unpacked: ${broken}`)
+    }
+    expect(() => verifyMacNodePtyRuntime(unpackedRoot, () => guarded)).not.toThrow()
   })
 
   it.each([
