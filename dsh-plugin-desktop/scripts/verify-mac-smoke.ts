@@ -138,7 +138,7 @@ export function verifyMacSmoke(
     options.run(options.nodeExecutable, [
       options.iconVerifier,
       options.iconSource,
-      join(appPath, 'Contents', 'Resources', 'app.icns'),
+      join(appPath, 'Contents', 'Resources', 'icon.icns'),
       join(mountPoint, '.VolumeIcon.icns'),
     ])
 

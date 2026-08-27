@@ -127,7 +127,7 @@ describe('macOS DMG smoke artifact verification', () => {
         args: [
           '/repo/dsh-plugin-desktop/scripts/verify-mac-app-icon.mjs',
           '/repo/dsh-plugin-desktop/build/app-icon-mac.png',
-          join(appPath, 'Contents', 'Resources', 'app.icns'),
+          join(appPath, 'Contents', 'Resources', 'icon.icns'),
           join(value.root, '.VolumeIcon.icns'),
         ],
       },
