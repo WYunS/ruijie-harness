@@ -1,11 +1,20 @@
 #!/bin/bash
 
-set -euo pipefail
+set -Eeuo pipefail
 
 readonly DOWNLOAD_URL="${RUIJIE_HARNESS_DMG_URL:-https://gptauth.ruijie.com.cn/harness/api/downloads/mac}"
 readonly INSTALL_ROOT="${RUIJIE_HARNESS_INSTALL_ROOT:-/Applications}"
 readonly APP_NAME='锐捷 Harness.app'
 readonly BUNDLE_ID='cn.com.ruijie.dsh.desktop'
+current_step='初始化'
+
+report_error() {
+  local status=$?
+  trap - ERR
+  echo "错误：安装失败（步骤：$current_step，错误码：$status）。" >&2
+  exit "$status"
+}
+trap 'report_error' ERR
 
 if [[ "$(uname -s)" != 'Darwin' ]]; then
   echo '错误：此安装命令只能在 macOS 上运行。' >&2
@@ -42,9 +51,13 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 echo '正在下载锐捷 Harness…'
-curl --fail --location --show-error --silent --output "$dmg_path" "$DOWNLOAD_URL"
-hdiutil verify "$dmg_path" >/dev/null
+current_step='下载安装包'
+curl --fail --location --show-error --progress-bar --output "$dmg_path" "$DOWNLOAD_URL"
+echo '下载完成，正在校验安装包…'
+current_step='校验安装包'
+hdiutil verify "$dmg_path" >/dev/null 2>&1
 
+current_step='挂载安装包'
 attach_output="$(hdiutil attach "$dmg_path" -nobrowse -readonly)"
 mount_point="$(printf '%s\n' "$attach_output" | sed -n 's|^.*\(/Volumes/.*\)$|\1|p' | tail -n 1)"
 if [[ -z "$mount_point" || ! -d "$mount_point" ]]; then
@@ -64,6 +77,9 @@ if [[ "$actual_bundle_id" != "$BUNDLE_ID" ]]; then
   exit 1
 fi
 
+echo '校验通过，正在安装…'
+current_step='安装应用'
+
 target_app="$INSTALL_ROOT/$APP_NAME"
 staging_app="$INSTALL_ROOT/.${APP_NAME}.new.$$"
 backup_app="$INSTALL_ROOT/.${APP_NAME}.backup.$$"
@@ -73,27 +89,36 @@ if [[ -L "$target_app" ]]; then
   exit 1
 fi
 
-install_app() {
-  local runner=("$@")
-  "${runner[@]}" rm -rf -- "$staging_app" "$backup_app"
-  "${runner[@]}" ditto "$source_app" "$staging_app"
-  if [[ -e "$target_app" ]]; then
-    "${runner[@]}" mv -- "$target_app" "$backup_app"
+run_install_command() {
+  if [[ "$install_with_sudo" == true ]]; then
+    sudo "$@"
+  else
+    "$@"
   fi
-  if ! "${runner[@]}" mv -- "$staging_app" "$target_app"; then
+}
+
+install_app() {
+  run_install_command rm -rf -- "$staging_app" "$backup_app"
+  run_install_command ditto "$source_app" "$staging_app"
+  if [[ -e "$target_app" ]]; then
+    run_install_command mv -- "$target_app" "$backup_app"
+  fi
+  if ! run_install_command mv -- "$staging_app" "$target_app"; then
     if [[ -e "$backup_app" && ! -e "$target_app" ]]; then
-      "${runner[@]}" mv -- "$backup_app" "$target_app"
+      run_install_command mv -- "$backup_app" "$target_app"
     fi
     return 1
   fi
-  "${runner[@]}" rm -rf -- "$backup_app"
+  run_install_command rm -rf -- "$backup_app"
 }
 
 if [[ -w "$INSTALL_ROOT" ]]; then
+  install_with_sudo=false
   install_app
 else
   echo '安装到 /Applications 需要管理员密码。'
-  install_app sudo
+  install_with_sudo=true
+  install_app
 fi
 
 echo "安装完成：$target_app"
