@@ -9,6 +9,7 @@ import { applyAdvancedShell } from './advanced-shell.ts'
 import { startRendererBootReporter } from './boot-health.ts'
 import { installDesktopDirectoryPickerBridge } from './directory-picker.ts'
 import { parseDesktopClientEnvironment } from './environment.ts'
+import { applyMacDesktopDirectoryFlow } from './mac-directory-flow.tsx'
 import { installWorkspaceFolderDrop } from './workspace-folder-drop.ts'
 import { applyRuijieAccountCard } from './ruijie-account-card.tsx'
 import { applyRuijieBrand } from './ruijie-brand.ts'
@@ -52,23 +53,28 @@ export function apply(ctx: ClientContext): void {
     () => startRendererBootReporter(ctx.loader),
     'dsh-plugin-desktop: renderer boot health report',
   )
-  ctx.effect(
-    () => installWorkspaceFolderDrop({
-      create: input => ctx.workspaces.create(input),
-      startSession: workspaceId => { ctx.workspaces.startSession(workspaceId) },
-    }),
-    'dsh-plugin-desktop: workspace folder drop',
-  )
+  // macOS protected folders must enter through the app-owned NSOpenPanel;
+  // accepting a raw drag path bypasses that explicit authorization boundary.
+  if (environment.platform !== 'darwin') {
+    ctx.effect(
+      () => installWorkspaceFolderDrop({
+        create: input => ctx.workspaces.create(input),
+        startSession: workspaceId => { ctx.workspaces.startSession(workspaceId) },
+      }),
+      'dsh-plugin-desktop: workspace folder drop',
+    )
+  }
   ctx.effect(
     () => installSearchRecoveryPresentation(),
     'dsh-plugin-desktop: quiet intermediate failure presentation',
   )
-  if (environment.platform === 'win32') {
+  if (environment.platform === 'win32' || environment.platform === 'darwin') {
     ctx.effect(
       () => installDesktopDirectoryPickerBridge(),
       'dsh-plugin-desktop: native directory picker bridge',
     )
   }
+  if (environment.platform === 'darwin') applyMacDesktopDirectoryFlow(ctx)
   applyRuijieAccountCard(ctx)
   applyRuijieBrand(ctx)
   applyRuijieUnifiedModelDirectory(ctx)

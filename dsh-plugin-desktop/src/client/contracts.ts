@@ -6,6 +6,15 @@ export interface DesktopSidebarOwnerProps {
   width: number
 }
 
+/** Owner conversation for the desktop's macOS directory chooser. */
+export interface DesktopDirectoryFlowOwnerProps {
+  open: boolean
+  busy: boolean
+  onPicked(path: string): void
+  onCancel(): void
+  onError(message: string): void
+}
+
 /** Public panel transitions consumed by conversation and sidebar plugins. */
 export interface DesktopLayoutService {
   /** Toggle the sidebar between wide and compact presentation. */
@@ -33,5 +42,13 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'details': { kind: 'single'; scope: 'session'; owner: Record<never, never> }
     /** Frame-wide additive overlays. */
     'shell.overlay': { kind: 'list'; scope: 'root' }
+    /** App-owned macOS folder chooser on the empty-workspace surface. */
+    'conversation.hero.workspace.directoryFlow': {
+      kind: 'single'; scope: 'root'; owner: DesktopDirectoryFlowOwnerProps
+    }
+    /** App-owned macOS folder chooser in the workspace sidebar. */
+    'sidebar.workspaces.directoryFlow': {
+      kind: 'single'; scope: 'root'; owner: DesktopDirectoryFlowOwnerProps
+    }
   }
 }

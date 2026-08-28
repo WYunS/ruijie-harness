@@ -10,23 +10,23 @@ describe('desktop working directory', () => {
     '/Users/new-user/Downloads',
     '/Volumes/Ruijie Harness',
     '/',
-  ])('never inherits the packaged launch directory %s as the first workspace', launchDirectory => {
+  ])('never inherits the packaged launch directory %s as the Host cwd', launchDirectory => {
     expect(desktopWorkingDirectory({
       isPackaged: true,
       launchDirectory,
-      homeDirectory: '/Users/new-user',
-    })).toBe(join('/Users/new-user', 'Ruijie Harness'))
+      applicationDataDirectory: '/Users/new-user/Library/Application Support/Ruijie Harness',
+    })).toBe(join('/Users/new-user/Library/Application Support/Ruijie Harness', 'runtime-cwd'))
   })
 
   it('preserves the developer shell directory outside a packaged app', () => {
     expect(desktopWorkingDirectory({
       isPackaged: false,
       launchDirectory: '/code/ruijie-harness',
-      homeDirectory: '/Users/developer',
+      applicationDataDirectory: '/Users/developer/Library/Application Support/Ruijie Harness',
     })).toBe('/code/ruijie-harness')
   })
 
-  it('normalizes and creates the packaged workspace before profile configuration is loaded', () => {
+  it('normalizes and creates the private Host cwd before profile configuration is loaded', () => {
     const resolveWorkingDirectory = main.indexOf('desktopWorkingDirectory({')
     const createWorkingDirectory = main.indexOf('mkdirSync(workingDirectory, { recursive: true })')
     const enterWorkingDirectory = main.indexOf('process.chdir(workingDirectory)')

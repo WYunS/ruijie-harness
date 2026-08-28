@@ -437,7 +437,7 @@ async function start(): Promise<void> {
     const workingDirectory = desktopWorkingDirectory({
       isPackaged: app.isPackaged,
       launchDirectory: process.cwd(),
-      homeDirectory: app.getPath('home'),
+      applicationDataDirectory: app.getPath('userData'),
     })
     if (workingDirectory !== process.cwd()) {
       mkdirSync(workingDirectory, { recursive: true })

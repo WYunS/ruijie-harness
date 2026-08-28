@@ -1,16 +1,16 @@
 import { join } from 'node:path'
 
-const PACKAGED_WORKSPACE_NAME = 'Ruijie Harness'
+const PACKAGED_RUNTIME_DIRECTORY = 'runtime-cwd'
 
 export interface DesktopWorkingDirectoryOptions {
   readonly isPackaged: boolean
   readonly launchDirectory: string
-  readonly homeDirectory: string
+  readonly applicationDataDirectory: string
 }
 
-/** Keep packaged launches out of DMG, Downloads, and terminal-inherited directories. */
+/** Keep the Host's private cwd out of user-visible and privacy-protected folders. */
 export function desktopWorkingDirectory(options: DesktopWorkingDirectoryOptions): string {
   return options.isPackaged
-    ? join(options.homeDirectory, PACKAGED_WORKSPACE_NAME)
+    ? join(options.applicationDataDirectory, PACKAGED_RUNTIME_DIRECTORY)
     : options.launchDirectory
 }

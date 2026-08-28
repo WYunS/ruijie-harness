@@ -9,6 +9,9 @@ const desktopVersion = (JSON.parse(
 
 const terminal = vi.hoisted(() => ({ open: vi.fn() }))
 const diagnostics = vi.hoisted(() => ({ export: vi.fn() }))
+const directoryAccess = vi.hoisted(() => ({
+  confirm: vi.fn(async (_platform: string, path: string) => path),
+}))
 const updater = vi.hoisted(() => ({
   destination: vi.fn(),
   download: vi.fn(),
@@ -49,6 +52,10 @@ vi.mock('../src/desktop-terminal.ts', async (importOriginal) => ({
 
 vi.mock('../src/diagnostic-export.ts', () => ({
   exportDesktopDiagnostics: diagnostics.export,
+}))
+
+vi.mock('../src/mac-directory-access.ts', () => ({
+  confirmDesktopDirectoryAccess: directoryAccess.confirm,
 }))
 
 vi.mock('../src/update-download.ts', () => ({
@@ -460,6 +467,34 @@ describe('Electron desktop runtime', () => {
     await runtime.mountScheduled()
 
     await expect(runtime.pickDirectory()).resolves.toBe('C:\\Work')
+    expect(electron.dialog.showOpenDialog).toHaveBeenCalledWith(
+      electron.browserWindows[0],
+      {
+        title: 'Select Workspace Directory',
+        properties: ['openDirectory', 'dontAddToRecent'],
+      },
+    )
+
+    await release()
+  })
+
+  it('coalesces concurrent macOS requests into one app-owned folder chooser', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
+    let finish!: (value: { canceled: boolean; filePaths: string[] }) => void
+    electron.dialog.showOpenDialog.mockReturnValue(new Promise(resolve => { finish = resolve }))
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const runtime = new ElectronDesktopRuntime(async () => {})
+    const release = runtime.schedule(spec)
+    await runtime.mountScheduled()
+
+    const first = runtime.pickDirectory()
+    const duplicate = runtime.pickDirectory()
+    expect(electron.dialog.showOpenDialog).toHaveBeenCalledOnce()
+    finish({ canceled: false, filePaths: ['/Users/new-user/Downloads'] })
+    await expect(Promise.all([first, duplicate])).resolves.toEqual([
+      '/Users/new-user/Downloads',
+      '/Users/new-user/Downloads',
+    ])
     expect(electron.dialog.showOpenDialog).toHaveBeenCalledWith(
       electron.browserWindows[0],
       {

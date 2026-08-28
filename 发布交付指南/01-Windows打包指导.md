@@ -136,6 +136,8 @@ git diff --stat <上次已验收提交>..HEAD
 
 如果差异包含 `build/app-icon-mac.png`、`generate-mac-app-icns.mjs`、`package.json` 中的 `mac.icon`/`dmg.icon` 或 Mac 打包脚本，Windows 发布记录必须标明“Mac DMG 需重打”，不得因 Windows EXE 图标正常而将其判为跨平台已验收。Mac 小图标必须由 macOS 上的显式多分辨率 ICNS 构建和最终 DMG 门禁证明。
 
+如果差异涉及共享的 Electron 目录选择器、内部 cwd、Workspace 历史恢复或 `patch-dsh-workspace-cross-move-runtime.mjs`，Windows 候选仍须回归本平台目录选择、新建工作区和历史会话恢复，确认没有被 Mac 分支破坏；同时发布记录必须标明“Mac 受保护目录授权需由最终 DMG 真机验收”。Windows 不出现 macOS `Allow` 弹窗不能证明 Mac 已通过，也不得用 Windows 测试替代 Downloads/Documents/Desktop 权限门禁。
+
 本地开发版的当前源码行为是本次安装包的功能对照基线，但“本地能用”本身不等于已经交付。打包模型必须为每项新增能力追踪完整链路：源码与配置进入发布 commit → 直接依赖和 `yarn.lock` 完整 → Loader/profile 实际挂载 → packaged-runtime 闭包包含所需文件与 export → 最终 Setup EXE 安装出的应用按同一用户操作得到一致结果。任一环只在开发目录成立，都应判为安装包尚未具备该功能。
 
 当次矩阵必须同时覆盖：
@@ -335,6 +337,7 @@ IM 文件交付还有一条独立入口：模型可能直接调用 `dsh_im_retur
 4. 删除、恢复和拖动完成后必须通过局部状态立即更新，不得调用整页刷新，不得出现白屏、登录页闪现或重新授权；连续删除两个会话也必须稳定。构建补丁重复执行两次后客户端哈希应保持一致，禁止重复声明或重复注入导致 `Failed to load plugins`。
 5. 会话永久删除确认必须使用应用内非阻塞 Modal，工作区客户端不得残留 `window.confirm()` 或 `window.alert()`。删除当前会话并关闭确认层后，无需截图、切页或重新聚焦窗口，必须能立即在新会话输入、重命名任一会话/工作区，并在目录选择器的“新建文件夹”中键入；输入框已选中文字但键盘无响应属于发布阻断。
 6. 对话输入框、重命名输入框和其他可编辑区域右键时必须提供系统原生撤销、重做、剪切、复制、粘贴和全选；非编辑文本有选区时至少提供复制。文字与剪贴板图片粘贴均需实测，不能用自绘菜单破坏 Electron 原生编辑行为。
+7. `tests/workspace-cross-move-runtime-patch.spec.ts` 必须真实启动 Workspace 注册表，使用至少两个指向同一 cwd 的历史会话证明单次恢复批次只执行一次 `realpath` 和一次 `stat`；不能只检查补丁字符串。Windows 还需确认目录选择器仍能一次点击打开、取消后不自动重开、成功后只创建一个工作区。该共享回归通过只说明 Windows 路径未受损，不替代 Mac 系统权限验收。
 
 ### 6.10 工具失败恢复与主界面降噪
 

@@ -415,9 +415,12 @@ describe('desktop profile composition', {
     }
     expect(rows.find(row => row.id === 'directory-picker')).toEqual(expect.objectContaining({
       name: '@deepseek-ai/dsh-host-directory-picker-auto',
+      disabled: true,
     }))
-    expect(rows.find(row => row.id === 'directory-picker')?.disabled).toBeFalsy()
-    expect(rows.map(row => row.id)).not.toContain('desktop-directory-picker-browse-host')
+    expect(rows).toContainEqual(expect.objectContaining({
+      id: 'desktop-directory-picker-fallback-host',
+      name: '@deepseek-ai/dsh-host-directory-picker-browse',
+    }))
     expect(rows.map(row => row.id)).not.toContain('desktop-directory-picker-browse-surface')
     expect(rows.find(row => row.id === 'subprocess')).toEqual({
       id: 'subprocess',

@@ -14,6 +14,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { desktopTerminalStateDirectory, openDesktopTerminal } from './desktop-terminal.ts'
 import { desktopInstallRecoveryStatePath } from './install-recovery.ts'
+import { confirmDesktopDirectoryAccess } from './mac-directory-access.ts'
 import { packagedDependencyPath } from './packaged-runtime-path.ts'
 import { ElectronShellGeneration } from './electron-shell-generation.ts'
 import { electronPlatformStrategy, type ElectronPlatformStrategy } from './electron-platform.ts'
@@ -262,7 +263,10 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
     const result = this.generation === undefined
       ? await dialog.showOpenDialog(options)
       : await this.generation.showOpenDialog(options)
-    return result.canceled ? null : result.filePaths[0] ?? null
+    const selected = result.canceled ? null : result.filePaths[0] ?? null
+    return selected === null
+      ? null
+      : await confirmDesktopDirectoryAccess(this.platform, selected)
   }
 
   /** @inheritdoc */

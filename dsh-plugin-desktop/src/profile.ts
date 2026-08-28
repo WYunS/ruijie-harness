@@ -694,6 +694,28 @@ export function prepareDesktopProfile(
       )
     }
   }
+  if (platform === 'darwin') {
+    if (!rows.has(DIRECTORY_PICKER_ROW_ID)) {
+      throw new Error(`${BIN_NAME}: desktop profile has no directory-picker row`)
+    }
+    // Keep the Host capability required by the API proxy, but let the
+    // desktop-owned client flow open Electron's in-process NSOpenPanel.
+    // The upstream auto picker delegates to osascript, which puts selection
+    // and subsequent app access under different macOS process identities.
+    patches.push(
+      {
+        id: DIRECTORY_PICKER_ROW_ID,
+        name: AUTO_PICKER_PACKAGE,
+        disabled: true,
+      },
+      {
+        insert: [{
+          id: 'desktop-directory-picker-fallback-host',
+          name: BROWSE_PICKER_BACKEND,
+        }],
+      },
+    )
+  }
   // Loopback-only binding is a launcher security invariant, not user config.
   patches.push({
     id: 'webserver',

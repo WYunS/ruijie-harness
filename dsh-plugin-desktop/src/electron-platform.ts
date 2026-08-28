@@ -34,7 +34,7 @@ class WindowsPlatformStrategy implements ElectronPlatformStrategy {
 class MacPlatformStrategy implements ElectronPlatformStrategy {
   readonly platform = 'darwin'
   readonly updateDownloadPlatform = 'darwin'
-  readonly canPickDirectory = false
+  readonly canPickDirectory = true
   readonly canToggleShellMode = true
 
   configureApplication(icon: NativeImage): void {

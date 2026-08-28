@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { readFileSync } from 'node:fs'
@@ -97,5 +97,64 @@ describe('cross-workspace session move runtime patch', () => {
     expect(source).toContain('insertSessionBefore(over.accountKey, activeDrag.sessionId, anchor)')
     expect(source).toContain('archivedSessionAction(activeDrag.sessionId, "ungroup")')
     expect(source).toContain('drag.over?.accountKey === group.key ? drag.over')
+  })
+
+  it('probes each restored session cwd only once per startup indexing batch', () => {
+    const workspacePath = import.meta.resolve('@deepseek-ai/dsh-workspace')
+    const source = readFileSync(new URL(workspacePath), 'utf8')
+    expect(source).toContain('const checkedPaths = /* @__PURE__ */ new Map();')
+    expect(source).toContain('let checked = checkedPaths.get(header.cwd);')
+    expect(source).toContain('checkedPaths.set(header.cwd, checked);')
+  })
+
+  it('performs one realpath and stat probe for repeated historical cwd values', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-workspace-probe-deduplication-'))
+    roots.push(root)
+    const workspacePathInput = join(root, 'Downloads')
+    const storageRoot = join(root, 'storage')
+    await mkdir(workspacePathInput)
+    const workspacePath = await realpath(workspacePathInput)
+
+    const installedModuleUrl = new URL(import.meta.resolve('@deepseek-ai/dsh-workspace'))
+    const instrumentedModuleUrl = new URL(`probe-${crypto.randomUUID()}.mjs`, installedModuleUrl)
+    const originalSource = await readFile(installedModuleUrl, 'utf8')
+    const probeKey = `__dshWorkspaceProbe_${crypto.randomUUID().replaceAll('-', '')}`
+    const instrumentedSource = originalSource.replace(
+      'import { realpath, stat } from "node:fs/promises";',
+      `import { realpath as realRealpath, stat as realStat } from "node:fs/promises";\nconst realpath = async (...args) => { globalThis.${probeKey}.realpath++; return await realRealpath(...args); };\nconst stat = async (...args) => { globalThis.${probeKey}.stat++; return await realStat(...args); };`,
+    )
+    expect(instrumentedSource).not.toBe(originalSource)
+    await writeFile(instrumentedModuleUrl, instrumentedSource)
+    ;(globalThis as Record<string, unknown>)[probeKey] = { realpath: 0, stat: 0 }
+    const instrumented = await import(instrumentedModuleUrl.href) as { default: typeof WorkspaceRegistry }
+
+    const ctx = new Context()
+    await ctx.plugin(Storage)
+    const backend = new JsonStorageBackend(storageRoot)
+    ctx.storage.backend.register('json', backend)
+    const facility = new DomainFacility(ctx, { backend: 'json', routes: {} })
+    ctx.storage.mount('domain', facility)
+    ctx.provide('storageDomain', facility)
+    ctx.provide('sessionPersistence', {
+      list: async () => [
+        { version: 0, id: SessionId('old-session-1'), createdAt: 2, cwd: workspacePath },
+        { version: 0, id: SessionId('old-session-2'), createdAt: 1, cwd: workspacePath },
+      ],
+      load: () => { throw new Error('event bodies are not needed') },
+      inspect: () => { throw new Error('event bodies are not needed') },
+    } as never)
+
+    try {
+      const fiber = await ctx.plugin(instrumented.default)
+      expect((globalThis as unknown as Record<string, { realpath: number; stat: number }>)[probeKey]).toEqual({
+        realpath: 1,
+        stat: 1,
+      })
+      await fiber.dispose()
+      await backend.close()
+    } finally {
+      delete (globalThis as Record<string, unknown>)[probeKey]
+      await rm(instrumentedModuleUrl)
+    }
   })
 })
