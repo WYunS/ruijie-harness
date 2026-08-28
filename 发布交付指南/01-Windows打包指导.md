@@ -159,7 +159,7 @@ corepack yarn check
 
 ```powershell
 Set-Location -LiteralPath 'D:\ChatGPT\RuijieDSH\dsh-plugin-desktop'
-corepack yarn vitest run tests/native-sidebar-browser.spec.ts tests/electron-runtime.spec.ts tests/office-document-plugins.spec.ts tests/profile.spec.ts tests/package.spec.ts tests/verify-packaged-runtime.spec.ts tests/desktop-plugins.spec.ts tests/sidebar-produced-files.spec.ts tests/ruijie-auth.spec.ts tests/ruijie-login-window.spec.ts tests/time-context-runtime-patch.spec.ts tests/ui-appearance-runtime-patch.spec.ts tests/appearance-compatibility.spec.ts tests/dsh-im-runtime-patch.spec.ts tests/storage-json-runtime-patch.spec.ts tests/workspace-cross-move-runtime-patch.spec.ts tests/session-lifecycle-client-runtime-patch.spec.ts tests/workspace-edit-focus-runtime-patch.spec.ts tests/editor-context-menu.spec.ts tests/archived-session-route.spec.ts tests/session-deletion-policy.spec.ts tests/sidebar-shortcuts.spec.ts tests/system-proxy.spec.ts tests/search-recovery.spec.ts tests/search-recovery-presentation.spec.ts tests/update-checker.spec.ts tests/update-download.spec.ts tests/updates.spec.ts
+corepack yarn vitest run tests/native-sidebar-browser.spec.ts tests/native-directory-route-platform.spec.ts tests/electron-runtime.spec.ts tests/office-document-plugins.spec.ts tests/profile.spec.ts tests/package.spec.ts tests/verify-packaged-runtime.spec.ts tests/desktop-plugins.spec.ts tests/sidebar-produced-files.spec.ts tests/ruijie-auth.spec.ts tests/ruijie-login-window.spec.ts tests/time-context-runtime-patch.spec.ts tests/ui-appearance-runtime-patch.spec.ts tests/appearance-compatibility.spec.ts tests/dsh-im-runtime-patch.spec.ts tests/storage-json-runtime-patch.spec.ts tests/workspace-cross-move-runtime-patch.spec.ts tests/session-lifecycle-client-runtime-patch.spec.ts tests/workspace-edit-focus-runtime-patch.spec.ts tests/editor-context-menu.spec.ts tests/archived-session-route.spec.ts tests/session-deletion-policy.spec.ts tests/sidebar-shortcuts.spec.ts tests/system-proxy.spec.ts tests/search-recovery.spec.ts tests/search-recovery-presentation.spec.ts tests/update-checker.spec.ts tests/update-download.spec.ts tests/updates.spec.ts
 Set-Location -LiteralPath 'D:\ChatGPT\RuijieDSH'
 corepack yarn workspace dsh-community-market vitest run tests/contracts.spec.ts tests/market-install.spec.ts tests/market-settings-persistence.spec.ts
 ```
@@ -338,6 +338,7 @@ IM 文件交付还有一条独立入口：模型可能直接调用 `dsh_im_retur
 5. 会话永久删除确认必须使用应用内非阻塞 Modal，工作区客户端不得残留 `window.confirm()` 或 `window.alert()`。删除当前会话并关闭确认层后，无需截图、切页或重新聚焦窗口，必须能立即在新会话输入、重命名任一会话/工作区，并在目录选择器的“新建文件夹”中键入；输入框已选中文字但键盘无响应属于发布阻断。
 6. 对话输入框、重命名输入框和其他可编辑区域右键时必须提供系统原生撤销、重做、剪切、复制、粘贴和全选；非编辑文本有选区时至少提供复制。文字与剪贴板图片粘贴均需实测，不能用自绘菜单破坏 Electron 原生编辑行为。
 7. `tests/workspace-cross-move-runtime-patch.spec.ts` 必须真实启动 Workspace 注册表，使用至少两个指向同一 cwd 的历史会话证明单次恢复批次只执行一次 `realpath` 和一次 `stat`；不能只检查补丁字符串。Windows 还需确认目录选择器仍能一次点击打开、取消后不自动重开、成功后只创建一个工作区。该共享回归通过只说明 Windows 路径未受损，不替代 Mac 系统权限验收。
+8. `tests/native-directory-route-platform.spec.ts` 必须从 Host 插件公开入口验证 Windows 与 macOS 都注册目录选择和目录校验路由、Linux 不注册。Windows 构建通过不能掩盖 Mac 客户端已启用桥接而 Host 未注册路由的跨平台接线错误；这种错误会使 Mac 点击“添加工作区”稳定显示 `DSH Desktop could not open the system folder picker`。
 
 ### 6.10 工具失败恢复与主界面降噪
 
