@@ -44,15 +44,20 @@ export interface RuijieModelDirectoryState {
 
 /** Keep one public image-capable DeepSeek group while preserving reasoning metadata. */
 export function unifiedRuijieModelState(state: RuijieModelDirectoryState): RuijieModelDirectoryState {
+  const publicGroup = state.groups.find(group => group.id === PUBLIC_PROVIDER)
+  const sourceGroup = state.groups.find(group => group.id === SOURCE_PROVIDER)
+  const visibleGroup = publicGroup ?? sourceGroup
   return {
     ...state,
-    current: state.current?.provider === SOURCE_PROVIDER
+    current: publicGroup !== undefined && state.current?.provider === SOURCE_PROVIDER
       ? { ...state.current, provider: PUBLIC_PROVIDER }
-      : state.current,
-    groups: state.groups
-      .filter(group => group.id === PUBLIC_PROVIDER)
-      .map(group => ({ ...group, name: 'DeepSeek' })),
-    failures: state.failures.filter(failure => failure.id !== SOURCE_PROVIDER),
+      : publicGroup === undefined && sourceGroup !== undefined && state.current?.provider === PUBLIC_PROVIDER
+        ? { ...state.current, provider: SOURCE_PROVIDER }
+        : state.current,
+    groups: visibleGroup === undefined ? [] : [{ ...visibleGroup, name: 'DeepSeek' }],
+    failures: publicGroup === undefined
+      ? state.failures
+      : state.failures.filter(failure => failure.id !== SOURCE_PROVIDER),
   }
 }
 
@@ -78,7 +83,8 @@ function patchDirectory(directory: PatchableDirectory, restores: Array<() => voi
   let migration: Promise<void> | undefined
   directory.load = async () => {
     let value = await originalLoad()
-    if (value.current.provider === SOURCE_PROVIDER) {
+    if (value.current.provider === SOURCE_PROVIDER
+      && value.groups.some(group => group.id === PUBLIC_PROVIDER)) {
       migration ??= directory.select({
         ...value.current,
         provider: PUBLIC_PROVIDER,

@@ -3,6 +3,7 @@
 import { app, crashReporter, dialog, safeStorage, session } from 'electron'
 import type { Context } from '@deepseek-ai/cordis'
 import { randomUUID } from 'node:crypto'
+import { mkdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -20,6 +21,7 @@ import {
   installDesktopDshRuntime,
   installDesktopPnpmRuntime,
 } from './desktop-runtime-environment.ts'
+import { desktopWorkingDirectory } from './desktop-working-directory.ts'
 import { desktopProductVersion, ElectronDesktopRuntime } from './electron-runtime.ts'
 import {
   ElectronStderrLogger,
@@ -432,7 +434,15 @@ async function start(): Promise<void> {
     ruijieAuth = authenticatedAccount
     startupStage = 'shell-environment'
     if (process.platform === 'win32') app.setAppUserModelId('cn.com.ruijie.dsh.desktop')
-    if (app.isPackaged && process.cwd() === '/') process.chdir(app.getPath('home'))
+    const workingDirectory = desktopWorkingDirectory({
+      isPackaged: app.isPackaged,
+      launchDirectory: process.cwd(),
+      homeDirectory: app.getPath('home'),
+    })
+    if (workingDirectory !== process.cwd()) {
+      mkdirSync(workingDirectory, { recursive: true })
+      process.chdir(workingDirectory)
+    }
     const shellEnvironmentResolution = await resolveDesktopShellEnvironment({
       environment: process.env,
       home: app.getPath('home'),
