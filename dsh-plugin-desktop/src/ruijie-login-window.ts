@@ -178,8 +178,14 @@ export class RuijieLoginWindow {
       window.show()
       window.focus()
     }
+    const showMaximized = (): void => {
+      if (!window.isMaximized()) window.maximize()
+      show()
+    }
     app.on('activate', show)
-    window.once('ready-to-show', show)
+    // Fill the current work area on first display without entering macOS's
+    // separate native full-screen Space. Later restores remain user-controlled.
+    window.once('ready-to-show', showMaximized)
     window.on('closed', () => {
       app.off('activate', show)
       this.window = undefined

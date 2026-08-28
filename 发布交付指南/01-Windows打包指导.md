@@ -284,7 +284,7 @@ IM 文件交付还有一条独立入口：模型可能直接调用 `dsh_im_retur
 
 ### 6.7 登录授权回调
 
-交互登录必须在桌面端创建的独立 Electron 授权窗口内完成，不再把 OAuth 流程交给用户默认浏览器，也不得要求用户在两个窗口间往返或点击第二次“继续授权”。主 Harness 工作台窗口保持原有打开方式；授权窗口使用原生系统边框，默认在当前鼠标所在显示器工作区居中显示，常规工作区为 `920×720`，小屏自动缩小并保留 48 px 边距。授权窗口允许调整、最小化和最大化，但不得进入系统全屏。
+交互登录必须在桌面端创建的独立 Electron 授权窗口内完成，不再把 OAuth 流程交给用户默认浏览器，也不得要求用户在两个窗口间往返或点击第二次“继续授权”。主 Harness 工作台窗口保持原有打开方式；授权窗口使用原生系统边框，首次显示时最大化到当前鼠标所在显示器的可用工作区，保留标题栏和任务栏，不进入系统原生全屏。窗口还原后的常规尺寸为 `920×720`，小屏自动缩小并保留 48 px 边距；用户还原后仍可调整、最小化和再次最大化。
 
 每一次交互登录必须创建新的**非持久化内存 partition**。OAuth、GPTAuth sign-in 和锐捷 SSO 在本次尝试中共享这一会话，以便第二次进入授权地址时复用刚完成的 SSO 身份；窗口关闭或进程结束后不得把该窗口的 Cookie、localStorage 或授权中间态保存给下一次尝试。默认浏览器中无论存在正常、过期还是冲突 Cookie，都不应影响该窗口。已有安全存储凭据且刷新、账号验证成功的老用户不应打开交互登录窗；显式退出必须先清理当前凭据，再以新的隔离 partition 重新登录。
 
@@ -352,7 +352,7 @@ IM 文件交付还有一条独立入口：模型可能直接调用 `dsh_im_retur
 
 - `cordis.patch.yml` 中 `desktop-updates.config.enabled` 为 `true`，最终 profile 只组合一个已启用的更新 row。
 - `update-checker`、`update-download`、`updates`、`electron-runtime` 及 profile 回归测试通过。
-- 客户端固定访问 `https://gptauth.ruijie.com.cn/harness/api/desktop/version`、`/harness/api/downloads/windows` 和 `/harness/api/downloads/mac`；若域名或路径变化，必须先改源码、重打两个平台，不能只改网页按钮。
+- Windows 客户端固定访问 `https://gptauth.ruijie.com.cn/harness/api/desktop/version/windows` 和 `/harness/api/downloads/windows`；macOS 客户端读取对应的 `/version/mac` 与 `/downloads/mac`。若域名或路径变化，必须先改源码并重打受影响平台，不能只改网页按钮。
 - 用户确认更新后，Windows 安装包自动下载到 Electron userData 下的私有 `updates` 目录，不再弹出保存路径选择框；下载文件必须通过 PE 基本格式校验。
 - 下载完成后选择“稍后”不得退出应用；选择“重启并安装”必须先成功启动 NSIS，再有序退出当前应用。新安装器覆盖升级，不要求先卸载，且 `%USERPROFILE%\.dsh`、Electron userData、登录、会话、工作区、模型选择和插件配置全部保留。
 - 用户关闭首次更新提示或选择“稍后”后，同一版本不应在后台反复打扰；托盘“检查更新…”仍可重新触发。更高的新版本应再次提示。
@@ -411,7 +411,7 @@ corepack yarn dist:win
 4. 禁止发布到远端。
 5. 验证安装器和 `win-unpacked\Ruijie-Harness.exe` 的 PE 结构。
 
-生成安装包不等于立即修改线上更新版本。Windows 与 macOS 同版本产物都上传并校验前，禁止提高 `/api/desktop/version`；完整服务器操作顺序见 `04-自动更新服务器交接.md`。
+生成安装包不等于立即修改线上更新版本。某平台产物上传并校验前，禁止提高该平台的 `/api/desktop/version/windows` 或 `/api/desktop/version/mac`；完整服务器操作顺序见 `04-自动更新服务器交接.md`。
 
 不得设置 `DSH_PACKAGE_CHECK_ALREADY_RAN=1` 跳过门禁，除非同一次受控 CI 工作流已经成功完成等价检查并保存日志。
 

@@ -127,7 +127,7 @@ Mac runner 上 `file:` 依赖可能因宿主 archive 元数据产生哈希差异
 
 登录窗口门禁还必须覆盖单窗口隔离授权和平台差异：OAuth、GPTAuth sign-in 与锐捷 SSO 全部在桌面端独立窗口内完成，不调用默认浏览器、不增加中间确认弹窗，也不要求第二次点击。每次尝试使用新的非持久化内存 partition，隔离默认浏览器和上次尝试的 Cookie/localStorage；同一次 SSO 返回后若误落授权地址同源主页，或已明确经过企业 SSO 后落到 HTTPS `/user` 或 `/dashboard`，最多自动恢复最初的完整授权 URL 一次，随后无论出现多少 sign-in/dashboard 导航都不得再次恢复或形成频闪。正常 localhost callback、普通 HTTP 页面和未经过企业 SSO 的跨域主页不得误触发。
 
-授权窗口默认根据当前鼠标所在显示器的 work area 居中：常规工作区使用 `920×720`，较小屏幕自动缩小并保留 48 px 边距；允许调整、最小化和最大化，但 `fullscreenable` 必须为 `false`。最终 macOS `.app` 必须保留 `frame: true`、`titleBarStyle: 'hiddenInset'`、原生左上角交通灯及既定位置，不得叠加 Windows“×”，不得切换成无边框窗口或强制全屏。主工作台的 Windows `titleBarOverlay` 逻辑不得影响该窗口或 Mac 原生材质。
+授权窗口首次显示时最大化到当前鼠标所在显示器的 work area，视觉上铺满可用区域但保留 macOS 菜单栏、Dock、标题栏和交通灯，不进入独立的原生全屏 Space。窗口还原后的常规尺寸为 `920×720`，较小屏幕自动缩小并保留 48 px 边距；用户还原后允许调整、最小化和再次最大化，但 `fullscreenable` 必须为 `false`。最终 macOS `.app` 必须保留 `frame: true`、`titleBarStyle: 'hiddenInset'`、原生左上角交通灯及既定位置，不得叠加 Windows“×”或切换成无边框窗口。主工作台的 Windows `titleBarOverlay` 逻辑不得影响该窗口或 Mac 原生材质。
 
 正常 callback 后，同一窗口切换成黑白居中的锐捷 Harness 状态页：72 px 黑白 RJ 标记、居中品牌文字、分阶段状态和黑色细线进度；不得重新打开外部页面、生成第二个窗口或恢复旧版蓝紫等待卡片。两种平台都必须实点关闭并确认当前启动结束且不会立即重弹；还要覆盖首次用户、保存凭据用户、退出重登、脏默认浏览器状态、重复导航噪声、账号验证慢和工作台启动慢。上述行为必须进入 `ruijie-auth`、`ruijie-login-window`、`package-mac` 和最终安装副本验收，不能只检查源码字符串。
 

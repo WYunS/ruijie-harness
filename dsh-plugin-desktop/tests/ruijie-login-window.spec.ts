@@ -11,10 +11,21 @@ const main = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8')
 const loginWindow = readFileSync(new URL('../src/ruijie-login-window.ts', import.meta.url), 'utf8')
 
 describe('Ruijie SSO startup presentation', () => {
-  it('fits a focused login window to Windows and macOS work areas without becoming full screen', () => {
+  it('keeps a safe restored size for Windows and macOS work areas', () => {
     expect(authorizationWindowSize({ width: 1920, height: 1040 })).toEqual({ width: 920, height: 720 })
     expect(authorizationWindowSize({ width: 1440, height: 875 })).toEqual({ width: 920, height: 720 })
     expect(authorizationWindowSize({ width: 800, height: 600 })).toEqual({ width: 752, height: 552 })
+  })
+
+  it('initially fills the current work area without entering native full screen', () => {
+    const maximize = loginWindow.indexOf('window.maximize()')
+    const show = loginWindow.indexOf('window.show()', maximize)
+    expect(maximize).toBeGreaterThan(0)
+    expect(show).toBeGreaterThan(maximize)
+    expect(loginWindow).toContain("window.once('ready-to-show', showMaximized)")
+    expect(loginWindow).toContain("app.on('activate', show)")
+    expect(loginWindow).toContain('fullscreenable: false')
+    expect(loginWindow).not.toContain('setFullScreen(true)')
   })
 
   it('automatically restores a dropped OAuth transaction exactly once after SSO lands on the user home page', () => {

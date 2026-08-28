@@ -15,6 +15,18 @@ function unsignedJwt(payload: object): string {
   return `${encode({ alg: 'none', typ: 'JWT' })}.${encode(payload)}.`
 }
 
+async function unusedLoopbackPort(): Promise<number> {
+  const server = createServer()
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', resolve)
+  })
+  const address = server.address()
+  if (address === null || typeof address === 'string') throw new Error('fixture has no TCP address')
+  await new Promise<void>(resolve => { server.close(() => { resolve() }) })
+  return address.port
+}
+
 describe('Ruijie desktop authentication module', () => {
   it('accepts a loopback HTTP issuer for packaged acceptance without weakening remote OAuth', async () => {
     const requests: string[] = []
@@ -52,6 +64,86 @@ describe('Ruijie desktop authentication module', () => {
       await auth.close()
     } finally {
       await new Promise<void>(resolve => { server.close(() => { resolve() }) })
+    }
+  })
+
+  it('rejects stale local credentials against the server, clears them, and authorizes exactly once', async () => {
+    const staleAccessToken = unsignedJwt({ sub: 'stale-user', exp: Math.floor(Date.now() / 1000) + 3600 })
+    const freshAccessToken = unsignedJwt({ sub: 'fresh-user', exp: Math.floor(Date.now() / 1000) + 3600 })
+    const modelAuthorizations: Array<string | undefined> = []
+    const issuerServer = createServer((request, response) => {
+      if (request.url === '/v1/models') {
+        modelAuthorizations.push(request.headers.authorization)
+        if (request.headers.authorization === `Bearer ${staleAccessToken}`) {
+          response.writeHead(401).end('Unauthorized')
+          return
+        }
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end('{"object":"list","data":[]}')
+        return
+      }
+      if (request.url === '/oauth/token') {
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({
+          access_token: freshAccessToken,
+          refresh_token: 'fresh-refresh-token',
+        }))
+        return
+      }
+      response.writeHead(404).end('Not Found')
+    })
+    await new Promise<void>((resolve, reject) => {
+      issuerServer.once('error', reject)
+      issuerServer.listen(0, '127.0.0.1', resolve)
+    })
+    const issuerAddress = issuerServer.address()
+    if (issuerAddress === null || typeof issuerAddress === 'string') throw new Error('fixture has no TCP address')
+    const callbackPort = await unusedLoopbackPort()
+    let clearCount = 0
+    let authorizationCount = 0
+    const savedTokens: Array<{ readonly accessToken: string; readonly refreshToken: string }> = []
+    const statuses: string[] = []
+    try {
+      const auth = await ensureRuijieAuthEnvironment({
+        environment: {
+          RUIJIE_DSH_OAUTH_ISSUER: `http://127.0.0.1:${String(issuerAddress.port)}`,
+          RUIJIE_DSH_OAUTH_CALLBACK_PORT: String(callbackPort),
+        },
+        credentialStore: {
+          load: async () => ({ accessToken: staleAccessToken, refreshToken: 'stale-refresh-token' }),
+          save: async tokens => { savedTokens.push(tokens) },
+          clear: async () => { clearCount += 1 },
+        },
+        onStatus: status => { statuses.push(status) },
+        openExternal: async authorizeUrl => {
+          authorizationCount += 1
+          const authorize = new URL(authorizeUrl)
+          const callback = new URL(authorize.searchParams.get('redirect_uri') ?? '')
+          callback.searchParams.set('code', 'fresh-authorization-code')
+          callback.searchParams.set('state', authorize.searchParams.get('state') ?? '')
+          const response = await fetch(callback)
+          expect(response.ok).toBe(true)
+        },
+      })
+
+      expect(clearCount).toBe(1)
+      expect(authorizationCount).toBe(1)
+      expect(savedTokens).toEqual([{
+        accessToken: freshAccessToken,
+        refreshToken: 'fresh-refresh-token',
+      }])
+      expect(modelAuthorizations).toEqual([
+        `Bearer ${staleAccessToken}`,
+        `Bearer ${freshAccessToken}`,
+      ])
+      expect(statuses).toEqual([
+        'authorization-required',
+        'authorization-processing',
+        'authorization-complete',
+      ])
+      await auth.close()
+    } finally {
+      await new Promise<void>(resolve => { issuerServer.close(() => { resolve() }) })
     }
   })
 
