@@ -1,6 +1,6 @@
 /** DSH Desktop executable: minimal Electron bootstrap around the Host Cordis root. */
 
-import { app, crashReporter, dialog, safeStorage, session, shell } from 'electron'
+import { app, crashReporter, dialog, safeStorage, session } from 'electron'
 import type { Context } from '@deepseek-ai/cordis'
 import { randomUUID } from 'node:crypto'
 import { join, resolve } from 'node:path'
@@ -406,7 +406,15 @@ async function start(): Promise<void> {
       )
     }
     startupStage = 'runtime-bootstrap'
-    ruijieLoginWindow = new RuijieLoginWindow({ onCancel: () => { requestQuit(0) } })
+    ruijieLoginWindow = new RuijieLoginWindow({
+      onCancel: () => { requestQuit(0) },
+      onError: cause => {
+        electronLogger.error(`${BIN_NAME}: Ruijie authorization window failed: ${cause instanceof Error ? cause.message : String(cause)}`)
+      },
+      onRecovery: () => {
+        electronLogger.error(`${BIN_NAME}: resumed the OAuth authorization after enterprise SSO lost its return target`)
+      },
+    })
     const authenticatedAccount = await ensureRuijieAuthEnvironment({
       environment: process.env,
       credentialStore: new RuijieAuthStore(app.getPath('userData'), safeStorage),
@@ -418,8 +426,7 @@ async function start(): Promise<void> {
         electronLogger.error(`${BIN_NAME}: Ruijie OAuth session cleanup failed: ${cause instanceof Error ? cause.message : String(cause)}`)
       },
       openExternal: async url => {
-        await ruijieLoginWindow?.open()
-        return await shell.openExternal(url)
+        await ruijieLoginWindow?.open(url)
       },
     })
     ruijieAuth = authenticatedAccount

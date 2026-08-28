@@ -1,15 +1,118 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import {
+  authorizationWindowSize,
+  authorizationRecoveryForNavigation,
+  RuijieAuthorizationRecovery,
+  isRuijieEnterpriseSsoNavigation,
+} from '../src/ruijie-login-window.ts'
 
 const main = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8')
 const loginWindow = readFileSync(new URL('../src/ruijie-login-window.ts', import.meta.url), 'utf8')
 
 describe('Ruijie SSO startup presentation', () => {
+  it('fits a focused login window to Windows and macOS work areas without becoming full screen', () => {
+    expect(authorizationWindowSize({ width: 1920, height: 1040 })).toEqual({ width: 920, height: 720 })
+    expect(authorizationWindowSize({ width: 1440, height: 875 })).toEqual({ width: 920, height: 720 })
+    expect(authorizationWindowSize({ width: 800, height: 600 })).toEqual({ width: 752, height: 552 })
+  })
+
+  it('automatically restores a dropped OAuth transaction exactly once after SSO lands on the user home page', () => {
+    const authorizeUrl = 'https://gptauth.ruijie.com.cn/oauth/authorize?client_id=desktop&state=original'
+    expect(isRuijieEnterpriseSsoNavigation('https://sid.ruijie.com.cn/login?service=callback')).toBe(true)
+
+    expect(authorizationRecoveryForNavigation(
+      authorizeUrl,
+      false,
+      'https://sid.ruijie.com.cn/login?service=callback',
+      false,
+    )).toBeUndefined()
+    expect(authorizationRecoveryForNavigation(
+      authorizeUrl,
+      true,
+      'https://w10.flweba03.cc/user',
+      false,
+    )).toBe(authorizeUrl)
+    expect(authorizationRecoveryForNavigation(
+      authorizeUrl,
+      true,
+      'https://w10.flweba03.cc/user',
+      true,
+    )).toBeUndefined()
+    expect(authorizationRecoveryForNavigation(
+      authorizeUrl,
+      false,
+      'https://attacker.example/user',
+      false,
+    )).toBeUndefined()
+  })
+
+  it('replays the captured real-world redirect sequence without forming a loop', () => {
+    const authorizeUrl = 'https://gptauth.ruijie.com.cn/oauth/authorize?state=original'
+    const recovery = new RuijieAuthorizationRecovery(authorizeUrl)
+
+    expect(recovery.observe(authorizeUrl)).toBeUndefined()
+    expect(recovery.observe('https://gptauth.ruijie.com.cn/sign-in?redirect=oauth')).toBeUndefined()
+    expect(recovery.observe('https://sid.ruijie.com.cn/login?service=callback')).toBeUndefined()
+    expect(recovery.observe('https://w10.flweba03.cc/user')).toBe(authorizeUrl)
+    expect(recovery.observe('https://w10.flweba03.cc/user')).toBeUndefined()
+  })
+
+  it('recovers the GPTAuth dashboard landing captured from the live Electron login', () => {
+    const authorizeUrl = 'https://gptauth.ruijie.com.cn/oauth/authorize?state=original'
+    const recovery = new RuijieAuthorizationRecovery(authorizeUrl)
+
+    expect(recovery.observe('https://gptauth.ruijie.com.cn/sign-in?redirect=oauth')).toBeUndefined()
+    expect(recovery.observe('https://sid.ruijie.com.cn/login?service=callback')).toBeUndefined()
+    expect(recovery.observe('https://gptauth.ruijie.com.cn/oauth/ruijie')).toBeUndefined()
+    expect(recovery.observe('https://gptauth.ruijie.com.cn/dashboard')).toBe(authorizeUrl)
+    expect(recovery.observe('https://gptauth.ruijie.com.cn/dashboard/overview')).toBeUndefined()
+  })
+
+  it('never amplifies repeated sign-in and dashboard navigation into a redirect loop', () => {
+    const authorizeUrl = 'https://gptauth.ruijie.com.cn/oauth/authorize?state=original'
+    const recovery = new RuijieAuthorizationRecovery(authorizeUrl)
+    const noisySequence = [
+      ...Array.from({ length: 20 }, () => 'https://gptauth.ruijie.com.cn/sign-in?redirect=oauth'),
+      'https://sid.ruijie.com.cn/login?service=callback',
+      'https://gptauth.ruijie.com.cn/oauth/ruijie',
+      ...Array.from({ length: 50 }, (_, index) => index % 2 === 0
+        ? 'https://gptauth.ruijie.com.cn/dashboard'
+        : 'https://gptauth.ruijie.com.cn/dashboard/overview'),
+    ]
+
+    expect(noisySequence.map(url => recovery.observe(url)).filter(Boolean)).toEqual([authorizeUrl])
+  })
+
+  it('recovers an already-signed-in same-origin landing but ignores callbacks and unrelated homes', () => {
+    const authorizeUrl = 'https://gptauth.ruijie.com.cn/oauth/authorize?state=original'
+    const cachedSession = new RuijieAuthorizationRecovery(authorizeUrl)
+    expect(cachedSession.observe('https://gptauth.ruijie.com.cn/dashboard')).toBe(authorizeUrl)
+    expect(cachedSession.observe('https://gptauth.ruijie.com.cn/dashboard')).toBeUndefined()
+
+    const normalCallback = new RuijieAuthorizationRecovery(authorizeUrl)
+    expect(normalCallback.observe('http://localhost:1455/auth/callback?code=ok&state=original')).toBeUndefined()
+    expect(normalCallback.observe('https://attacker.example/dashboard')).toBeUndefined()
+    expect(normalCallback.observe('not a URL')).toBeUndefined()
+  })
+
   it('opens the login window only when interactive OAuth is actually required', () => {
     const authenticate = main.indexOf('await ensureRuijieAuthEnvironment')
-    const open = main.indexOf('await ruijieLoginWindow?.open()', authenticate)
+    const open = main.indexOf('await ruijieLoginWindow?.open(url)', authenticate)
     expect(authenticate).toBeGreaterThan(0)
     expect(open).toBeGreaterThan(authenticate)
+  })
+
+  it('loads OAuth in one controlled window and resumes a dropped transaction without another click', () => {
+    expect(loginWindow).toContain('await window.loadURL(authorizeUrl)')
+    expect(loginWindow).toContain("window.webContents.on('did-navigate'")
+    expect(loginWindow).toContain("window.webContents.on('did-navigate-in-page'")
+    expect(loginWindow).toContain('authorizationRecovery.observe(url)')
+    expect(loginWindow).toContain('this.options.onRecovery?.()')
+    expect(main).toContain('await ruijieLoginWindow?.open(url)')
+    expect(loginWindow).not.toContain('已登录，继续授权')
+    expect(loginWindow).not.toContain('CONTINUE_AUTHORIZATION_URL')
+    expect(loginWindow).not.toContain('setInterval')
   })
 
   it('keeps the login window alive until the Harness window has mounted', () => {
@@ -28,14 +131,16 @@ describe('Ruijie SSO startup presentation', () => {
     expect(shown).toBeGreaterThan(closed)
   })
 
-  it('presents a concise Harness-branded authorization journey without exposing credentials', () => {
-    expect(loginWindow).toContain('锐捷 Harness')
-    expect(loginWindow).toContain('请在浏览器确认授权')
-    expect(loginWindow).toContain('确认后会直接返回 Harness')
+  it('presents concise Harness-branded progress after callback without exposing credentials', () => {
+    expect(loginWindow).toContain('锐捷Harness')
     expect(loginWindow).toContain('正在打开工作台')
     expect(loginWindow).not.toMatch(/accessToken|refreshToken|codex-token|apiKey/u)
-    expect(loginWindow).toContain('#6682ff')
-    expect(loginWindow).toContain('#3d57da')
+    expect(loginWindow).toContain('text-align:center')
+    expect(loginWindow).toContain('width:72px;height:72px')
+    expect(loginWindow).toContain('font-size:34px;font-weight:500')
+    expect(loginWindow).toContain('color:var(--ink);background:var(--paper)')
+    expect(loginWindow).not.toContain('#6682ff')
+    expect(loginWindow).not.toContain('#3d57da')
     expect(loginWindow).not.toContain('#d71920')
   })
 
@@ -61,26 +166,29 @@ describe('Ruijie SSO startup presentation', () => {
     expect(loginWindow).not.toContain('hide(): void')
   })
 
-  it('lets the user cancel an abandoned browser authorization on every desktop platform', () => {
+  it('lets the user cancel an abandoned browser authorization with the native frame', () => {
     expect(loginWindow).toContain('closable: true')
-    expect(loginWindow).toContain('关闭并退出')
+    expect(loginWindow).toContain('frame: true')
     expect(loginWindow).toContain("process.platform === 'darwin'")
+    expect(loginWindow).toContain('if (!this.completed) this.options.onCancel()')
+  })
+
+  it('preserves the centered monochrome status composition with native macOS chrome', () => {
+    expect(loginWindow).toContain('-apple-system,BlinkMacSystemFont')
+    expect(loginWindow).toContain('-webkit-font-smoothing:antialiased')
+    expect(loginWindow).toContain('.shell.macos{transform:translateY(-2vh)}')
+    expect(loginWindow).toContain('frame: true')
     expect(loginWindow).toContain("titleBarStyle: 'hiddenInset'")
     expect(loginWindow).toContain('trafficLightPosition')
-    expect(loginWindow).toContain('window.close()')
+    expect(loginWindow).toContain('fullscreenable: false')
   })
 
-  it('routes the frameless close control through the native BrowserWindow', () => {
-    expect(loginWindow).toContain("const CANCEL_NAVIGATION_URL = 'ruijie-harness://cancel-authorization/'")
-    expect(loginWindow).toContain("window.location.href='ruijie-harness://cancel-authorization/'")
-    expect(loginWindow).toContain('if (url === CANCEL_NAVIGATION_URL) window.close()')
-  })
-
-  it('gives the Windows close control a stable 40px hit target without replacing macOS traffic lights', () => {
-    expect(loginWindow).toContain('width:40px;height:40px')
-    expect(loginWindow).toContain('display:grid;place-items:center')
-    expect(loginWindow).toContain("const closeControl = macOS\n    ? ''")
-    expect(loginWindow).toContain("frame: macOS")
+  it('isolates every login attempt from stale web state and keeps Electron capabilities disabled', () => {
+    expect(loginWindow).toContain('partition: `ruijie-sso-${randomUUID()}`')
+    expect(loginWindow).toContain('contextIsolation: true')
+    expect(loginWindow).toContain('nodeIntegration: false')
+    expect(loginWindow).toContain('sandbox: true')
+    expect(loginWindow).toContain('webSecurity: true')
   })
 
   it('separates slow account verification from slow workspace startup', () => {

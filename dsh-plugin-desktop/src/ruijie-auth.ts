@@ -124,6 +124,32 @@ function clientId(environment: NodeJS.ProcessEnv): string {
   return environment.RUIJIE_DSH_OAUTH_CLIENT_ID?.trim() || TEMPORARY_CODEX_CLIENT_ID
 }
 
+export interface RuijieAuthorizationUrlOptions {
+  readonly issuerUrl: string
+  readonly client: string
+  readonly redirectUri: string
+  readonly challenge: string
+  readonly state: string
+}
+
+/** Keep Desktop on the OAuth route exercised by the shipped Ruijie Codex client. */
+export function buildRuijieAuthorizationUrl(options: RuijieAuthorizationUrlOptions): string {
+  const authorize = new URL('/oauth/authorize', options.issuerUrl)
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: options.client,
+    redirect_uri: options.redirectUri,
+    scope: 'openid profile email offline_access api.connectors.read api.connectors.invoke',
+    code_challenge: options.challenge,
+    code_challenge_method: 'S256',
+    id_token_add_organizations: 'true',
+    codex_cli_simplified_flow: 'true',
+    state: options.state,
+    originator: 'codex_cli_rs',
+  }).toString()
+  return authorize.toString()
+}
+
 function supportsDeepSeekThinking(model: unknown): boolean {
   return typeof model === 'string' && /^deepseek-v4-(?:flash|pro)(?:-|$)/u.test(model)
 }
@@ -565,18 +591,8 @@ export async function ensureRuijieAuthEnvironment(options: RuijieAuthOptions): P
   const state = randomBytes(32).toString('base64url')
   const verifier = randomBytes(32).toString('base64url')
   const challenge = createHash('sha256').update(verifier).digest('base64url')
-  const authorize = new URL('/oauth/authorize', issuerUrl)
-  authorize.search = new URLSearchParams({
-    response_type: 'code',
-    product: 'harness',
-    client_id: client,
-    redirect_uri: redirectUri,
-    scope: 'openid profile email offline_access api.connectors.invoke',
-    code_challenge: challenge,
-    code_challenge_method: 'S256',
-    state,
-  }).toString()
-  const code = await receiveAuthorizationCode(state, authorize.toString(), redirectUri, port, options.openExternal)
+  const authorizeUrl = buildRuijieAuthorizationUrl({ issuerUrl, client, redirectUri, challenge, state })
+  const code = await receiveAuthorizationCode(state, authorizeUrl, redirectUri, port, options.openExternal)
   options.onStatus?.('authorization-processing')
   const tokens = await exchangeAuthorizationCode(issuerUrl, client, redirectUri, code, verifier, requestTimeoutMs)
   await options.credentialStore?.save(tokens)

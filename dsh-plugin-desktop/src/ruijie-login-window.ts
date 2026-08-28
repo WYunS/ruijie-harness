@@ -1,19 +1,84 @@
-/** Small native-owned status window shown while the system browser completes SSO. */
+/** Isolated interactive SSO window that becomes a native-owned startup status window after callback. */
 
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, screen } from 'electron'
+import { randomUUID } from 'node:crypto'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const LOGIN_ICON_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'build', 'app-icon.png')
 const SLOW_START_NOTICE_MS = 8_000
-const CANCEL_NAVIGATION_URL = 'ruijie-harness://cancel-authorization/'
 
-type LoginPhase = 'authorize' | 'verifying' | 'slow-verifying' | 'starting' | 'slow-start'
+type LoginPhase = 'verifying' | 'slow-verifying' | 'starting' | 'slow-start'
+
+/** Keep authentication focused while fitting smaller Windows and macOS work areas. */
+export function authorizationWindowSize(
+  workArea: { readonly width: number; readonly height: number },
+): { readonly width: number; readonly height: number } {
+  const fit = (available: number, preferred: number, minimum: number): number => Math.min(
+    preferred,
+    Math.max(Math.min(minimum, available), available - 48),
+  )
+  return {
+    width: fit(workArea.width, 920, 480),
+    height: fit(workArea.height, 720, 420),
+  }
+}
+
+/** Recognize the enterprise identity provider that can drop GPTAuth's return target. */
+export function isRuijieEnterpriseSsoNavigation(navigationUrl: string): boolean {
+  try {
+    const navigation = new URL(navigationUrl)
+    return navigation.protocol === 'https:' && navigation.hostname === 'sid.ruijie.com.cn'
+  } catch {
+    return false
+  }
+}
+
+/** Recover the one known GPTAuth failure without permitting a redirect loop. */
+export function authorizationRecoveryForNavigation(
+  authorizeUrl: string,
+  enterpriseSsoVisited: boolean,
+  navigationUrl: string,
+  alreadyRecovered: boolean,
+): string | undefined {
+  if (alreadyRecovered) return undefined
+  try {
+    const authorize = new URL(authorizeUrl)
+    const navigation = new URL(navigationUrl)
+    const trustedLanding = navigation.origin === authorize.origin
+      || (enterpriseSsoVisited && navigation.protocol === 'https:')
+    if (!trustedLanding) return undefined
+    const isUserHome = navigation.pathname === '/user' || navigation.pathname === '/user/'
+    const isDashboard = navigation.pathname === '/dashboard' || navigation.pathname.startsWith('/dashboard/')
+    if (!isUserHome && !isDashboard) return undefined
+    return authorizeUrl
+  } catch {
+    return undefined
+  }
+}
+
+/** Stateful, one-shot recovery guard shared by both Electron navigation event types. */
+export class RuijieAuthorizationRecovery {
+  private enterpriseSsoVisited = false
+  private recovered = false
+
+  constructor(private readonly authorizeUrl: string) {}
+
+  observe(navigationUrl: string): string | undefined {
+    this.enterpriseSsoVisited = this.enterpriseSsoVisited
+      || isRuijieEnterpriseSsoNavigation(navigationUrl)
+    const recoveryUrl = authorizationRecoveryForNavigation(
+      this.authorizeUrl,
+      this.enterpriseSsoVisited,
+      navigationUrl,
+      this.recovered,
+    )
+    if (recoveryUrl !== undefined) this.recovered = true
+    return recoveryUrl
+  }
+}
 
 function loginCopy(phase: LoginPhase): { readonly title: string; readonly detail: string } {
-  if (phase === 'authorize') {
-    return { title: '请在浏览器确认授权', detail: '确认后会直接返回 Harness。' }
-  }
   if (phase === 'verifying') {
     return { title: '正在验证账号', detail: '正在连接账号服务，通常只需几秒。' }
   }
@@ -28,57 +93,60 @@ function loginCopy(phase: LoginPhase): { readonly title: string; readonly detail
 
 function loginHtml(phase: LoginPhase, macOS: boolean): string {
   const copy = loginCopy(phase)
-  const closeControl = macOS
-    ? ''
-    : '<button class="close" id="close-window" type="button" title="关闭并退出" aria-label="关闭并退出">×</button>'
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>锐捷 Harness</title>
   <style>
-    :root{color-scheme:light;font:14px/1.5 "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:#17191d;background:transparent}*{box-sizing:border-box}body{margin:0;height:100vh;overflow:hidden;padding:14px}.shell{position:relative;width:100%;height:100%;padding:24px 26px;border:1px solid #e5e7eb;border-radius:22px;background:#fff;box-shadow:0 20px 55px #20242d24;display:flex;flex-direction:column}.shell.macos{padding-top:42px}.brand{display:flex;align-items:center;gap:10px;-webkit-app-region:drag;user-select:none}.mark{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;background:linear-gradient(145deg,#6682ff 0%,#3d57da 100%);font-size:12px;font-style:italic;font-weight:800;letter-spacing:-.06em}.brand strong{font-size:15px;letter-spacing:.01em}.close{position:absolute;z-index:2;top:11px;right:12px;width:40px;height:40px;padding:0;border:0;border-radius:12px;color:#737981;background:transparent;display:grid;place-items:center;font:400 23px/1 "Segoe UI",sans-serif;cursor:pointer;-webkit-app-region:no-drag}.close:hover{color:#fff;background:#3d57da}.close:focus-visible{outline:3px solid #6682ff66;outline-offset:2px}.copy{margin:auto 0}h1{margin:0 0 7px;font-size:22px;line-height:1.25;letter-spacing:-.025em;font-weight:650}p{margin:0;color:#737981}.progress{height:2px;margin-top:auto;background:#eef0f3;overflow:hidden}.progress::after{content:"";display:block;width:34%;height:100%;background:linear-gradient(90deg,#6682ff,#3d57da);animation:signal 1.25s cubic-bezier(.4,0,.2,1) infinite alternate}@keyframes signal{to{transform:translateX(194%)}}@media(prefers-reduced-motion:reduce){.progress::after{animation:none;transform:translateX(96%)}}
+    :root{color-scheme:light;--ink:#111;--muted:#6f6f73;--line:#e7e7e7;--paper:#fff;font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--paper);-webkit-font-smoothing:antialiased}*{box-sizing:border-box}body{margin:0;min-height:100vh;overflow:hidden;display:grid;place-items:center;padding:24px;background:var(--paper)}.shell{width:100%;text-align:center;transform:translateY(-3vh);-webkit-app-region:drag;user-select:none}.shell.macos{transform:translateY(-2vh)}.mark{width:72px;height:72px;margin:0 auto 26px;border:1px solid var(--line);border-radius:18px;display:grid;place-items:center;color:var(--ink);background:var(--paper);box-shadow:0 10px 28px #00000014;font-size:25px;font-style:italic;font-weight:850;letter-spacing:-.08em}.brand{margin:0;font-size:34px;font-weight:500;line-height:1.2;letter-spacing:-.04em}.status{margin-top:42px}h2{margin:0;font-size:21px;font-weight:600;line-height:1.35;letter-spacing:-.025em}p{margin:10px 0 0;color:var(--muted);font-size:15px}.progress{width:96px;height:1px;margin:34px auto 0;border-radius:999px;background:var(--line);overflow:hidden}.progress::after{content:"";display:block;width:36px;height:100%;border-radius:999px;background:var(--ink);animation:signal 1.35s cubic-bezier(.4,0,.2,1) infinite alternate}@keyframes signal{to{transform:translateX(60px)}}@media(max-height:540px){.shell{transform:none}.status{margin-top:28px}.mark{width:64px;height:64px;margin-bottom:20px;border-radius:16px}.brand{font-size:30px}.progress{margin-top:24px}}@media(prefers-reduced-motion:reduce){.progress::after{animation:none;transform:translateX(30px)}}
   </style>
 </head>
-<body><main class="shell${macOS ? ' macos' : ''}">${closeControl}<header class="brand"><span class="mark">RJ</span><strong>锐捷 Harness</strong></header><div class="copy"><h1>${copy.title}</h1><p>${copy.detail}</p></div><div class="progress" aria-hidden="true"></div></main><script>document.getElementById('close-window')?.addEventListener('click',()=>{window.location.href='ruijie-harness://cancel-authorization/'})</script></body>
+<body><main class="shell${macOS ? ' macos' : ''}"><span class="mark" aria-hidden="true">RJ</span><h1 class="brand">锐捷Harness</h1><section class="status" aria-live="polite"><h2>${copy.title}</h2><p>${copy.detail}</p><div class="progress" aria-hidden="true"></div></section></main></body>
 </html>`
 }
 
 export interface RuijieLoginWindowOptions {
   readonly onCancel: () => void
+  readonly onError?: (cause: unknown) => void
+  readonly onRecovery?: () => void
 }
 
-/** Own the visible pre-auth state without exposing OAuth material to a renderer. */
+/** Own interactive OAuth and visible startup state without exposing credentials to the app renderer. */
 export class RuijieLoginWindow {
   private window: BrowserWindow | undefined
   private slowStartNotice: ReturnType<typeof setTimeout> | undefined
   private completed = false
   constructor(private readonly options: RuijieLoginWindowOptions) {}
 
-  async open(): Promise<void> {
+  async open(authorizeUrl: string): Promise<void> {
+    const authorizationRecovery = new RuijieAuthorizationRecovery(authorizeUrl)
     const macOS = process.platform === 'darwin'
+    const workArea = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workAreaSize
+    const windowSize = authorizationWindowSize(workArea)
     const window = new BrowserWindow({
-      title: '锐捷 Harness',
-      width: 440,
-      height: macOS ? 280 : 260,
+      title: '锐捷 Harness 登录',
+      ...windowSize,
+      minWidth: Math.min(640, windowSize.width),
+      minHeight: Math.min(520, windowSize.height),
       show: false,
       closable: true,
-      resizable: false,
-      maximizable: false,
-      minimizable: false,
-      frame: macOS,
+      resizable: true,
+      maximizable: true,
+      minimizable: true,
+      fullscreenable: false,
+      frame: true,
       ...(macOS ? {
         titleBarStyle: 'hiddenInset',
         trafficLightPosition: { x: 24, y: 22 },
       } : {}),
-      transparent: true,
       hasShadow: true,
       roundedCorners: true,
       icon: LOGIN_ICON_PATH,
       autoHideMenuBar: true,
-      backgroundColor: '#00000000',
+      backgroundColor: '#ffffff',
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
@@ -86,17 +154,25 @@ export class RuijieLoginWindow {
         webSecurity: true,
         webviewTag: false,
         spellcheck: false,
-        partition: 'ruijie-sso-status',
+        // Fresh in-memory storage excludes stale GPTAuth cookies/localStorage,
+        // while the redirects within this one SSO attempt share the same state.
+        partition: `ruijie-sso-${randomUUID()}`,
       },
     })
     this.window = window
     window.center()
     window.removeMenu()
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-    window.webContents.on('will-navigate', (event, url) => {
-      event.preventDefault()
-      if (url === CANCEL_NAVIGATION_URL) window.close()
-    })
+    const recoverDroppedAuthorization = (_event: Electron.Event, url: string): void => {
+      const recoveryUrl = authorizationRecovery.observe(url)
+      if (recoveryUrl === undefined) return
+      this.options.onRecovery?.()
+      void window.loadURL(recoveryUrl).catch(cause => { this.options.onError?.(cause) })
+    }
+    // GPTAuth can reach /user by either a document redirect or SPA history
+    // navigation; Electron reports those through different events.
+    window.webContents.on('did-navigate', recoverDroppedAuthorization)
+    window.webContents.on('did-navigate-in-page', recoverDroppedAuthorization)
     const show = (): void => {
       if (window.isMinimized()) window.restore()
       window.show()
@@ -109,7 +185,7 @@ export class RuijieLoginWindow {
       this.window = undefined
       if (!this.completed) this.options.onCancel()
     })
-    await window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(loginHtml('authorize', macOS))}`)
+    await window.loadURL(authorizeUrl)
   }
 
   private showPhase(phase: LoginPhase, slowPhase: LoginPhase): void {

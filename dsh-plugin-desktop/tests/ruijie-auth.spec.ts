@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import {
   accountSummaryFromPayloads,
+  buildRuijieAuthorizationUrl,
   ensureRuijieAuthEnvironment,
   normalizeRuijieChatPayload,
 } from '../src/ruijie-auth.ts'
@@ -112,8 +113,28 @@ describe('Ruijie desktop authentication module', () => {
     expect(authSource).toContain('credentialStore?.clear()')
   })
 
-  it('requests the dedicated Harness consent experience from GPTAuth', () => {
-    expect(authSource).toContain("product: 'harness'")
+  it('uses the same OAuth authorization contract as the working Ruijie Codex client', () => {
+    const authorize = new URL(buildRuijieAuthorizationUrl({
+      issuerUrl: 'https://gptauth.ruijie.com.cn/',
+      client: 'client-id',
+      redirectUri: 'http://localhost:1455/auth/callback',
+      challenge: 'pkce-challenge',
+      state: 'oauth-state',
+    }))
+    expect(authorize.pathname).toBe('/oauth/authorize')
+    expect(Object.fromEntries(authorize.searchParams)).toEqual({
+      response_type: 'code',
+      client_id: 'client-id',
+      redirect_uri: 'http://localhost:1455/auth/callback',
+      scope: 'openid profile email offline_access api.connectors.read api.connectors.invoke',
+      code_challenge: 'pkce-challenge',
+      code_challenge_method: 'S256',
+      id_token_add_organizations: 'true',
+      codex_cli_simplified_flow: 'true',
+      state: 'oauth-state',
+      originator: 'codex_cli_rs',
+    })
+    expect(authorize.searchParams.has('product')).toBe(false)
   })
 
   it('shows a branded completion page and only attempts best-effort auto-close', () => {
