@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  DESKTOP_VERSION_ENDPOINT,
+  DESKTOP_VERSION_ENDPOINTS,
   MAX_VERSION_RESPONSE_BYTES,
   checkForStableUpdate,
   compareSemVerVersions,
@@ -53,9 +53,10 @@ describe('strict SemVer parsing', () => {
 
 describe('public Desktop version check', () => {
   it('uses the production Harness release endpoint', () => {
-    expect(DESKTOP_VERSION_ENDPOINT).toBe(
-      'https://gptauth.ruijie.com.cn/harness/api/desktop/version',
-    )
+    expect(DESKTOP_VERSION_ENDPOINTS).toEqual({
+      darwin: 'https://gptauth.ruijie.com.cn/harness/api/desktop/version/mac',
+      win32: 'https://gptauth.ruijie.com.cn/harness/api/desktop/version/windows',
+    })
   })
 
   it('uses only the fixed no-cache version endpoint and reports a newer stable version', async () => {
@@ -67,6 +68,7 @@ describe('public Desktop version check', () => {
     }
 
     await expect(checkForStableUpdate({
+      platform: 'win32',
       currentVersion: '2.9.9',
       signal: controller.signal,
       request,
@@ -77,7 +79,7 @@ describe('public Desktop version check', () => {
     })
 
     expect(calls).toHaveLength(1)
-    expect(calls[0]?.url).toBe(DESKTOP_VERSION_ENDPOINT)
+    expect(calls[0]?.url).toBe(DESKTOP_VERSION_ENDPOINTS.win32)
     expect(calls[0]?.url).not.toContain('/api/downloads/')
     expect(calls[0]?.init).toMatchObject({
       method: 'GET',
@@ -97,6 +99,7 @@ describe('public Desktop version check', () => {
     ['2.0.0+installed', '2.0.0+release'],
   ])('reports no update for installed %s and service %s', async (currentVersion, latestVersion) => {
     await expect(checkForStableUpdate({
+      platform: 'darwin',
       currentVersion,
       request: async () => versionResponse(latestVersion),
     })).resolves.toEqual({
@@ -108,6 +111,7 @@ describe('public Desktop version check', () => {
 
   it('compares service versions without overflowing JavaScript numbers', async () => {
     await expect(checkForStableUpdate({
+      platform: 'win32',
       currentVersion: '9007199254740992.0.0',
       request: async () => versionResponse('10000000000000000.0.0'),
     })).resolves.toMatchObject({ status: 'update-available' })
@@ -122,6 +126,7 @@ describe('public Desktop version check', () => {
     ['array response', ['2.1.0']],
   ])('silently ignores a service response with %s', async (_case, value) => {
     await expect(checkForStableUpdate({
+      platform: 'win32',
       currentVersion: '2.0.0',
       request: async () => Response.json(value),
     })).resolves.toBeNull()
@@ -129,14 +134,17 @@ describe('public Desktop version check', () => {
 
   it('silently ignores malformed JSON and non-200 statuses', async () => {
     await expect(checkForStableUpdate({
+      platform: 'win32',
       currentVersion: '2.0.0',
       request: async () => new Response('{'),
     })).resolves.toBeNull()
     await expect(checkForStableUpdate({
+      platform: 'win32',
       currentVersion: '2.0.0',
       request: async () => new Response('unavailable', { status: 503 }),
     })).resolves.toBeNull()
     await expect(checkForStableUpdate({
+      platform: 'win32',
       currentVersion: '2.0.0',
       request: async () => new Response(null, { status: 304 }),
     })).resolves.toBeNull()
@@ -144,6 +152,7 @@ describe('public Desktop version check', () => {
 
   it('silently ignores network failure and caller cancellation', async () => {
     await expect(checkForStableUpdate({
+      platform: 'win32',
       currentVersion: '2.0.0',
       request: async () => { throw new TypeError('offline') },
     })).resolves.toBeNull()
@@ -151,6 +160,7 @@ describe('public Desktop version check', () => {
     const controller = new AbortController()
     controller.abort()
     await expect(checkForStableUpdate({
+      platform: 'win32',
       currentVersion: '2.0.0',
       signal: controller.signal,
       request: async () => { throw new DOMException('cancelled', 'AbortError') },
@@ -159,12 +169,14 @@ describe('public Desktop version check', () => {
 
   it('silently ignores declared and streamed oversized responses', async () => {
     await expect(checkForStableUpdate({
+      platform: 'win32',
       currentVersion: '2.0.0',
       request: async () => new Response('{}', {
         headers: { 'content-length': String(MAX_VERSION_RESPONSE_BYTES + 1) },
       }),
     })).resolves.toBeNull()
     await expect(checkForStableUpdate({
+      platform: 'win32',
       currentVersion: '2.0.0',
       request: async () => new Response('x'.repeat(MAX_VERSION_RESPONSE_BYTES + 1)),
     })).resolves.toBeNull()
@@ -173,7 +185,7 @@ describe('public Desktop version check', () => {
   it.each(['2.0', 'v2.0.0', '2.0.0-rc.1'])('skips invalid installed version %s before requesting', async currentVersion => {
     const request = vi.fn(async () => versionResponse('2.1.0'))
 
-    await expect(checkForStableUpdate({ currentVersion, request })).resolves.toBeNull()
+    await expect(checkForStableUpdate({ platform: 'win32', currentVersion, request })).resolves.toBeNull()
     expect(request).not.toHaveBeenCalled()
   })
 })

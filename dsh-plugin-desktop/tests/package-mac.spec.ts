@@ -49,7 +49,7 @@ function options(calls: CommandCall[], logs: string[] = []): MacInternalPackageO
 }
 
 describe('internal macOS DMG packaging', () => {
-  it('checks without credentials, builds an unsigned DMG, then verifies it', () => {
+  it('checks without credentials, builds an ad-hoc signed DMG, then verifies it', () => {
     const calls: CommandCall[] = []
     const logs: string[] = []
 
@@ -79,6 +79,7 @@ describe('internal macOS DMG packaging', () => {
         'never',
         '--config.mac.notarize=false',
         '--config.npmRebuild=false',
+        '--config.afterPack=./scripts/sign-mac-internal.ts',
         '--config.directories.output=/repo/dsh-plugin-desktop/dist/mac-internal',
       ],
       cwd: '/repo/dsh-plugin-desktop',
@@ -107,7 +108,7 @@ describe('internal macOS DMG packaging', () => {
       env: { PATH: '/usr/bin:/bin', SAFE_VALUE: 'kept' },
     })
     expect(logs).toEqual([
-      'Building the installable unsigned internal macOS DMG without Apple credentials or notarization.',
+      'Building the installable ad-hoc signed internal macOS DMG without Apple credentials or notarization.',
     ])
   })
 
@@ -135,6 +136,7 @@ describe('internal macOS DMG packaging', () => {
       'never',
       '--config.mac.notarize=false',
       '--config.npmRebuild=false',
+      '--config.afterPack=./scripts/sign-mac-internal.ts',
       '--config.directories.output=/repo/dsh-plugin-desktop/dist/mac-internal',
     ])
     expect(calls[3]?.args).toEqual([
@@ -142,7 +144,7 @@ describe('internal macOS DMG packaging', () => {
       '/repo/dsh-plugin-desktop/dist/mac-internal',
     ])
     expect(logs).toEqual([
-      'Building the installable unsigned internal macOS DMG without Apple credentials or notarization.',
+      'Building the installable ad-hoc signed internal macOS DMG without Apple credentials or notarization.',
       'Skipping the macOS package preflight; the CI shared gate already passed.',
     ])
   })

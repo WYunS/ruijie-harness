@@ -100,6 +100,8 @@ export function apply(ctx: Context, config: Config): void {
 
     const startCheck = (): Promise<UpdateCheckResult | null> => {
       if (inFlight !== undefined) return inFlight
+      const updatePlatform = adapter.updatePlatform
+      if (updatePlatform === undefined) return Promise.resolve(null)
       checking = true
       refreshTray()
       const controller = new AbortController()
@@ -109,6 +111,7 @@ export function apply(ctx: Context, config: Config): void {
         requestTimer = setTimeout(() => { controller.abort() }, config.requestTimeoutMs)
         try {
           return await checkForStableUpdate({
+            platform: updatePlatform,
             currentVersion: adapter.currentVersion,
             signal: controller.signal,
             request: adapter.request,

@@ -62,7 +62,7 @@ The welcome text shows the application version, active profile, profile director
 
 ## Updates
 
-Packaged macOS and Windows applications check `https://gptauth.ruijie.com.cn/harness/api/desktop/version` in the background. Startup is not blocked; network errors, non-200 responses, invalid versions, and a server version that is not newer remain silent in the background.
+Packaged Windows applications check `https://gptauth.ruijie.com.cn/harness/api/desktop/version/windows` in the background, while macOS applications use the corresponding `/version/mac` channel. The two platforms may publish different versions independently. Startup is not blocked; network errors, non-200 responses, invalid versions, and a server version that is not newer remain silent in the background.
 
 **Check for Updates…** in the tray is a manual check. It shows a result even when the installed version is current, and reports a retry message when the check fails. Only a server version strictly newer than the local version produces a download confirmation. Cancelling never requests the counted download endpoint.
 

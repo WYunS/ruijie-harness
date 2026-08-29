@@ -152,7 +152,7 @@ npx dsh-plugin-desktop
 
 ## 桌面操作
 
-打包后的 macOS 与 Windows 应用会在启动 60 秒后查询 `https://gptauth.ruijie.com.cn/harness/api/desktop/version`，并在每次检查完成六小时后再次查询。每次 no-cache 请求的期限为 15 秒，并与托盘中的 **Check for Updates…** 命令共用一个 in-flight operation。响应只有在包含规范的 stable Semantic Versioning 时才会被接受。后台检查遇到网络、HTTP、超时、无效响应、相同版本或服务端旧版本时保持静默。手工检查一定会显示原生结果对话框：相同或旧版本会显示当前安装版本，失败会提示用户重试，严格更新的版本则显示 **Download** 或 **Later**。自动更新提示会按版本记录，用户仍可从托盘显式重试。开发运行、未打包启动与 Linux 不会下载安装包。
+打包后的 Windows 应用会在启动 60 秒后查询 `https://gptauth.ruijie.com.cn/harness/api/desktop/version/windows`，macOS 应用查询对应的 `/version/mac` 独立通道，并在每次检查完成六小时后再次查询。每次 no-cache 请求的期限为 15 秒，并与托盘中的 **Check for Updates…** 命令共用一个 in-flight operation。响应只有在包含规范的 stable Semantic Versioning 时才会被接受。后台检查遇到网络、HTTP、超时、无效响应、相同版本或服务端旧版本时保持静默。手工检查一定会显示原生结果对话框：相同或旧版本会显示当前安装版本，失败会提示用户重试，严格更新的版本则显示 **Download** 或 **Later**。自动更新提示会按版本记录，用户仍可从托盘显式重试。开发运行、未打包启动与 Linux 不会下载安装包。
 
 选择 **Download** 后，应用会先重新确认服务端版本没有变化，再把安装包自动下载到应用私有更新目录。DSH Desktop 使用 Electron 网络跟随 service redirect，流式写入不超过 1 GiB 的文件，记录安装包位置用于升级交接，并在交付前拒绝不完整的 DMG 或 Windows PE。macOS 会打开下载好的 DMG，并提示用户替换 `Applications` 中的应用后重新打开。Windows 会在 NSIS 安装器准备完成后再次确认；选择 **Restart and Install** 会启动覆盖安装，并在当前进程退出前请求 Cordis 有序 teardown，不要求先卸载旧版。升级后的应用启动时会询问删除已记录的安装包，或保留它；任一选择都会消费 pending cleanup state。下载、文件系统与安装器打开失败都会保持静默，同时保留托盘中的可重试版本操作。
 
@@ -217,7 +217,7 @@ corepack.cmd yarn dist:win-portable
 
 ### macOS DMG 冒烟构建
 
-`yarn dist:mac-internal` 会在原生 macOS 宿主机上构建可安装的内部 unsigned universal DMG，同一个安装包可以在 Intel 和 Apple Silicon Mac 上原生运行。该命令拒绝非 macOS 宿主，并在打包前运行完整产品 gate 与真实 Electron 侧栏连续性门禁。随后它会在不接触 Apple 凭证的情况下打包、挂载 DMG，并检查属性列表、主程序执行权限、`x86_64` 与 `arm64` 两个架构切片、必要的原生运行时文件及 `app.asar`。它会剥离 Electron Builder 能识别的全部签名和公证变量、设置 `CSC_IDENTITY_AUTO_DISCOVERY=false`、关闭 notarization，并且绝不自动发布。由于没有 Developer ID 签名，换一台 Mac 首次打开时可能需要手动通过 Gatekeeper。受控的签名公证发布入口仍为 `yarn dist:mac`，产物写入 `dsh-plugin-desktop/dist/mac-release/`。
+`yarn dist:mac-internal` 会在原生 macOS 宿主机上构建可安装的完整 ad-hoc 签名、未公证 universal DMG，同一个安装包可以在 Intel 和 Apple Silicon Mac 上原生运行。该命令拒绝非 macOS 宿主，并在打包前运行完整产品 gate 与真实 Electron 侧栏连续性门禁。内部 afterPack Hook 会先对物理 Mach-O 和嵌套代码 Bundle 从内到外签名，再封装主 App；随后挂载最终 DMG，要求每个 Mach-O 和外层 App 通过严格 `codesign` 验证，把 designated requirement 写入 `SIGNATURE-AUDIT.txt`，并检查属性列表、主程序执行权限、两个架构切片、必要的原生运行时、图标及 `app.asar`。它会剥离 Apple 签名与公证凭据、关闭 notarization，并且绝不自动发布。ad-hoc 不等于 Developer ID 或 Apple 公证，换一台 Mac 首次打开时仍可能需要手动通过 Gatekeeper，跨构建升级也可能重新询问一次受保护目录权限。受控的 Developer ID 签名公证发布入口仍为 `yarn dist:mac`，产物写入 `dsh-plugin-desktop/dist/mac-release/`。
 
 ## 模型体验
 

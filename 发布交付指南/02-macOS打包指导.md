@@ -1,6 +1,8 @@
 # 锐捷 Harness macOS 打包指导
 
-用途：交给完全不了解项目上下文的大模型或发布人员，从唯一源码稳定生成 unsigned、未公证、同时支持 Intel 与 Apple Silicon 的内部 DMG。本文件只负责源码准备、构建、自动门禁和产物交付；真人验收统一执行同目录的 `03-macOS真人验收测试指导.md`。
+用途：交给完全不了解项目上下文的大模型或发布人员，从唯一源码稳定生成完整 ad-hoc 签名、未公证、同时支持 Intel 与 Apple Silicon 的内部 DMG。本文件只负责源码准备、构建、自动门禁和产物交付；真人验收统一执行同目录的 `03-macOS真人验收测试指导.md`。
+
+涉及 macOS 签名方式、TCC、Files and Folders、`Allow` 循环、`Failed to match existing code requirement` 或跨版本代码身份时，必须先完整读取同目录的 `macOS代码签名与TCC身份策略.md`，再执行本文件。
 
 ## 1. 唯一源码与发布入口
 
@@ -86,7 +88,7 @@ corepack yarn install --immutable
 corepack yarn workspace dsh-plugin-desktop build:vendor-sidebar
 corepack yarn workspace dsh-plugin-desktop verify:vendor-sidebar
 corepack yarn check
-corepack yarn workspace dsh-plugin-desktop vitest run tests/mac-universal.spec.ts tests/package.spec.ts tests/package-mac.spec.ts tests/verify-mac-smoke.spec.ts tests/verify-packaged-runtime.spec.ts tests/electron-runtime.spec.ts tests/profile.spec.ts tests/desktop-working-directory.spec.ts tests/mac-directory-access.spec.ts tests/client-mac-directory-flow.spec.ts tests/native-directory-route-platform.spec.ts tests/workspace-cross-move-runtime-patch.spec.ts tests/desktop-plugins.spec.ts tests/sidebar-produced-files.spec.ts tests/window-options.spec.ts tests/mac-installed-acceptance.spec.ts tests/ruijie-auth.spec.ts tests/ruijie-login-window.spec.ts tests/ruijie-model-directory.spec.ts tests/time-context-runtime-patch.spec.ts tests/ui-appearance-runtime-patch.spec.ts tests/appearance-compatibility.spec.ts tests/dsh-im-runtime-patch.spec.ts tests/session-lifecycle-client-runtime-patch.spec.ts tests/workspace-edit-focus-runtime-patch.spec.ts tests/editor-context-menu.spec.ts tests/sidebar-shortcuts.spec.ts tests/system-proxy.spec.ts tests/search-recovery.spec.ts tests/search-recovery-presentation.spec.ts tests/update-checker.spec.ts tests/update-download.spec.ts tests/updates.spec.ts
+corepack yarn workspace dsh-plugin-desktop vitest run tests/mac-universal.spec.ts tests/package.spec.ts tests/package-mac.spec.ts tests/sign-mac-internal.spec.ts tests/verify-mac-smoke.spec.ts tests/verify-packaged-runtime.spec.ts tests/electron-runtime.spec.ts tests/profile.spec.ts tests/desktop-working-directory.spec.ts tests/mac-directory-access.spec.ts tests/client-mac-directory-flow.spec.ts tests/native-directory-route-platform.spec.ts tests/workspace-cross-move-runtime-patch.spec.ts tests/desktop-plugins.spec.ts tests/sidebar-produced-files.spec.ts tests/window-options.spec.ts tests/mac-installed-acceptance.spec.ts tests/ruijie-auth.spec.ts tests/ruijie-login-window.spec.ts tests/ruijie-model-directory.spec.ts tests/time-context-runtime-patch.spec.ts tests/ui-appearance-runtime-patch.spec.ts tests/appearance-compatibility.spec.ts tests/dsh-im-runtime-patch.spec.ts tests/session-lifecycle-client-runtime-patch.spec.ts tests/workspace-edit-focus-runtime-patch.spec.ts tests/editor-context-menu.spec.ts tests/sidebar-shortcuts.spec.ts tests/system-proxy.spec.ts tests/search-recovery.spec.ts tests/search-recovery-presentation.spec.ts tests/update-checker.spec.ts tests/update-download.spec.ts tests/updates.spec.ts
 corepack yarn workspace dsh-community-market vitest run tests/contracts.spec.ts tests/market-install.spec.ts tests/market-settings-persistence.spec.ts
 git ls-files --error-unmatch vendor/dsh-attachment-formats/vendor/tessdata/eng.traineddata.gz
 git ls-files --error-unmatch vendor/dsh-attachment-formats/vendor/tessdata/chi_sim.traineddata.gz
@@ -133,7 +135,7 @@ Mac 工作区权限属于 `release-blocking` 硬门禁，不能以“清理后�
 
 Mac 原生选择器还必须通过客户端—Host 契约门禁：只要 macOS 客户端安装 `__DSH_DESKTOP_PICK_DIRECTORY__`/`__DSH_DESKTOP_VALIDATE_DIRECTORY__` 桥接并接管工作区选择 slot，Host 就必须在 `darwin` 同时注册 `/_dsh/desktop/pick-directory` 与目录校验路由。`tests/native-directory-route-platform.spec.ts` 必须从 Host 插件公开入口验证 Windows、macOS 均注册且 Linux 不注册；只分别测试 UI 去重和 `dialog.showOpenDialog` 不算闭环。最终 `.app` 中点击“添加工作区”若显示 `DSH Desktop could not open the system folder picker`，或端点返回 404/405/其他非 2xx，均判为产品接线失败并立即阻断。该错误与 TCC、quarantine 或签名不是同一问题，禁止通过清缓存、`tccutil`、`xattr` 或完全磁盘访问掩盖。
 
-TCC 验收只针对用户主动选择受保护目录后由 macOS 产生的系统权限提示：系统可不提示或最多提示一次。应用层必须保持单飞、一次访问探测、取消/拒绝/异常后停止；未签名内部包可能在首次安装或跨构建升级时再次收到系统提示，但同一用户动作和同一次运行绝不允许循环。Developer ID 签名与 notarization 是长期稳定应用身份的发布条件，不能把普通 ad-hoc/unsigned 包描述为永久继承 TCC；同时也不能把签名不稳定当作应用重复请求的免责理由。
+TCC 验收只针对用户主动选择受保护目录后由 macOS 产生的系统权限提示：系统可不提示或最多提示一次。应用层必须保持单飞、一次访问探测、取消/拒绝/异常后停止；完整 ad-hoc 内部包可能在首次安装或跨构建升级时再次收到一次系统提示，但同一用户动作和同一次运行绝不允许循环。Developer ID 签名与 notarization 是长期稳定外部分发身份的发布条件，不能把普通 ad-hoc 包描述为永久跨版本继承 TCC；同时也不能把身份变化当作应用重复请求的免责理由。
 
 授权窗口首次显示时最大化到当前鼠标所在显示器的 work area，视觉上铺满可用区域但保留 macOS 菜单栏、Dock、标题栏和交通灯，不进入独立的原生全屏 Space。窗口还原后的常规尺寸为 `920×720`，较小屏幕自动缩小并保留 48 px 边距；用户还原后允许调整、最小化和再次最大化，但 `fullscreenable` 必须为 `false`。最终 macOS `.app` 必须保留 `frame: true`、`titleBarStyle: 'hiddenInset'`、原生左上角交通灯及既定位置，不得叠加 Windows“×”或切换成无边框窗口。主工作台的 Windows `titleBarOverlay` 逻辑不得影响该窗口或 Mac 原生材质。
 
@@ -143,7 +145,7 @@ TCC 验收只针对用户主动选择受保护目录后由 macOS 产生的系统
 
 会话生命周期补丁必须作为最终 `.app` 闭包的一部分验证，并重复执行两次确认幂等：客户端只能出现一份生命周期补丁和一份会话列表声明，不得出现 `Failed to load plugins`。永久删除确认必须使用应用内 Modal，最终 workspace client 不得包含 `window.confirm()` 或 `window.alert()`；删除当前会话后立即测试新会话输入、会话/工作区重命名和目录选择器“新建文件夹”，无需截图或切换页面即可键入。真人验收还需连续删除两个空闲会话，确认侧栏局部消失且工作台不白屏、不闪回登录页；再验证工作区 A → B、未命名 → 工作区、工作区 → 未命名及重启持久化。归档恢复后保留原归属，彻底删除不应清理工作区产物或共享附件；真实生成中的会话仍应要求先停止生成。可编辑区域右键应提供系统原生剪切、复制、粘贴等菜单，并验证文字与剪贴板图片粘贴。
 
-更新门禁必须证明 `desktop-updates.config.enabled: true` 已进入最终 profile，正式 `.app` 启动约 60 秒后会检查固定 HTTPS 版本接口，用户确认后把 DMG 下载到 Electron userData 的私有 `updates` 目录并自动打开，不出现保存路径选择框。macOS 内部包未签名、未公证，因此应用内更新只负责发现、下载和打开 DMG，不能宣称会静默替换 `/Applications`。`scripts/install-macos.sh` 必须通过 `bash -n`，并核对脚本只接受 macOS、校验 DMG 与 bundle id、拒绝覆盖运行中的应用、使用暂存和备份完成替换、失败时恢复旧应用，且不关闭 Gatekeeper、不自动清除 quarantine。
+更新门禁必须证明 `desktop-updates.config.enabled: true` 已进入最终 profile，正式 `.app` 启动约 60 秒后会检查固定 HTTPS 版本接口，用户确认后把 DMG 下载到 Electron userData 的私有 `updates` 目录并自动打开，不出现保存路径选择框。macOS 内部包使用 ad-hoc 签名且未公证，因此应用内更新只负责发现、下载和打开 DMG，不能宣称会静默替换 `/Applications`。`scripts/install-macos.sh` 必须通过 `bash -n`，并核对脚本只接受 macOS、校验 DMG 与 bundle id、拒绝覆盖运行中的应用、使用暂存和备份完成替换、失败时恢复旧应用，且不关闭 Gatekeeper、不自动清除 quarantine。
 
 完成条件：所有命令退出码为 0，工作树只含本轮明确改动，没有旧 bundle、缺失 OCR 数据或未提交生成物。
 
@@ -209,9 +211,10 @@ gh workflow run macos-internal-build.yml --repo WYunS/ruijie-harness --ref main 
 2. 安装并锁定依赖。
 3. 完整代码门禁和 sidebar 连续性测试。
 4. 准备并校验 x86_64、arm64 两套原生依赖。
-5. 生成 universal unsigned DMG。
-6. 挂载 DMG、复制最终 `.app`，运行固定基线与动态增量的安装后验收。固定基线必须包含登录等待窗的 macOS 原生关闭、时间上下文安装闭包、外观与一键恢复、侧栏 IM 入口与默认休眠、可恢复错误降噪，以及更新插件启用与私有下载路径；不能只测旧版工作台、文件和浏览器基线。
-7. 上传自动验收矩阵、截图、日志、报告、DMG、SHA-256 和构建清单。
+5. 对真实 Mach-O 与嵌套代码 Bundle 从内到外完成 ad-hoc 签名，最后封装主 App。
+6. 生成 universal DMG，挂载最终镜像并逐个验签；输出 `SIGNATURE-AUDIT.txt`，其中 Mach-O 数量必须大于零且无验签遗漏。
+7. 复制最终 `.app`，运行固定基线与动态增量的安装后验收。固定基线必须包含登录等待窗的 macOS 原生关闭、时间上下文安装闭包、外观与一键恢复、侧栏 IM 入口与默认休眠、可恢复错误降噪，以及更新插件启用与私有下载路径；不能只测旧版工作台、文件和浏览器基线。
+8. 上传自动验收矩阵、截图、日志、报告、DMG、SHA-256、签名审计和构建清单。
 
 工作流会先上传 `Ruijie-Harness-macOS-candidate-<run-id>`，再执行安装后验收。候选上传必须发生在验收之前：即使后续脚本失败，DMG 仍可复用，不得让一次 UI 定位错误迫使完整重打。自动流程走完后按验收指导第 5 节作两态判定；只有判定“允许进入下一步”才把 candidate 作为待交付候选。稳定命名的 `Ruijie-Harness-<version>-macOS-universal` Artifact 通常在工作流成功时产生；若工作流因低影响例外未产生稳定 Artifact，可交付经哈希确认的 candidate，同时连同完整验收报告说明例外。candidate 是可复用的原始候选，稳定 Artifact 则额外汇集 SHA-256、构建清单和验收证据。
 
@@ -237,6 +240,7 @@ Artifact 必须包含：
 - `Ruijie-Harness-<version>-macOS-universal.dmg`
 - 同名 `.sha256`
 - `BUILD-MANIFEST.txt`
+- `SIGNATURE-AUDIT.txt`
 - `acceptance-evidence/ACCEPTANCE-PLAN.md` 与 JSON
 - `acceptance-evidence/ACCEPTANCE-REPORT.md` 与 JSON
 - 首启、完整操作后、重启及失败时的截图和日志
@@ -257,6 +261,7 @@ $expected = ((Get-Content -LiteralPath "$dmg.sha256" -Raw).Trim() -split '\s+')[
 if ($actual -ne $expected) { throw 'Downloaded DMG SHA-256 mismatch' }
 Get-Item -LiteralPath $dmg | Select-Object FullName,Length,LastWriteTime
 Get-Content -LiteralPath (Join-Path $download 'BUILD-MANIFEST.txt')
+Get-Content -LiteralPath (Join-Path $download 'SIGNATURE-AUDIT.txt')
 ```
 
 如果大文件下载持续无进度或速度明显低于用户从 GitHub 页面手动下载，不要让下载阻塞整项任务。安全停止下载进程，但保留已完成的构建和云端 Artifact；先完成报告、指导更新、提交推送、证据整理和仓库状态检查等所有不依赖本地 DMG 的工作。随后一次性告诉用户：GitHub run 链接、应下载的准确 Artifact 名、其中必须包含的文件、目标绝对目录，以及下载完成后的核验动作。用户反馈完成后再继续本地哈希与清单核验；若没有本地核验需求，交接说明发出后即可结束任务。
@@ -273,17 +278,17 @@ DMG 通过机器校验后，按 `04-自动更新服务器交接.md` 操作：上
 curl -fsSL https://gptauth.ruijie.com.cn/harness/install.sh | bash
 ```
 
-脚本用于首次安装或应用已退出时的覆盖安装，不是应用内后台更新器。它应从 `/api/downloads/mac` 获取当前 DMG，核对 bundle id 后替换 `/Applications/锐捷 Harness.app`；无写权限时允许 `sudo` 请求本机管理员密码。未签名内部版首次打开仍按第 8 节处理，严禁在脚本中关闭 Gatekeeper。
+脚本用于首次安装或应用已退出时的覆盖安装，不是应用内后台更新器。它应从 `/api/downloads/mac` 获取当前 DMG，核对 bundle id 后替换 `/Applications/锐捷 Harness.app`；无写权限时允许 `sudo` 请求本机管理员密码。ad-hoc 签名但未公证的内部版首次打开仍按第 8 节处理，严禁在脚本中关闭 Gatekeeper。
 
-## 8. 未签名内部版
+## 8. ad-hoc 签名、未公证内部版
 
-当前内部版没有 Apple Developer ID，也不做 notarization。首次打开可能被 Gatekeeper 拦截。先在 Finder 中右键应用并选择“打开”；确认 DMG 哈希正确仍被拦截时，可执行：
+当前内部版具有完整 ad-hoc 签名，但没有 Apple Developer ID，也不做 notarization。首次打开仍可能被 Gatekeeper 拦截。先在 Finder 中右键应用并选择“打开”；确认 DMG 哈希和 `SIGNATURE-AUDIT.txt` 正确仍被拦截时，可执行：
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/锐捷 Harness.app"
 ```
 
-不要关闭整台 Mac 的 Gatekeeper，也不要把 unsigned 写成已签名或已公证。
+不要关闭整台 Mac 的 Gatekeeper。准确表述为“ad-hoc signed, not notarized”，不得写成 Developer ID 签名、Apple 公证或完全 unsigned。
 
 ## 9. 交付记录
 

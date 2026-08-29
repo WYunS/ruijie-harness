@@ -80,6 +80,7 @@ function createHarness(platform: DesktopRuntime['platform'] = 'darwin'): PluginH
     updates: {
       isPackaged: false,
       canDownload: platform === 'darwin' || platform === 'win32',
+      updatePlatform: platform === 'darwin' || platform === 'win32' ? platform : undefined,
       currentVersion: '2.0.0',
       statePath: '/tmp/dsh-desktop-update-state.json',
       request: async () => new Response(null, { status: 304 }),

@@ -483,7 +483,7 @@ describe('published package surface', () => {
     expect(manifest.build?.linux?.icon).toBe('build/app-icon.png')
   })
 
-  it('separates unsigned internal packaging from the signed macOS release', () => {
+  it('separates ad-hoc internal packaging from the Developer ID macOS release', () => {
     const packageDir = readFileSync(new URL('scripts/package-dir.mjs', packageRoot), 'utf8')
 
     expect(manifest.scripts?.build).toContain('node scripts/generate-mac-app-icon.mjs')
@@ -571,6 +571,9 @@ describe('published package surface', () => {
     expect(macInternalWorkflow).toContain('Ruijie-Harness-${version}-macOS-universal')
     expect(macInternalWorkflow).toContain('dsh-plugin-desktop/dist/mac-internal/*.sha256')
     expect(macInternalWorkflow).toContain('dsh-plugin-desktop/dist/mac-internal/BUILD-MANIFEST.txt')
+    expect(macInternalWorkflow).toContain('dsh-plugin-desktop/dist/mac-internal/SIGNATURE-AUDIT.txt')
+    expect(macInternalWorkflow).toContain('signing=ad-hoc complete app seal')
+    expect(macInternalWorkflow).not.toContain('signing=unsigned internal build')
   })
 
   it('skips product packaging only for documentation-only changes', () => {

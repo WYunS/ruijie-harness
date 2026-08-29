@@ -1,6 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { RendererBootReport } from './renderer-boot-contract.ts'
-import type { UpdateCheckResult, UpdateRequest } from './update-checker.ts'
+import type { DesktopUpdatePlatform, UpdateCheckResult, UpdateRequest } from './update-checker.ts'
 
 /** Electron platforms supported by the DSH Desktop native adapter. */
 export type DesktopPlatform = 'darwin' | 'win32' | 'linux'
@@ -91,6 +91,8 @@ export interface DesktopUpdateAdapter {
   readonly isPackaged: boolean
   /** Whether this platform has a fixed installer download endpoint. */
   readonly canDownload: boolean
+  /** Platform-specific stable release channel, absent on unsupported platforms. */
+  readonly updatePlatform: DesktopUpdatePlatform | undefined
   /** Installed desktop product version. */
   readonly currentVersion: string
   /** Private file used for update-prompt history. */

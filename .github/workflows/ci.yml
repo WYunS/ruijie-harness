@@ -117,7 +117,7 @@ jobs:
           DSH_PACKAGE_CHECK_ALREADY_RAN: '1'
         run: yarn workspace dsh-plugin-desktop dist:win-portable
 
-  # Build the installable unsigned internal DMG on a real macOS runner. It uses
+  # Build the installable ad-hoc signed internal DMG on a real macOS runner. It uses
   # the same product payload for Intel and Apple Silicon; no Apple credentials
   # or notarization secrets ever reach this job.
   desktop-macos:

@@ -66,6 +66,7 @@ async function createHarness(options: {
     locale: options.locale ?? 'en',
     updates: {
       isPackaged: options.packaged ?? true,
+      updatePlatform: 'win32',
       currentVersion: '2.0.0',
       statePath,
       canDownload: options.canDownload ?? true,

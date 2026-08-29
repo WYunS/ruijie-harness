@@ -1,8 +1,8 @@
 # 锐捷 Harness 版本发布指南
 
-本指南用于在 1Panel 中发布锐捷 Harness 的 Windows 和 macOS 安装包。以下以从 `2.1.0` 发布到 `2.1.1` 为例；后续版本替换版本号和安装包即可。
+本指南用于在 1Panel 中发布锐捷 Harness 的 Windows 和 macOS 安装包。同一个入口支持仅 Windows、仅 macOS 或两者一起发布，官网两边版本号允许不同。
 
-`2.1.0` 是首次包含自动更新能力的桥接版本。已经安装 `2.1.0` 的用户可以收到 `2.1.1` 更新提示；`2.0.9` 及更早版本不能远程补上自动更新能力，仍需从网页手动安装一次新版。
+`2.1.0` 使用两平台共用的旧更新接口。第一个包含“平台独立更新”源码的版本（以下以 `2.1.1` 为例）必须让 Windows 和 macOS 同版本共同发布一次，完成桥接；从再下一版开始才能安全地分开发布。
 
 ## 固定信息与安全边界
 
@@ -11,7 +11,9 @@
 - 安装包上传目录：`/data/code/codex/deepseek_app/upload`
 - 线上文件目录：`/data/code/codex/deepseek_app/site`
 - 历史备份目录：`/data/code/codex/deepseek_app/bak`
-- 自动更新版本接口：`https://gptauth.ruijie.com.cn/harness/api/desktop/version`
+- Windows 版本接口：`https://gptauth.ruijie.com.cn/harness/api/desktop/version/windows`
+- macOS 版本接口：`https://gptauth.ruijie.com.cn/harness/api/desktop/version/mac`
+- 旧客户端兼容接口：`https://gptauth.ruijie.com.cn/harness/api/desktop/version`
 - Windows 自动更新入口：`https://gptauth.ruijie.com.cn/harness/api/downloads/windows`
 - macOS 自动更新入口：`https://gptauth.ruijie.com.cn/harness/api/downloads/mac`
 - macOS 终端安装入口：`https://gptauth.ruijie.com.cn/harness/install.sh`
@@ -21,22 +23,22 @@
 
 macOS 安装包必须是同时支持 Intel `x86_64` 与 Apple Silicon `arm64` 的 universal DMG。网页直接下载、应用内更新和 curl 安装都必须使用同一份 DMG。
 
-## 一、准备 2.1.1 安装包
+## 一、准备安装包
 
-先把产品版本改为 `2.1.1`，完成源码提交、Windows 打包、macOS universal 打包及对应验收。准备两个来自同一业务源码版本的安装包：
+首次桥接时，先把产品版本改为 `2.1.1`，完成源码提交、Windows 打包、macOS universal 打包及对应验收，并准备同版本的两个安装包：
 
 ```text
 Ruijie-Harness-2.1.1-x64-Setup.exe
 Ruijie-Harness-2.1.1-macOS-universal.dmg
 ```
 
-发布前必须记录两个文件的绝对路径、字节数和 SHA-256，并确认：
+发布前必须记录本次所选文件的绝对路径、字节数和 SHA-256；桥接版需要记录两个文件，并确认：
 
-- 文件名均包含完全相同的三段式版本号 `2.1.1`；
+- 桥接发布时文件名均包含完全相同的三段式版本号 `2.1.1`；桥接完成后的普通发布允许两个平台版本不同；
 - EXE 具有 `MZ`/PE 文件头；
 - DMG 具有有效 UDIF 结尾，构建清单标明 `universal (x86_64 + arm64)`；
 - 两个平台使用同一业务源码，不允许内容不同的安装包复用旧版本号；
-- Windows 和 macOS 的安装包都已准备好，不能只发布一个平台；
+- 仅发布某个平台时，只准备该平台安装包即可；
 - 不要把安装包上传到 `codex_app`。
 
 已经对外发布过的版本号不能重复使用。如果 `2.1.1` 发布后又修改了产品代码，必须升级为 `2.1.2` 并重新打包，否则已安装的 `2.1.1` 不会发现“同版本的新文件”。
@@ -64,7 +66,9 @@ bash /data/code/codex/harness_deploy/publish-harness-release.sh
 Stage 1/5 · Upload installers in 1Panel
 ```
 
-## 四、上传 EXE 和 DMG
+按提示选择：`1` 仅 Windows、`2` 仅 macOS、`3` 两者一起。首次桥接版必须选择 `3`，且两个安装包版本相同。
+
+## 四、上传所选平台安装包
 
 在 1Panel 中另行打开“文件”，进入：
 
@@ -72,22 +76,22 @@ Stage 1/5 · Upload installers in 1Panel
 /data/code/codex/deepseek_app/upload
 ```
 
-上传本次 `2.1.1` 的 EXE 和 DMG。如果存在相同文件名，确认本次确实要替换后选择覆盖。等待两个文件都显示上传完成，再回到终端按 Enter。
+只上传本次选择的平台文件；选择两者一起时再上传 EXE 和 DMG。若存在相同文件名，确认本次确实要替换后选择覆盖。等待所选文件全部显示上传完成，再回到终端按 Enter。
 
-向导会列出识别到的 Windows 和 macOS 文件，并询问：
+向导会列出识别到的所选文件，并询问：
 
 ```text
-Use these two files? [y/N]
+Use the file(s) shown above? [y/N]
 ```
 
-逐字核对两个文件名均为 `2.1.1`，正确后输入 `y`。
+逐字核对文件名和平台，正确后输入 `y`。单平台发布不会读取或改动另一个平台。
 
 ## 五、确认发布
 
 向导会检查：
 
 - EXE 和 DMG 是普通文件而不是链接；
-- 两个文件名中的版本号一致；
+- 文件名包含有效三段式版本号；双平台普通发布可不同，首次桥接必须相同；
 - 文件格式和大小合理；
 - 磁盘空间足以完成备份和原子发布；
 - 本地 SHA-256 可正常计算；
@@ -97,10 +101,10 @@ Use these two files? [y/N]
 随后会显示两个 SHA-256，并询问：
 
 ```text
-Publish version 2.1.1 after creating a backup? [y/N]
+Publish the selected platform release(s) after creating a backup? [y/N]
 ```
 
-再次与打包机记录核对。完全一致后输入 `y`。向导会先更新两个安装包和网页，最后才切换版本 JSON。看到下面内容才表示发布成功：
+再次与打包机记录核对。完全一致后输入 `y`。向导只更新所选平台的安装包、清单、下载口和版本口；未选择的平台保持原样。看到下面内容才表示发布成功：
 
 ```text
 Setup complete
@@ -122,7 +126,7 @@ Setup complete
 /data/code/codex/deepseek_app/bak/20260901T080000Z-before-2.1.1/
 ```
 
-该目录保存发布前的 `2.1.0`。不要手动删除 `bak` 中的历史备份。发布成功后，上传暂存目录中的本次 EXE 和 DMG 会被向导清理。
+该目录保存发布前的完整站点，因此也包含未选择平台原来的版本。不要手动删除 `bak` 中的历史备份。发布成功后，只会清理本次所选的上传文件。
 
 ## 七、页面和下载入口
 
@@ -147,13 +151,13 @@ macOS curl 命令固定为：
 curl -fsSL https://gptauth.ruijie.com.cn/harness/install.sh | bash
 ```
 
-该脚本会下载当前 macOS DMG、校验 DMG 和应用 bundle id，并安装或覆盖 `/Applications/锐捷 Harness.app`。运行前必须退出锐捷 Harness；没有写权限时会请求 Mac 管理员密码。内部 DMG 未签名、未公证，首次启动可能仍需在 Finder 中右键选择“打开”。脚本不会关闭 Gatekeeper，也不会静默绕过系统安全策略。
+该脚本会下载当前 macOS DMG、校验 DMG 和应用 bundle id，并安装或覆盖 `/Applications/锐捷 Harness.app`。运行前必须退出锐捷 Harness；没有写权限时会请求 Mac 管理员密码。内部 DMG 使用完整 ad-hoc 签名但未公证，首次启动可能仍需在 Finder 中右键选择“打开”。脚本不会关闭 Gatekeeper，也不会静默绕过系统安全策略。
 
 ## 八、两类用户如何升级
 
 ### A. 已安装 2.1.0 的用户
 
-`2.1.0` 启动约 60 秒后会检查版本接口，此后约每 6 小时检查一次。也可以从托盘选择“检查更新…”立即检查。
+`2.1.0` 仍读取旧公共版本接口，因此它只能先升级到 Windows/macOS 同版本共同发布的桥接版。桥接版客户端会按自身平台读取独立版本接口，此后两个平台可以收到不同版本。
 
 发现 `2.1.1` 后只会提示，不会强迫更新：
 
@@ -184,6 +188,8 @@ curl -sS -o /dev/null -w 'harness_http=%{http_code}\n' https://gptauth.ruijie.co
 
 ```bash
 curl -fsS https://gptauth.ruijie.com.cn/harness/api/desktop/version
+curl -fsS https://gptauth.ruijie.com.cn/harness/api/desktop/version/windows
+curl -fsS https://gptauth.ruijie.com.cn/harness/api/desktop/version/mac
 curl -fsSI https://gptauth.ruijie.com.cn/harness/api/downloads/windows
 curl -fsSI https://gptauth.ruijie.com.cn/harness/api/downloads/mac
 curl -fsSL https://gptauth.ruijie.com.cn/harness/install.sh | head -n 1
@@ -191,7 +197,8 @@ curl -fsSL https://gptauth.ruijie.com.cn/harness/install.sh | head -n 1
 
 预期：
 
-- 版本接口返回 `{"version":"2.1.1"}` 和 `application/json`；
+- Windows/macOS 版本接口分别返回各自当前版本和 `application/json`，版本号允许不同；
+- 旧兼容接口保持最后一次同版本桥接发布的版本号；
 - Windows 接口返回 `200`、`application/octet-stream` 和本版 EXE 的准确大小；
 - macOS 接口返回 `200`、`application/octet-stream` 和本版 DMG 的准确大小；
 - `install.sh` 第一行为 `#!/bin/bash`；
@@ -223,4 +230,4 @@ curl -fsSL https://gptauth.ruijie.com.cn/harness/install.sh | head -n 1
 - 不要自行删除备份、修改 CodeX、重启服务器或 containerd。
 - 发布完成后可以关闭 1Panel 和本地电脑；服务器由 systemd 自启动并持续提供网站和下载。
 
-以后发布 `2.1.2`、`2.2.0` 等版本，重复上述流程即可，不需要重新配置域名、Ingress、端口或 systemd 服务。
+桥接版完成后，后续可选择单独发布 Windows、单独发布 macOS 或两者一起；两者一起时版本也可不同。不需要重新配置域名、Ingress、端口或 systemd 服务。

@@ -1,7 +1,13 @@
 /** Headless version checks against the public DSH Desktop release service. */
 
-/** Public endpoint returning the latest stable DSH Desktop version. */
-export const DESKTOP_VERSION_ENDPOINT = 'https://gptauth.ruijie.com.cn/harness/api/desktop/version'
+/** Desktop platforms with independently published stable versions. */
+export type DesktopUpdatePlatform = 'darwin' | 'win32'
+
+/** Public endpoints returning the latest stable version for each desktop platform. */
+export const DESKTOP_VERSION_ENDPOINTS: Readonly<Record<DesktopUpdatePlatform, string>> = {
+  darwin: 'https://gptauth.ruijie.com.cn/harness/api/desktop/version/mac',
+  win32: 'https://gptauth.ruijie.com.cn/harness/api/desktop/version/windows',
+}
 
 /** Maximum response body bytes accepted from the version service. */
 export const MAX_VERSION_RESPONSE_BYTES = 4 * 1024
@@ -27,6 +33,8 @@ export type UpdateRequest = (url: string, init: RequestInit) => Promise<Response
 
 /** Inputs for one stable version check. */
 export interface UpdateCheckOptions {
+  /** Running desktop platform, used to select its independent release channel. */
+  readonly platform: DesktopUpdatePlatform
   /** Installed application version, expressed as canonical stable SemVer. */
   readonly currentVersion: string
   /** Caller-owned cancellation signal; the checker does not create its own timeout. */
@@ -106,7 +114,7 @@ export async function checkForStableUpdate(
 
   let response: Response
   try {
-    response = await request(DESKTOP_VERSION_ENDPOINT, init)
+    response = await request(DESKTOP_VERSION_ENDPOINTS[options.platform], init)
   } catch {
     return null
   }

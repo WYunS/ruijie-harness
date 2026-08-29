@@ -11,7 +11,7 @@ current_step='初始化'
 report_error() {
   local status=$?
   trap - ERR
-  echo "错误：安装失败（步骤：$current_step，错误码：$status）。" >&2
+  echo "错误：安装失败（步骤：${current_step}，错误码：${status}）。" >&2
   exit "$status"
 }
 trap 'report_error' ERR
@@ -52,7 +52,30 @@ trap cleanup EXIT INT TERM
 
 echo '正在下载锐捷 Harness…'
 current_step='下载安装包'
-curl --fail --location --show-error --progress-bar --output "$dmg_path" "$DOWNLOAD_URL"
+download_attempt=1
+download_status=0
+while :; do
+  if [[ "$download_attempt" -eq 1 ]]; then
+    if curl --fail --location --show-error --progress-bar --output "$dmg_path" "$DOWNLOAD_URL"; then
+      break
+    else
+      download_status=$?
+    fi
+  else
+    if curl --fail --location --show-error --progress-bar --continue-at - --output "$dmg_path" "$DOWNLOAD_URL"; then
+      break
+    else
+      download_status=$?
+    fi
+  fi
+  if [[ "$download_attempt" -ge 3 ]]; then
+    echo "错误：下载失败（已尝试 ${download_attempt} 次，错误码：${download_status}）。请检查网络后重新执行命令。" >&2
+    exit "$download_status"
+  fi
+  download_attempt=$((download_attempt + 1))
+  echo "连接中断，2 秒后继续下载（第 ${download_attempt}/3 次）…"
+  sleep 2
+done
 echo '下载完成，正在校验安装包…'
 current_step='校验安装包'
 hdiutil verify "$dmg_path" >/dev/null 2>&1
@@ -67,7 +90,7 @@ fi
 
 source_app="$mount_point/$APP_NAME"
 if [[ ! -d "$source_app" ]]; then
-  echo "错误：DMG 中没有找到 $APP_NAME。" >&2
+  echo "错误：DMG 中没有找到 ${APP_NAME}。" >&2
   exit 1
 fi
 

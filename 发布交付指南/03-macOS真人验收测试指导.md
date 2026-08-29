@@ -1,5 +1,7 @@
 # 锐捷 Harness macOS 真人验收测试指导
 
+涉及 macOS 签名状态、TCC、Files and Folders、`Allow` 循环、`Failed to match existing code requirement` 或跨版本覆盖时，必须先完整读取同目录的 `macOS代码签名与TCC身份策略.md`；本文件只负责用最终 DMG 证明真实用户行为。
+
 用途：交给完全不了解项目上下文的大模型或测试人员，对最终 DMG 安装出的应用做接近真实同事使用方式的验收，并给出可追溯的阶段放行或阻断结论。本文件只负责完成本轮验收、定位失败性质、输出报告和作出判定；产品源码、分支和重新打包属于获得用户确认后的下一轮工作，不能在本轮验收中直接执行。
 
 ## 1. 唯一位置与测试对象
@@ -118,12 +120,13 @@ GitHub macOS runner 会挂载 DMG、复制最终 `.app`，在隔离的 `DSH_HOME
 ### 4.1 安装与首次启动
 
 1. 校验 DMG SHA-256。
-2. 安装到 Applications；未签名内部版用 Finder 右键“打开”。只有确认哈希正确仍被拦截时，才执行 `xattr -dr com.apple.quarantine "/Applications/锐捷 Harness.app"`。
-3. 使用从未运行过本产品的测试账户启动。
-4. 确认没有欢迎页、视图模式或模型选择新手引导。
-5. 默认语言跟随 macOS；用户切换语言后立即生效并在重启后保持。
-6. 在 Finder、Applications、Launchpad、Dock 和应用切换器检查主应用均显示紫色 RJ；另外必须实际观察 DMG 窗口标题栏的卷小图标、把 `.app` 拖入 Applications 时复制进度框的小图标，以及 Finder “应用程序”列表的 16/32 像素小图标，三处都必须是清晰的紫色 RJ，不能只依据 DMG 内的大图标放行。菜单栏检查黑白 RJ Template 图标在浅色、深色外观下均清晰并随系统反色。菜单栏黑白是 macOS 正确规范，不得误报为主品牌图标缺失；上述位置出现旧图标、Electron 默认图标或主应用黑白图标均算失败。
-7. 图标验收使用新版本号生成的新 DMG，先弹出所有旧卷再挂载。若自动门禁已证明 `app.icns` 和 `.VolumeIcon.icns` 全部槽位正确，但某台机器仍显示旧图，记录截图和系统版本，重启 Finder 后再验。重启后仍错误则阻断，不得将“缓存”当作无证据的豁免理由。
+2. 安装到 Applications；ad-hoc 签名但未公证的内部版首次启动使用 Finder 右键“打开”。只有确认哈希和签名审计正确仍被拦截时，才执行 `xattr -dr com.apple.quarantine "/Applications/锐捷 Harness.app"`。
+3. 对安装副本执行 `codesign --verify --deep --strict --verbose=2`、`codesign -dv --verbose=4` 和 `codesign -dr -`；必须看到 Bundle ID `cn.com.ruijie.dsh.desktop`、`Signature=adhoc`、`TeamIdentifier=not set` 和 designated requirement，并与 Artifact 的 `SIGNATURE-AUDIT.txt` 一致。
+4. 使用从未运行过本产品的测试账户启动。
+5. 确认没有欢迎页、视图模式或模型选择新手引导。
+6. 默认语言跟随 macOS；用户切换语言后立即生效并在重启后保持。
+7. 在 Finder、Applications、Launchpad、Dock 和应用切换器检查主应用均显示紫色 RJ；另外必须实际观察 DMG 窗口标题栏的卷小图标、把 `.app` 拖入 Applications 时复制进度框的小图标，以及 Finder “应用程序”列表的 16/32 像素小图标，三处都必须是清晰的紫色 RJ，不能只依据 DMG 内的大图标放行。菜单栏检查黑白 RJ Template 图标在浅色、深色外观下均清晰并随系统反色。菜单栏黑白是 macOS 正确规范，不得误报为主品牌图标缺失；上述位置出现旧图标、Electron 默认图标或主应用黑白图标均算失败。
+8. 图标验收使用新版本号生成的新 DMG，先弹出所有旧卷再挂载。若自动门禁已证明 `app.icns` 和 `.VolumeIcon.icns` 全部槽位正确，但某台机器仍显示旧图，记录截图和系统版本，重启 Finder 后再验。重启后仍错误则阻断，不得将“缓存”当作无证据的豁免理由。
 
 ### 4.2 登录、工作区、会话与模型
 
@@ -157,11 +160,11 @@ GitHub macOS runner 会挂载 DMG、复制最终 `.app`，在隔离的 `DSH_HOME
    操作时同步观察 Host 日志或开发者网络记录：`POST /_dsh/desktop/pick-directory` 必须命中应用注册的路由并返回 200；若返回 404、405、其他非 2xx，或界面显示 `DSH Desktop could not open the system folder picker`，立即判为发布阻断。不得用 `xattr`、`tccutil`、完全磁盘访问、清缓存或重装尝试“修好”这类路由错误。
 3. **受保护目录允许路径**：分别主动选择 Downloads、Documents、Desktop；条件允许时再测 iCloud Drive。每个选择动作允许零次或最多一次系统权限提示。若出现提示，只点击一次 `Allow`，随后必须创建工作区、打开 Files、新建会话并读写测试文件，不能再弹同目录权限框、再次打开选择器或要求第二次操作。
 4. **拒绝和取消路径**：分别取消目录选择器、在系统提示点击拒绝。应用必须立即回到可操作状态，路径不进入工作区列表；持续观察 60 秒并隐藏/恢复窗口，选择器和权限框均不得自动重开。随后主动选择其他正常目录仍应一次成功，证明失败没有把流程锁死。
-5. **旧版升级路径**：准备一个真实 `2.1.0` 测试 profile，其中至少 10 个历史会话的 cwd 都指向同一个受保护目录，再覆盖安装本版并首次启动。观察整个启动过程：该目录最多触发一次系统授权，点击一次 `Allow` 后继续进入工作台；不得按会话数量连续弹窗。拒绝版本也必须在一次失败后停止，不能对余下九个会话继续请求。保留登录、历史会话和设置，不允许通过删除 profile 重新测来绕开升级问题。
+5. **旧版升级路径**：准备真实 `2.1.1` 安装和 profile，其中至少 10 个历史会话的 cwd 都指向同一个受保护目录；不清 TCC，覆盖安装本版并首次启动。观察整个启动过程：该目录最多触发一次系统授权，点击一次 `Allow` 后继续进入工作台；不得按会话数量连续弹窗。拒绝版本也必须在一次失败后停止，不能对余下九个会话继续请求。保留登录、历史会话和设置，不允许通过删除 profile 重新测来绕开升级问题。
 6. **退出收口**：在选择器打开、系统权限提示结束、允许成功和拒绝失败四种状态分别执行 `⌘Q` 或应用菜单“退出”。应用退出后不得残留锐捷 Harness 进程、选择器或权限框；重新启动只按新的用户主动动作工作，不回放上次取消/失败请求。
-7. **连续证据**：每条保存不中断的屏幕录像、起止时间、应用版本、DMG SHA-256、macOS 版本、CPU、测试 profile 类型及必要日志。录像必须看得出一次用户点击对应多少选择器和权限框；只截最终工作台图片不能证明没有循环弹窗。
+7. **连续证据**：开始操作前另开终端执行 `log stream --style compact --info --predicate 'process == "tccd"' | tee ~/Desktop/ruijie-harness-tcc.log`。每条保存不中断的屏幕录像、起止时间、应用版本、DMG SHA-256、macOS 版本、CPU、测试 profile 类型、`SIGNATURE-AUDIT.txt` 及 TCC 日志。录像必须看得出一次用户点击对应多少选择器和权限框；只截最终工作台图片不能证明没有循环弹窗。日志中不得再出现与 `cn.com.ruijie.dsh.desktop` 对应的 `Failed to match existing code requirement`。
 
-判定只有两种：上述各路径全部符合则本节通过；出现第二个系统 `Allow`、第二个选择器、自动重试、隐藏后继续弹、退出后残留、必须清浏览器/应用缓存、删除 `~/.dsh`、运行 `tccutil`、进入系统设置或强制结束进程中的任一项，本节立即失败并阻断 2.1.1 内部上线。不得把人工清理后的成功结果覆盖首次失败证据。
+判定只有两种：上述各路径全部符合则本节通过；出现第二个系统 `Allow`、第二个选择器、自动重试、隐藏后继续弹、退出后残留、requirement mismatch、必须清浏览器/应用缓存、删除 `~/.dsh`、运行 `tccutil`、进入系统设置或强制结束进程中的任一项，本节立即失败并阻断本版内部上线。不得把人工清理后的成功结果覆盖首次失败证据。
 
 必须区分三类失败并分别记录：非 2xx 或英文 picker 错误属于客户端—Host 路由接线；出现一次系统 `Allow` 属于正常 TCC 边界；同一动作出现第二次及更多 `Allow` 属于应用重复请求或身份稳定性风险。前一类必须修源码并重打，后一类必须以连续录像和应用/系统日志定位，二者都不能互相替代解释。
 
@@ -240,9 +243,9 @@ GitHub macOS runner 会挂载 DMG、复制最终 `.app`，在隔离的 `DSH_HOME
    curl -fsSL https://gptauth.ruijie.com.cn/harness/install.sh | bash
    ```
 
-   脚本必须下载当前 DMG、通过 DMG 与 bundle id 校验、安装到 `/Applications/锐捷 Harness.app`，并在无写权限时正常请求管理员密码。应用仍在运行、DMG 损坏、bundle id 不符或复制失败时必须拒绝或恢复旧应用，不能留下半个 `.app`。脚本不得清除 quarantine 或关闭 Gatekeeper；未签名内部版首次启动仍使用 Finder 右键“打开”。
+   脚本必须下载当前 DMG、通过 DMG 与 bundle id 校验、安装到 `/Applications/锐捷 Harness.app`，并在无写权限时正常请求管理员密码。应用仍在运行、DMG 损坏、bundle id 不符或复制失败时必须拒绝或恢复旧应用，不能留下半个 `.app`。脚本不得清除 quarantine 或关闭 Gatekeeper；ad-hoc 签名但未公证的内部版首次启动仍使用 Finder 右键“打开”。
 
-通过条件：更新发现和拒绝路径不骚扰用户；接受后自动下载并打开正确 DMG；人工覆盖或 curl 安装后版本和用户数据正确；三个线上入口不会跨平台错版。macOS 未签名内部版不得描述为完全静默自动安装。
+通过条件：更新发现和拒绝路径不骚扰用户；接受后自动下载并打开正确 DMG；人工覆盖或 curl 安装后版本和用户数据正确；三个线上入口不会跨平台错版。macOS ad-hoc 签名、未公证内部版不得描述为完全静默自动安装。
 
 ## 5. 结果与阶段放行判定
 

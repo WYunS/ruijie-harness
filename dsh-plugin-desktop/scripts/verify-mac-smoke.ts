@@ -1,11 +1,12 @@
-/** Verify the unsigned application structure sealed inside one macOS smoke DMG. */
+/** Verify the ad-hoc signed application structure sealed inside one macOS smoke DMG. */
 
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readdirSync, rmdirSync, statSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, rmdirSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { MACOS_UNIVERSAL_NATIVE_ENTRIES } from './mac-universal.ts'
+import { listMachOPaths } from './sign-mac-internal.ts'
 
 /** Injectable filesystem and command boundaries for smoke verification. */
 export interface MacSmokeVerificationOptions {
@@ -25,6 +26,14 @@ export interface MacSmokeVerificationOptions {
   readonly makeMountPoint: () => string
   /** Execute one macOS verification command. */
   readonly run: (command: string, args: readonly string[]) => void
+  /** Return every physical Mach-O path in the mounted application. */
+  readonly listMachOPaths: (appPath: string) => readonly string[]
+  /** Read codesign display output for the mounted outer application. */
+  readonly readSignatureDetails: (appPath: string) => string
+  /** Read the mounted outer application's designated requirement. */
+  readonly readDesignatedRequirement: (appPath: string) => string
+  /** Persist the signature audit beside the candidate DMG. */
+  readonly writeSignatureAudit: (path: string, content: string) => void
   /** Remove the detached empty mount point. */
   readonly removeMountPoint: (mountPoint: string) => void
   /** Probe a physical path inside the mounted application. */
@@ -52,6 +61,17 @@ function run(command: string, args: readonly string[]): void {
   }
 }
 
+function capture(command: string, args: readonly string[]): string {
+  const result = spawnSync(command, args, { encoding: 'utf8' })
+  if (result.error !== undefined) throw result.error
+  if (result.status !== 0) {
+    throw new Error(
+      `${command} ${args.join(' ')} exited with ${String(result.status)}: ${result.stderr || result.stdout}`,
+    )
+  }
+  return `${result.stdout}${result.stderr}`.trim()
+}
+
 function defaultOptions(): MacSmokeVerificationOptions {
   const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
   return {
@@ -65,6 +85,10 @@ function defaultOptions(): MacSmokeVerificationOptions {
     listDmgs,
     makeMountPoint: () => mkdtempSync(join(tmpdir(), 'dsh-desktop-dmg-smoke-')),
     run,
+    listMachOPaths,
+    readSignatureDetails: appPath => capture('codesign', ['-dv', '--verbose=4', appPath]),
+    readDesignatedRequirement: appPath => capture('codesign', ['-dr', '-', appPath]),
+    writeSignatureAudit: (path, content) => writeFileSync(path, content, 'utf8'),
     removeMountPoint: mountPoint => rmdirSync(mountPoint),
     exists: existsSync,
     stat: path => {
@@ -75,9 +99,8 @@ function defaultOptions(): MacSmokeVerificationOptions {
 }
 
 /**
- * Mount and verify the application structure of the unique smoke DMG without
- * requiring code-signing material: signature, Gatekeeper, and stapler checks
- * remain exclusive to the signed release verification.
+ * Mount and verify the application structure and complete ad-hoc signature of
+ * the unique internal DMG. Gatekeeper and stapler remain Developer ID release checks.
  * @param options - Filesystem and command boundaries.
  * @returns The verified DMG and application paths.
  */
@@ -157,6 +180,48 @@ export function verifyMacSmoke(
       }
       options.run('lipo', [nativePath, '-verify_arch', entry.arch])
     }
+
+    const machOPaths = options.listMachOPaths(appPath)
+    if (machOPaths.length === 0) {
+      throw new Error(`packaged application contains no Mach-O code: ${appPath}`)
+    }
+    for (const codePath of machOPaths) {
+      options.run('codesign', ['--verify', '--strict', '--verbose=2', codePath])
+    }
+    options.run('codesign', ['--verify', '--deep', '--strict', '--verbose=2', appPath])
+
+    const signatureDetails = options.readSignatureDetails(appPath)
+    if (!/^Signature=adhoc$/mu.test(signatureDetails)) {
+      throw new Error(`packaged application does not have the required ad-hoc signature:\n${signatureDetails}`)
+    }
+    if (!/^Identifier=cn\.com\.ruijie\.dsh\.desktop$/mu.test(signatureDetails)) {
+      throw new Error(`packaged application has the wrong signing identifier:\n${signatureDetails}`)
+    }
+    if (!/^TeamIdentifier=not set$/mu.test(signatureDetails)) {
+      throw new Error(`packaged ad-hoc application unexpectedly has a team identity:\n${signatureDetails}`)
+    }
+    const designatedRequirement = options.readDesignatedRequirement(appPath)
+    if (!/designated\s*=>/u.test(designatedRequirement)) {
+      throw new Error(`packaged application has no designated requirement:\n${designatedRequirement}`)
+    }
+    const audit = [
+      `dmg=${basename(dmgPath)}`,
+      `bundle_id=cn.com.ruijie.dsh.desktop`,
+      'signing=ad-hoc',
+      'notarization=disabled',
+      `mach_o_count=${String(machOPaths.length)}`,
+      '',
+      '[codesign-details]',
+      signatureDetails,
+      '',
+      '[designated-requirement]',
+      designatedRequirement,
+      '',
+      '[verified-mach-o]',
+      ...machOPaths.map(path => path.slice(appPath.length + 1)),
+      '',
+    ].join('\n')
+    options.writeSignatureAudit(join(options.distDir, 'SIGNATURE-AUDIT.txt'), audit)
   } catch (cause) {
     failure = cause
   }

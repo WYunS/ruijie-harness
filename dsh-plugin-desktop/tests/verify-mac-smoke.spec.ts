@@ -62,6 +62,14 @@ function options(
     listDmgs: () => ['/release/dist/DSH Desktop-2.0.1.dmg'],
     makeMountPoint: () => '/private/tmp/dsh-desktop-dmg-smoke-test',
     run: (command, args) => { calls.push({ command, args: [...args] }) },
+    listMachOPaths: appPath => [join(appPath, 'Contents', 'MacOS', 'DSH Desktop')],
+    readSignatureDetails: () => [
+      'Identifier=cn.com.ruijie.dsh.desktop',
+      'Signature=adhoc',
+      'TeamIdentifier=not set',
+    ].join('\n'),
+    readDesignatedRequirement: () => 'designated => identifier "cn.com.ruijie.dsh.desktop"',
+    writeSignatureAudit: () => undefined,
     removeMountPoint,
     exists: existsSync,
     stat: path => {
@@ -98,7 +106,7 @@ function expectSmokeFailure(
 }
 
 describe('macOS DMG smoke artifact verification', () => {
-  it('mounts one DMG and accepts a well-formed unsigned application bundle', () => {
+  it('mounts one DMG and accepts a well-formed ad-hoc signed application bundle', () => {
     const value = fixture()
     const harness = options({ makeMountPoint: () => value.root }, value.modeOverrides)
     const appPath = join(value.root, 'DSH Desktop.app')
@@ -135,9 +143,27 @@ describe('macOS DMG smoke artifact verification', () => {
         command: 'lipo',
         args: [join(`${value.appAsar}.unpacked`, entry.path), '-verify_arch', entry.arch],
       })),
+      {
+        command: 'codesign',
+        args: ['--verify', '--strict', '--verbose=2', value.executable],
+      },
+      {
+        command: 'codesign',
+        args: ['--verify', '--deep', '--strict', '--verbose=2', appPath],
+      },
       { command: 'hdiutil', args: ['detach', value.root] },
     ])
     expect(harness.removeMountPoint).toHaveBeenCalledWith(value.root)
+  })
+
+  it('rejects a mounted app whose signature is still unsigned', () => {
+    const value = fixture()
+    const harness = options({
+      makeMountPoint: () => value.root,
+      readSignatureDetails: () => 'code object is not signed at all',
+    }, value.modeOverrides)
+
+    expectSmokeFailure(harness, 'ad-hoc signature')
   })
 
   it('rejects the mount when no DMG is present', () => {

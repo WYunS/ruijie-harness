@@ -1,4 +1,4 @@
-/** Build the unsigned internal macOS DMG on a native macOS host. */
+/** Build the ad-hoc signed internal macOS DMG on a native macOS host. */
 
 import { spawnSync } from 'node:child_process'
 import { rmSync } from 'node:fs'
@@ -88,7 +88,7 @@ function defaultOptions(): MacInternalPackageOptions {
 }
 
 /**
- * Run the headless release gates and package one installable unsigned macOS DMG.
+ * Run the headless release gates and package one installable ad-hoc signed macOS DMG.
  *
  * The signed and notarized release stays a manual step on a credentialed
  * machine. This internal distribution deliberately omits Apple credentials
@@ -113,7 +113,7 @@ export function packageMacInternal(options: MacInternalPackageOptions = defaultO
   }
 
   const cleanEnvironment = withoutMacReleaseSecrets(options.env)
-  options.log('Building the installable unsigned internal macOS DMG without Apple credentials or notarization.')
+  options.log('Building the installable ad-hoc signed internal macOS DMG without Apple credentials or notarization.')
   if (options.env.DSH_PACKAGE_CHECK_ALREADY_RAN !== '1') {
     options.run(
       'corepack',
@@ -143,6 +143,7 @@ export function packageMacInternal(options: MacInternalPackageOptions = defaultO
       'never',
       '--config.mac.notarize=false',
       '--config.npmRebuild=false',
+      '--config.afterPack=./scripts/sign-mac-internal.ts',
       `--config.directories.output=${options.outputDir}`,
     ],
     options.desktopRoot,

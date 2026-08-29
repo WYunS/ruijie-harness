@@ -125,6 +125,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
     this.updates = {
       get isPackaged() { return app.isPackaged },
       get canDownload() { return app.isPackaged && platformStrategy.updateDownloadPlatform !== undefined },
+      get updatePlatform() { return platformStrategy.updateDownloadPlatform },
       get currentVersion() { return PRODUCT_VERSION },
       get statePath() { return join(app.getPath('userData'), 'updates', 'state.json') },
       request: (url, init) => net.fetch(url, init),

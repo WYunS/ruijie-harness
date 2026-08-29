@@ -1377,6 +1377,7 @@ describe('Electron desktop runtime', () => {
     expect(runtime.updates).toMatchObject({
       isPackaged: false,
       canDownload: false,
+      updatePlatform: 'darwin',
       currentVersion: desktopVersion,
       statePath: join('/tmp/dsh-desktop-user-data', 'updates', 'state.json'),
     })
