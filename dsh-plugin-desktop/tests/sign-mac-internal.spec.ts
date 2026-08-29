@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { signMacInternalApp } from '../scripts/sign-mac-internal.ts'
+import { afterPack, signMacInternalApp } from '../scripts/sign-mac-internal.ts'
 
 const roots: string[] = []
 
@@ -16,6 +16,15 @@ afterEach(() => {
 })
 
 describe('internal macOS ad-hoc signing', () => {
+  it.each([1, 3])('skips the temporary architecture %s before universal merging', async (arch) => {
+    await expect(afterPack({
+      appOutDir: '/temporary-app-that-must-not-be-read',
+      arch,
+      electronPlatformName: 'darwin',
+      packager: { appInfo: { productFilename: '锐捷 Harness' } },
+    })).resolves.toBeUndefined()
+  })
+
   it('signs Mach-O files and nested bundles inside-out before sealing the app', () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-mac-sign-'))
     roots.push(root)

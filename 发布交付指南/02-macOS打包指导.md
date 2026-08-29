@@ -211,8 +211,8 @@ gh workflow run macos-internal-build.yml --repo WYunS/ruijie-harness --ref main 
 2. 安装并锁定依赖。
 3. 完整代码门禁和 sidebar 连续性测试。
 4. 准备并校验 x86_64、arm64 两套原生依赖。
-5. 对真实 Mach-O 与嵌套代码 Bundle 从内到外完成 ad-hoc 签名，最后封装主 App。
-6. 生成 universal DMG，挂载最终镜像并逐个验签；输出 `SIGNATURE-AUDIT.txt`，其中 Mach-O 数量必须大于零且无验签遗漏。
+5. 先合并 x64 与 arm64 临时 App；临时 App 禁止预先签名，避免两份 `_CodeSignature/CodeResources` 不一致而阻断 universal 合并。
+6. 仅对合并后的 universal App 内真实 Mach-O 与嵌套代码 Bundle 从内到外完成 ad-hoc 签名，最后封装主 App。生成 DMG 后挂载最终镜像并逐个验签；输出 `SIGNATURE-AUDIT.txt`，其中 Mach-O 数量必须大于零且无验签遗漏。
 7. 复制最终 `.app`，运行固定基线与动态增量的安装后验收。固定基线必须包含登录等待窗的 macOS 原生关闭、时间上下文安装闭包、外观与一键恢复、侧栏 IM 入口与默认休眠、可恢复错误降噪，以及更新插件启用与私有下载路径；不能只测旧版工作台、文件和浏览器基线。
 8. 上传自动验收矩阵、截图、日志、报告、DMG、SHA-256、签名审计和构建清单。
 

@@ -38,7 +38,7 @@
 
 签名实现位于：
 
-- `dsh-plugin-desktop/scripts/sign-mac-internal.ts`：内部 afterPack、Mach-O 枚举、inside-out ad-hoc 封装；
+- `dsh-plugin-desktop/scripts/sign-mac-internal.ts`：内部 afterPack 会跳过单架构临时 App，仅在 universal 合并完成后执行 Mach-O 枚举与 inside-out ad-hoc 封装；
 - `dsh-plugin-desktop/scripts/package-mac.ts`：只为内部构建启用该 Hook；
 - `dsh-plugin-desktop/scripts/verify-mac-smoke.ts`：挂载最终 DMG 后执行签名审计；
 - `.github/workflows/macos-internal-build.yml`：保存 `SIGNATURE-AUDIT.txt` 与准确构建清单。

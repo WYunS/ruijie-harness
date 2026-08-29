@@ -217,7 +217,7 @@ corepack.cmd yarn dist:win-portable
 
 ### macOS DMG 冒烟构建
 
-`yarn dist:mac-internal` 会在原生 macOS 宿主机上构建可安装的完整 ad-hoc 签名、未公证 universal DMG，同一个安装包可以在 Intel 和 Apple Silicon Mac 上原生运行。该命令拒绝非 macOS 宿主，并在打包前运行完整产品 gate 与真实 Electron 侧栏连续性门禁。内部 afterPack Hook 会先对物理 Mach-O 和嵌套代码 Bundle 从内到外签名，再封装主 App；随后挂载最终 DMG，要求每个 Mach-O 和外层 App 通过严格 `codesign` 验证，把 designated requirement 写入 `SIGNATURE-AUDIT.txt`，并检查属性列表、主程序执行权限、两个架构切片、必要的原生运行时、图标及 `app.asar`。它会剥离 Apple 签名与公证凭据、关闭 notarization，并且绝不自动发布。ad-hoc 不等于 Developer ID 或 Apple 公证，换一台 Mac 首次打开时仍可能需要手动通过 Gatekeeper，跨构建升级也可能重新询问一次受保护目录权限。受控的 Developer ID 签名公证发布入口仍为 `yarn dist:mac`，产物写入 `dsh-plugin-desktop/dist/mac-release/`。
+`yarn dist:mac-internal` 会在原生 macOS 宿主机上构建可安装的完整 ad-hoc 签名、未公证 universal DMG，同一个安装包可以在 Intel 和 Apple Silicon Mac 上原生运行。该命令拒绝非 macOS 宿主，并在打包前运行完整产品 gate 与真实 Electron 侧栏连续性门禁。内部 afterPack Hook 会跳过 Electron Builder 用于合并的单架构临时 App，只对合并后的 universal App 内物理 Mach-O 和嵌套代码 Bundle 从内到外签名，再封装主 App；随后挂载最终 DMG，要求每个 Mach-O 和外层 App 通过严格 `codesign` 验证，把 designated requirement 写入 `SIGNATURE-AUDIT.txt`，并检查属性列表、主程序执行权限、两个架构切片、必要的原生运行时、图标及 `app.asar`。它会剥离 Apple 签名与公证凭据、关闭 notarization，并且绝不自动发布。ad-hoc 不等于 Developer ID 或 Apple 公证，换一台 Mac 首次打开时仍可能需要手动通过 Gatekeeper，跨构建升级也可能重新询问一次受保护目录权限。受控的 Developer ID 签名公证发布入口仍为 `yarn dist:mac`，产物写入 `dsh-plugin-desktop/dist/mac-release/`。
 
 ## 模型体验
 

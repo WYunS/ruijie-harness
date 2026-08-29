@@ -144,10 +144,18 @@ export function signMacInternalApp(options: MacInternalSignOptions): MacInternal
 
 /** Electron Builder hook used only by the credential-free internal macOS build. */
 export async function afterPack(context: MacInternalAfterPackContext): Promise<void> {
-  await verifyPackagedRuntime(context)
   if (context.electronPlatformName !== 'darwin') {
     throw new Error(`internal macOS signing received ${JSON.stringify(context.electronPlatformName)}`)
   }
+  // electron-builder invokes afterPack for the temporary x64 and arm64 apps
+  // before merging them. Signing either temporary app creates architecture-specific
+  // CodeResources files and makes @electron/universal reject the merge. Arch 4 is
+  // Electron Builder's stable enum value for the final combined universal app.
+  if (context.arch !== 4) {
+    console.log(`Skipping ad-hoc sealing for temporary macOS architecture ${String(context.arch)}.`)
+    return
+  }
+  await verifyPackagedRuntime(context)
   const appPath = join(
     context.appOutDir,
     `${context.packager.appInfo.productFilename}.app`,
