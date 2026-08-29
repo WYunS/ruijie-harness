@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
+  loadAuthorizationWithDirectFallback,
   authorizationWindowSize,
   authorizationRecoveryForNavigation,
   RuijieAuthorizationRecovery,
@@ -11,6 +12,38 @@ const main = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8')
 const loginWindow = readFileSync(new URL('../src/ruijie-login-window.ts', import.meta.url), 'utf8')
 
 describe('Ruijie SSO startup presentation', () => {
+  it('keeps the normal system-proxy path and falls back to direct only for network failures', async () => {
+    const normalLoads: string[] = []
+    const normal = await loadAuthorizationWithDirectFallback({
+      loadURL: async url => { normalLoads.push(url) },
+      useDirectProxy: async () => { throw new Error('direct fallback must stay idle') },
+    }, 'https://gptauth.ruijie.com.cn/oauth/authorize?state=normal')
+    expect(normal).toBe('system')
+    expect(normalLoads).toHaveLength(1)
+
+    const fallbackLoads: string[] = []
+    let directSelections = 0
+    const fallback = await loadAuthorizationWithDirectFallback({
+      loadURL: async url => {
+        fallbackLoads.push(url)
+        if (fallbackLoads.length === 1) throw new Error("ERR_TIMED_OUT (-7) loading 'https://gptauth.ruijie.com.cn'")
+      },
+      useDirectProxy: async () => { directSelections += 1 },
+    }, 'https://gptauth.ruijie.com.cn/oauth/authorize?state=fallback')
+    expect(fallback).toBe('direct')
+    expect(fallbackLoads).toHaveLength(2)
+    expect(directSelections).toBe(1)
+  })
+
+  it('does not hide non-network authorization failures behind a direct retry', async () => {
+    let directSelections = 0
+    await expect(loadAuthorizationWithDirectFallback({
+      loadURL: async () => { throw new Error('OAuth state rejected') },
+      useDirectProxy: async () => { directSelections += 1 },
+    }, 'https://gptauth.ruijie.com.cn/oauth/authorize?state=rejected')).rejects.toThrow('OAuth state rejected')
+    expect(directSelections).toBe(0)
+  })
+
   it('keeps a safe restored size for Windows and macOS work areas', () => {
     expect(authorizationWindowSize({ width: 1920, height: 1040 })).toEqual({ width: 920, height: 720 })
     expect(authorizationWindowSize({ width: 1440, height: 875 })).toEqual({ width: 920, height: 720 })
@@ -115,7 +148,8 @@ describe('Ruijie SSO startup presentation', () => {
   })
 
   it('loads OAuth in one controlled window and resumes a dropped transaction without another click', () => {
-    expect(loginWindow).toContain('await window.loadURL(authorizeUrl)')
+    expect(loginWindow).toContain('await loadAuthorizationWithDirectFallback({')
+    expect(loginWindow).toContain('loadURL: async url => { await window.loadURL(url) }')
     expect(loginWindow).toContain("window.webContents.on('did-navigate'")
     expect(loginWindow).toContain("window.webContents.on('did-navigate-in-page'")
     expect(loginWindow).toContain('authorizationRecovery.observe(url)')

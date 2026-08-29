@@ -10,6 +10,30 @@ const SLOW_START_NOTICE_MS = 8_000
 
 type LoginPhase = 'verifying' | 'slow-verifying' | 'starting' | 'slow-start'
 
+export interface RuijieAuthorizationLoader {
+  readonly loadURL: (url: string) => Promise<void>
+  readonly useDirectProxy: () => Promise<void>
+}
+
+const DIRECT_RETRY_NETWORK_ERRORS = /\b(?:ERR_TIMED_OUT|ERR_CONNECTION_CLOSED|ERR_CONNECTION_REFUSED|ERR_INTERNET_DISCONNECTED|ERR_NAME_NOT_RESOLVED|ERR_PROXY_CONNECTION_FAILED|ERR_CONNECTION_TIMED_OUT|ERR_ADDRESS_UNREACHABLE)\b/u
+
+/** Preserve the normal system route and retry once without it only after a transport failure. */
+export async function loadAuthorizationWithDirectFallback(
+  loader: RuijieAuthorizationLoader,
+  authorizeUrl: string,
+): Promise<'system' | 'direct'> {
+  try {
+    await loader.loadURL(authorizeUrl)
+    return 'system'
+  } catch (cause) {
+    const detail = cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause)
+    if (!DIRECT_RETRY_NETWORK_ERRORS.test(detail)) throw cause
+    await loader.useDirectProxy()
+    await loader.loadURL(authorizeUrl)
+    return 'direct'
+  }
+}
+
 /** Keep authentication focused while fitting smaller Windows and macOS work areas. */
 export function authorizationWindowSize(
   workArea: { readonly width: number; readonly height: number },
@@ -191,7 +215,13 @@ export class RuijieLoginWindow {
       this.window = undefined
       if (!this.completed) this.options.onCancel()
     })
-    await window.loadURL(authorizeUrl)
+    await loadAuthorizationWithDirectFallback({
+      loadURL: async url => { await window.loadURL(url) },
+      useDirectProxy: async () => {
+        await window.webContents.session.setProxy({ mode: 'direct' })
+        await window.webContents.session.closeAllConnections()
+      },
+    }, authorizeUrl)
   }
 
   private showPhase(phase: LoginPhase, slowPhase: LoginPhase): void {

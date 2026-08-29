@@ -4,6 +4,7 @@ import type {
 } from '../src/startup-recovery-controller.ts'
 import {
   desktopStartupRecoveryWindowBounds,
+  isDesktopStartupRecoveryDocumentNavigation,
   parseDesktopStartupRecoveryAction,
   renderDesktopStartupRecoveryHtml,
   DesktopStartupRecoveryWindow,
@@ -34,6 +35,17 @@ function viewModel(
 }
 
 describe('Desktop startup recovery document', () => {
+  it('allows only the app-owned data document to load before intercepting recovery actions', () => {
+    const documentUrl = 'data:text/html;charset=utf-8,%3C!doctype%20html%3E'
+    expect(isDesktopStartupRecoveryDocumentNavigation(documentUrl, documentUrl)).toBe(true)
+    expect(isDesktopStartupRecoveryDocumentNavigation(
+      'data:text/html;charset=utf-8,%3Cscript%3Eattacker%3C%2Fscript%3E',
+      documentUrl,
+    )).toBe(false)
+    expect(isDesktopStartupRecoveryDocumentNavigation('https://attacker.example/recovery', documentUrl)).toBe(false)
+    expect(isDesktopStartupRecoveryDocumentNavigation(documentUrl, undefined)).toBe(false)
+  })
+
   it('is a no-script local document with a deny-by-default CSP and a localized stage', () => {
     const html = renderDesktopStartupRecoveryHtml(viewModel())
 
