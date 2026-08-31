@@ -258,16 +258,29 @@ describe('Ruijie desktop authentication module', () => {
     expect(complete).toBeGreaterThan(establish)
   })
 
-  it('preserves V4 reasoning controls and removes them from generic routes', () => {
+  it('routes only the public V4 aliases through the low-cost GPTAuth models', () => {
     const thinking = { type: 'enabled' }
     expect(normalizeRuijieChatPayload({
       model: 'deepseek-v4-flash',
       thinking,
       reasoning_effort: 'high',
     })).toEqual({
-      model: 'deepseek-v4-flash',
+      model: 'origin-deepseek-v4-flash',
       thinking,
       reasoning_effort: 'high',
+    })
+    expect(normalizeRuijieChatPayload({
+      model: 'deepseek-v4-pro',
+      thinking,
+      reasoning_effort: 'low',
+    })).toEqual({
+      model: 'origin-deepseek-v4-pro',
+      thinking,
+      reasoning_effort: 'low',
+    })
+    expect(normalizeRuijieChatPayload({ model: 'deepseek-v4-flash-wot', thinking })).toEqual({
+      model: 'deepseek-v4-flash-wot',
+      thinking,
     })
     expect(normalizeRuijieChatPayload({ model: 'ray', thinking })).toEqual({ model: 'ray' })
   })

@@ -154,11 +154,20 @@ function supportsDeepSeekThinking(model: unknown): boolean {
   return typeof model === 'string' && /^deepseek-v4-(?:flash|pro)(?:-|$)/u.test(model)
 }
 
-/** Preserve V4 thinking requests while shielding generic OpenAI routes from the field. */
+/** Route only the two public Harness aliases through GPTAuth's low-cost Tencent aliases. */
+function routedRuijieModel(model: unknown): string | undefined {
+  if (model === 'deepseek-v4-flash') return 'origin-deepseek-v4-flash'
+  if (model === 'deepseek-v4-pro') return 'origin-deepseek-v4-pro'
+  return undefined
+}
+
+/** Preserve V4 thinking, apply the Ruijie text route, and leave every other model untouched. */
 export function normalizeRuijieChatPayload(payload: unknown): unknown {
   if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) return payload
   const normalized = { ...(payload as Record<string, unknown>) }
   if (!supportsDeepSeekThinking(normalized.model)) delete normalized.thinking
+  const routedModel = routedRuijieModel(normalized.model)
+  if (routedModel !== undefined) normalized.model = routedModel
   return normalized
 }
 
