@@ -10,6 +10,7 @@ const outputDir = resolve(sidebarRoot, 'lib')
 const clsxEntry = fileURLToPath(import.meta.resolve('clsx'))
 const desktopRequire = createRequire(resolve(desktopRoot, 'package.json'))
 const sidebarRequire = createRequire(resolve(desktopRoot, 'node_modules', 'dsh-better-sidebar', 'package.json'))
+const uuidBrowserEntry = resolve(dirname(desktopRequire.resolve('uuid/package.json')), 'dist', 'index.js')
 
 const CLIENT_EXTERNALS = [
   'react',
@@ -26,6 +27,10 @@ const CSS_VIRTUAL_PREFIX = '\0dsh-css:'
 const CSS_VIRTUAL_SUFFIX = '.mjs'
 
 function resolveBundledDependency(source: string): string {
+  // createRequire follows Node's export condition and would select uuid's
+  // dist-node entry, which imports node:crypto. Lazy chunks run in the
+  // renderer, so keep uuid on its browser/default export.
+  if (source === 'uuid') return uuidBrowserEntry
   try {
     return sidebarRequire.resolve(source)
   } catch {
@@ -130,14 +135,17 @@ function clientBundle(pluginId: string, entryFile: string) {
   }
 }
 
-function clientChunk(chunk: 'terminal') {
+function clientChunk(chunk: 'editor' | 'mermaid' | 'terminal') {
   return {
     entry: { [`client-${chunk}`]: resolve(sidebarRoot, 'src', 'client', 'chunks', `${chunk}.tsx`) },
     outDir: outputDir,
     format: 'cjs',
     platform: 'browser',
     dts: false,
-    sourcemap: true,
+    // The editor and mermaid maps are larger than their already-heavy lazy
+    // bundles and were never part of the shipped closure. Keep the terminal
+    // map that the existing build already publishes.
+    sourcemap: chunk === 'terminal',
     clean: false,
     external: CLIENT_EXTERNALS,
     define: {
@@ -181,5 +189,7 @@ export default [
   },
   clientBundle('dsh-better-sidebar', 'client.js'),
   clientBundle('dsh-external/dsh-better-sidebar', 'client-registry.js'),
+  clientChunk('editor'),
+  clientChunk('mermaid'),
   clientChunk('terminal'),
 ]

@@ -11532,7 +11532,7 @@ __metadata:
 
 "dsh-better-sidebar@file:../vendor/dsh-better-sidebar::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
   version: 0.14.0
-  resolution: "dsh-better-sidebar@file:../vendor/dsh-better-sidebar#../vendor/dsh-better-sidebar::hash=067376&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
+  resolution: "dsh-better-sidebar@file:../vendor/dsh-better-sidebar#../vendor/dsh-better-sidebar::hash=2c0b5f&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
   dependencies:
     "@codemirror/commands": "npm:^6.10.4"
     "@codemirror/lang-cpp": "npm:^6.0.3"
@@ -11582,7 +11582,7 @@ __metadata:
   peerDependenciesMeta:
     cordis:
       optional: true
-  checksum: 10c0/8ecae90183bd64b196cb475cd6f1ed523ea4756cf7ad60bfe2232b24fb582841e88f3764c7da6628f0e808ad50a0e6a34cc6889f32891b5d51d665019307c409
+  checksum: 10c0/bc878610f6a59efb08d551966d4d8f06a3140b585dd6864f4c2d73ebb9dc574c8462dc46f710cc6c0ad9e87e6669ef1f9f003d85ffba6b136042eeccf917f768
   languageName: node
   linkType: hard
 

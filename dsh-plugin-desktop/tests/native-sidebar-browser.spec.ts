@@ -152,6 +152,22 @@ describe('native sidebar browser', () => {
     expect(clientBundle.slice(selectorIndex, selectorIndex + 120)).toContain('contain:paint')
   })
 
+  it('keeps lazy text-editor CSS module classes aligned with the core sidebar bundle', () => {
+    const coreBundle = readFileSync(
+      new URL('../../vendor/dsh-better-sidebar/lib/client.js', import.meta.url),
+      'utf8',
+    )
+    const editorBundle = readFileSync(
+      new URL('../../vendor/dsh-better-sidebar/lib/client-editor.js', import.meta.url),
+      'utf8',
+    )
+    const cssModulePrefix = (bundle: string): string | undefined =>
+      bundle.match(/\.([A-Za-z0-9_-]+)_editorCm\{[^}]*overflow:hidden/u)?.[1]
+
+    expect(cssModulePrefix(coreBundle)).toBeTruthy()
+    expect(cssModulePrefix(editorBundle)).toBe(cssModulePrefix(coreBundle))
+  })
+
   it('keeps file-close and right-panel controls below the controls-only Windows caption', async () => {
     const options = compatibilityWindowOptions(spec, {} as NativeImage, 'win32', 'D:/tmp/preload.cjs')
     const environment = await loadSidebarDesktopEnvironment()

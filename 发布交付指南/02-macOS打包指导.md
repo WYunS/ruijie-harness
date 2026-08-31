@@ -100,7 +100,7 @@ bash -n scripts/install-macos.sh
 
 候选 `.app` 的动态验收必须让真实模型通过 Python 或终端生成一个中文文件名 PDF，再调用 `dsh_im_return_file` 交付。最终回复正文中的 PDF 引用和“本次产出”条目必须同时可点击并能在右侧栏打开；正文使用绝对路径、唯一文件名或相对子路径时都要验证，相对子路径与绝对产物路径只允许唯一后缀匹配，歧义时不得打开错误文件。若共享技能输出 `:codex-file-citation{...}`，渲染兼容补丁必须把它转换成 DSH 原生的行内代码文件引用，页面不得显示指令原文。磁盘存在、聊天正文只出现普通文件名或 `Registered ... for IM delivery` 均不能单独作为证据。
 
-若有意修改 `vendor/dsh-better-sidebar/src`，必须先运行 `build:vendor-sidebar` 生成 `vendor/dsh-better-sidebar/lib` 并审查产物，再执行一次 `corepack yarn install` 更新 file dependency 哈希、`dsh-plugin-desktop/node_modules/dsh-better-sidebar` 安装副本和 `yarn.lock`，随后重新运行 immutable 安装、构建和验证。源码、生成后的 `lib`、安装副本和锁文件必须一致；跳过任一步都可能让开发 profile 或最终 `.app` 继续加载旧 `lib/client.js`。
+若有意修改 `vendor/dsh-better-sidebar/src`，必须先运行 `build:vendor-sidebar` 生成 `vendor/dsh-better-sidebar/lib` 并审查产物，再执行一次 `corepack yarn install` 更新 file dependency 哈希、`dsh-plugin-desktop/node_modules/dsh-better-sidebar` 安装副本和 `yarn.lock`，随后重新运行 immutable 安装、构建和验证。该构建必须同时刷新 `client.js`、`client-editor.js`、`client-mermaid.js` 和 `client-terminal.js`；代码或 Markdown 文件无法切换预览、无法滚动，而 PDF 仍正常时，应检查编辑器懒加载 bundle 是否陈旧，以及主 bundle 与 `client-editor.js` 的 CSS Module 类名前缀是否一致。`tests/native-sidebar-browser.spec.ts` 已将此前缀一致性作为回归门禁。源码、生成后的 `lib`、安装副本和锁文件必须一致；跳过任一步都可能让开发 profile 或最终 `.app` 继续加载旧 bundle。
 
 Mac 应用图标分为两个用途，打包和验收不得混淆：
 

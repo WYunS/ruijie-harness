@@ -91,7 +91,7 @@ corepack yarn workspace dsh-plugin-desktop build:vendor-sidebar
 corepack yarn workspace dsh-plugin-desktop verify:vendor-sidebar
 ```
 
-`build:vendor-sidebar` 是仓库内唯一受支持的侧栏构建入口；它从 `vendor\dsh-better-sidebar\src` 生成 `lib`，并正确内联浏览器端 `clsx`。出现 `UNRESOLVED_IMPORT`、非零退出码或 `verify:vendor-sidebar` 报错都必须停止。验证脚本会逐文件比较 `vendor\dsh-better-sidebar\lib` 与 `dsh-plugin-desktop\node_modules\dsh-better-sidebar\lib`，并输出 `client.js` 的 SHA-256。
+`build:vendor-sidebar` 是仓库内唯一受支持的侧栏构建入口；它从 `vendor\dsh-better-sidebar\src` 生成 `lib`，并正确内联浏览器端 `clsx`。该入口必须同时重建主 bundle 和 `client-editor.js`、`client-mermaid.js`、`client-terminal.js` 等懒加载 bundle，不能只更新 `client.js`。代码或 Markdown 文件无法点击、切换预览或滚动，而 PDF 仍正常时，优先检查编辑器懒加载 bundle 是否陈旧，以及主 bundle 与 `client-editor.js` 的 CSS Module 类名前缀是否一致；`tests/native-sidebar-browser.spec.ts` 已将此前缀一致性作为回归门禁。出现 `UNRESOLVED_IMPORT`、非零退出码或 `verify:vendor-sidebar` 报错都必须停止。验证脚本会逐文件比较 `vendor\dsh-better-sidebar\lib` 与 `dsh-plugin-desktop\node_modules\dsh-better-sidebar\lib`，并输出 `client.js` 的 SHA-256。
 
 如果本轮有意修改了 sidebar 源码，首次构建会改变 file dependency 的内容哈希。此时在确认生成文件合理后执行一次 `corepack yarn install` 更新 `yarn.lock` 和安装副本，再重新执行 `corepack yarn install --immutable`、构建与验证；三条命令全部通过后才可继续。正式发布提交必须包含 sidebar 源码、生成后的 `vendor\dsh-better-sidebar\lib` 和对应 `yarn.lock`，缺一项都视为旧 bundle 风险。
 
