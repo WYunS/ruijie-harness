@@ -20,6 +20,11 @@ const AUTH_REQUEST_TIMEOUT_MS = 30_000
 const TOKEN_REFRESH_SKEW_MS = 60 * 1000
 const LOGOUT_REVOKE_TIMEOUT_MS = 2_000
 const MAX_PROXY_BODY_BYTES = 32 * 1024 * 1024
+const NATIVE_CLAUDE_MODELS = new Set([
+  'claude-fable-5',
+  'claude-opus-5',
+  'claude-sonnet-5',
+])
 
 export interface RuijieAuthEnvironment {
   /** Read the current SSO identity and its GPTAuth wallet through the same OAuth token used for chat. */
@@ -168,6 +173,25 @@ export function normalizeRuijieChatPayload(payload: unknown): unknown {
   if (!supportsDeepSeekThinking(normalized.model)) delete normalized.thinking
   const routedModel = routedRuijieModel(normalized.model)
   if (routedModel !== undefined) normalized.model = routedModel
+  return normalized
+}
+
+/** Keep GPTAuth Claude on native image input without offering the Luna-backed vision toolchain. */
+export function normalizeRuijieAnthropicPayload(payload: unknown): unknown {
+  if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) return payload
+  const normalized = { ...(payload as Record<string, unknown>) }
+  if (!NATIVE_CLAUDE_MODELS.has(String(normalized.model)) || !Array.isArray(normalized.tools)) return normalized
+  const tools = normalized.tools.filter((tool) => {
+    if (tool === null || typeof tool !== 'object' || Array.isArray(tool)) return true
+    return !String((tool as Record<string, unknown>).name ?? '').startsWith('vision_')
+  })
+  if (tools.length === 0) delete normalized.tools
+  else normalized.tools = tools
+  const choice = normalized.tool_choice
+  if (choice !== null && typeof choice === 'object' && !Array.isArray(choice)) {
+    const name = String((choice as Record<string, unknown>).name ?? '')
+    if (name.startsWith('vision_')) delete normalized.tool_choice
+  }
   return normalized
 }
 
@@ -458,7 +482,10 @@ function issuerRequest(target: URL): typeof httpsRequest {
 function forwardedHeaders(headers: IncomingHttpHeaders, accessToken: string, host: string): Record<string, string | string[]> {
   const next: Record<string, string | string[]> = {}
   for (const [name, value] of Object.entries(headers)) {
-    if (value === undefined || HOP_BY_HOP_HEADERS.has(name.toLowerCase()) || name.toLowerCase() === 'authorization') continue
+    if (value === undefined
+      || HOP_BY_HOP_HEADERS.has(name.toLowerCase())
+      || name.toLowerCase() === 'authorization'
+      || name.toLowerCase() === 'x-api-key') continue
     next[name] = value
   }
   next.host = host
@@ -499,7 +526,8 @@ async function startLocalOAuthProxy(
         response.writeHead(404).end('Not Found')
         return
       }
-      if (request.headers.authorization !== `Bearer ${localProxyKey}`) {
+      if (request.headers.authorization !== `Bearer ${localProxyKey}`
+        && request.headers['x-api-key'] !== localProxyKey) {
         response.writeHead(401).end('Unauthorized')
         return
       }
@@ -510,6 +538,10 @@ async function startLocalOAuthProxy(
       if (request.method === 'POST' && incoming.pathname === '/v1/chat/completions') {
         const source = await readRequestBody(request)
         body = Buffer.from(JSON.stringify(normalizeRuijieChatPayload(JSON.parse(source.toString('utf8')))))
+        headers = { ...headers, 'content-length': String(body.length) }
+      } else if (request.method === 'POST' && incoming.pathname === '/v1/messages') {
+        const source = await readRequestBody(request)
+        body = Buffer.from(JSON.stringify(normalizeRuijieAnthropicPayload(JSON.parse(source.toString('utf8')))))
         headers = { ...headers, 'content-length': String(body.length) }
       }
       const upstream = issuerRequest(target)(target, { method: request.method, headers }, upstreamResponse => {
@@ -571,6 +603,7 @@ export async function ensureRuijieAuthEnvironment(options: RuijieAuthOptions): P
     }
     options.environment.DEEPSEEK_API_KEY = localProxyKey
     options.environment.DEEPSEEK_BASE_URL = proxy.baseURL
+    options.environment.ANTHROPIC_BASE_URL = new URL(proxy.baseURL).origin
     return {
       account: async () => await loadAccountSummary(issuerUrl, oauthMemory),
       logout: () => oauthMemory.logout(),

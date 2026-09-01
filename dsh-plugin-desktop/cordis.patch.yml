@@ -123,6 +123,24 @@
         contextWindow: 1000000
         maxTokens: 16384
 
+# Serve the three GPTAuth Claude aliases through Anthropic's native Messages
+# protocol. The desktop OAuth proxy supplies the short-lived credential.
+- id: llm-pi-ai
+  config:
+    providers:
+      anthropic:
+        displayName: Claude
+        apiKeyEnv: DEEPSEEK_API_KEY
+        api: anthropic-messages
+        baseURL: !!js process.env.ANTHROPIC_BASE_URL || 'http://127.0.0.1:9'
+        models:
+          - id: claude-fable-5
+            name: Claude Fable 5
+          - id: claude-opus-5
+            name: Claude Opus 5
+          - id: claude-sonnet-5
+            name: Claude Sonnet 5
+
 # Preserve the original image while allowing phone screenshots and scanned
 # pages through rc.8's attachment admission limits. Processing plugins still
 # downscale per request and keep their own resource budgets.

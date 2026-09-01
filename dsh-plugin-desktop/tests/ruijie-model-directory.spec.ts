@@ -55,6 +55,15 @@ describe('unified Ruijie multimodal model directory', () => {
             { id: 'deepseek-v4-pro', name: 'DeepSeek-V4-Pro', reasoning },
           ],
         },
+        {
+          id: 'anthropic',
+          name: 'Claude',
+          models: [
+            { id: 'claude-fable-5', name: 'Claude Fable 5' },
+            { id: 'claude-opus-5', name: 'Claude Opus 5' },
+            { id: 'claude-sonnet-5', name: 'Claude Sonnet 5' },
+          ],
+        },
       ],
     })
     expect(state.current).toEqual({
@@ -62,11 +71,20 @@ describe('unified Ruijie multimodal model directory', () => {
       model: 'deepseek-v4-flash',
       reasoningEffort: 'high',
     })
-    expect(state.groups).toHaveLength(1)
+    expect(state.groups).toHaveLength(2)
     expect(state.groups[0]?.name).toBe('DeepSeek')
     expect(state.groups[0]?.models.map(model => model.name)).toEqual(['DeepSeek-V4-Flash', 'DeepSeek-V4-Pro'])
     expect(state.groups[0]?.models[0]?.reasoning?.efforts.map(effort => effort.name)).toEqual([
       'Off', 'Low', 'Medium', 'High', 'Max',
     ])
+    expect(state.groups[1]).toEqual({
+      id: 'anthropic',
+      name: 'Claude',
+      models: [
+        { id: 'claude-fable-5', name: 'Claude Fable 5' },
+        { id: 'claude-opus-5', name: 'Claude Opus 5' },
+        { id: 'claude-sonnet-5', name: 'Claude Sonnet 5' },
+      ],
+    })
   })
 })

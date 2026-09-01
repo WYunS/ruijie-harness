@@ -180,13 +180,27 @@ describe('published package surface', () => {
     expect(patch).toContain('id: deepseek-v4-flash')
     expect(patch).toContain('id: deepseek-v4-pro')
     expect(patch).not.toContain('id: gpt-5.6-luna')
-    const modelBlock = patch.match(/- id: llm-deepseek[\s\S]*?\n    models:\s*([\s\S]*?)\n\n# Preserve/u)?.[1]
+    const modelBlock = patch.match(/- id: llm-deepseek[\s\S]*?\n    models:\s*([\s\S]*?)(?=\n- id:|$)/u)?.[1]
     expect([...modelBlock?.matchAll(/^\s*- id: (.+)$/gmu) ?? []].map(match => match[1])).toEqual([
       'deepseek-v4-flash',
       'deepseek-v4-pro',
     ])
     expect(patch).toMatch(/agent-default-model[\s\S]*provider: deepseek-vision[\s\S]*model: deepseek-v4-flash/u)
     expect(clientEntry).toMatch(/export const inject = \[[\s\S]*'modelDirectories'/u)
+  })
+
+  it('routes exactly the three GPTAuth Claude models through native Anthropic Messages', () => {
+    const patch = readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8')
+    const providerBlock = patch.match(/- id: llm-pi-ai[\s\S]*?\n      anthropic:\s*([\s\S]*?)(?=\n# Preserve|$)/u)?.[1]
+    expect(providerBlock).toContain('displayName: Claude')
+    expect(providerBlock).toContain('apiKeyEnv: DEEPSEEK_API_KEY')
+    expect(providerBlock).toContain('api: anthropic-messages')
+    expect(providerBlock).toContain('baseURL: !!js process.env.ANTHROPIC_BASE_URL')
+    expect([...providerBlock?.matchAll(/^\s*- id: (.+)$/gmu) ?? []].map(match => match[1])).toEqual([
+      'claude-fable-5',
+      'claude-opus-5',
+      'claude-sonnet-5',
+    ])
   })
 
   it('adds employee-safe vision, document parsing, and Office tools without exposing the hidden VLM', () => {

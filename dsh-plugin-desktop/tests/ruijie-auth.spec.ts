@@ -5,6 +5,7 @@ import {
   accountSummaryFromPayloads,
   buildRuijieAuthorizationUrl,
   ensureRuijieAuthEnvironment,
+  normalizeRuijieAnthropicPayload,
   normalizeRuijieChatPayload,
 } from '../src/ruijie-auth.ts'
 
@@ -30,8 +31,10 @@ async function unusedLoopbackPort(): Promise<number> {
 describe('Ruijie desktop authentication module', () => {
   it('accepts a loopback HTTP issuer for packaged acceptance without weakening remote OAuth', async () => {
     const requests: string[] = []
+    const upstreamHeaders: Array<{ readonly authorization: string | undefined; readonly apiKey: string | string[] | undefined }> = []
     const server = createServer((request, response) => {
       requests.push(request.url ?? '')
+      upstreamHeaders.push({ authorization: request.headers.authorization, apiKey: request.headers['x-api-key'] })
       response.writeHead(200, { 'content-type': 'application/json' })
       response.end('{"object":"list","data":[]}')
     })
@@ -59,8 +62,22 @@ describe('Ruijie desktop authentication module', () => {
         openExternal: async () => { throw new Error('interactive authorization must not run') },
       })
       expect(environment.DEEPSEEK_BASE_URL).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/v1$/u)
+      expect(environment.ANTHROPIC_BASE_URL).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/u)
       expect(environment.DEEPSEEK_API_KEY).toBeTypeOf('string')
-      expect(requests).toEqual(['/v1/models'])
+      const proxyBaseURL = environment.ANTHROPIC_BASE_URL
+      const proxyKey = environment.DEEPSEEK_API_KEY
+      if (proxyBaseURL === undefined || proxyKey === undefined) throw new Error('fixture did not configure the local proxy')
+      const anthropicResponse = await fetch(`${proxyBaseURL}/v1/messages`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': proxyKey },
+        body: '{}',
+      })
+      expect(anthropicResponse.ok).toBe(true)
+      expect(requests).toEqual(['/v1/models', '/v1/messages'])
+      expect(upstreamHeaders[1]).toEqual({
+        authorization: `Bearer ${tokens.accessToken}`,
+        apiKey: undefined,
+      })
       await auth.close()
     } finally {
       await new Promise<void>(resolve => { server.close(() => { resolve() }) })
@@ -296,6 +313,30 @@ describe('Ruijie desktop authentication module', () => {
     })).toEqual({
       model: 'gpt-5.6-luna',
       messages: [{ role: 'user', content }],
+    })
+  })
+
+  it('keeps Claude image input native while withholding Luna vision tools only from Claude', () => {
+    const image = {
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/png', data: 'AQID' },
+    }
+    const payload = {
+      model: 'claude-sonnet-5',
+      messages: [{ role: 'user', content: [image, { type: 'text', text: '提取文字' }] }],
+      tools: [
+        { name: 'vision_ocr', description: 'Luna OCR', input_schema: { type: 'object' } },
+        { name: 'read', description: 'Read a file', input_schema: { type: 'object' } },
+      ],
+    }
+
+    expect(normalizeRuijieAnthropicPayload(payload)).toEqual({
+      ...payload,
+      tools: [payload.tools[1]],
+    })
+    expect(normalizeRuijieAnthropicPayload({ ...payload, model: 'other-anthropic-model' })).toEqual({
+      ...payload,
+      model: 'other-anthropic-model',
     })
   })
 

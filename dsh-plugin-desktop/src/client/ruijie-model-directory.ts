@@ -42,11 +42,12 @@ export interface RuijieModelDirectoryState {
   error: string | null
 }
 
-/** Keep one public image-capable DeepSeek group while preserving reasoning metadata. */
+/** Keep one public image-capable DeepSeek group while retaining independently configured providers. */
 export function unifiedRuijieModelState(state: RuijieModelDirectoryState): RuijieModelDirectoryState {
   const publicGroup = state.groups.find(group => group.id === PUBLIC_PROVIDER)
   const sourceGroup = state.groups.find(group => group.id === SOURCE_PROVIDER)
   const visibleGroup = publicGroup ?? sourceGroup
+  const otherGroups = state.groups.filter(group => group.id !== PUBLIC_PROVIDER && group.id !== SOURCE_PROVIDER)
   return {
     ...state,
     current: publicGroup !== undefined && state.current?.provider === SOURCE_PROVIDER
@@ -54,7 +55,9 @@ export function unifiedRuijieModelState(state: RuijieModelDirectoryState): Ruiji
       : publicGroup === undefined && sourceGroup !== undefined && state.current?.provider === PUBLIC_PROVIDER
         ? { ...state.current, provider: SOURCE_PROVIDER }
         : state.current,
-    groups: visibleGroup === undefined ? [] : [{ ...visibleGroup, name: 'DeepSeek' }],
+    groups: visibleGroup === undefined
+      ? otherGroups
+      : [{ ...visibleGroup, name: 'DeepSeek' }, ...otherGroups],
     failures: publicGroup === undefined
       ? state.failures
       : state.failures.filter(failure => failure.id !== SOURCE_PROVIDER),
