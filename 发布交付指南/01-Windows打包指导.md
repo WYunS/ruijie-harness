@@ -491,24 +491,18 @@ Get-Item -LiteralPath $exe |
 
 只生成 EXE、不验证安装后的真实功能，不算完成发布。
 
-## 12. Windows 历史产物快照（更新于 2026-08-26，仅用于追溯）
+## 12. Windows 历史产物快照（更新于 2026-09-01，仅用于追溯）
 
 发布目录：`D:\ChatGPT\RuijieDSH\dsh-plugin-desktop\dist`
 
 | 用途 | 文件 | bytes | MiB | SHA-256 | Authenticode |
 |---|---|---:|---:|---|---|
-| 上版备份 | `Ruijie-Harness-2.0.7-x64-Setup.exe` | 344285426 | 328.34 | `875576C9A857D9B96EE913CDF27A94DF905110C44E8338398B74C652F8A731E3` | `NotSigned` |
-| 历史正式包 | `Ruijie-Harness-2.0.8-x64-Setup.exe` | 344287016 | 328.34 | `697EC1ECA5010CDC98521DC97DF24D70FB62626DF5E0710D48C15BAE69292691` | `NotSigned` |
-| 最近历史正式包 | `Ruijie-Harness-2.0.9-x64-Setup.exe` | 354214480 | 337.81 | `AE03CACD2420E545F1AC5A04CEDC70616F473B953A6D1A1307DD515562067580` | `NotSigned` |
-| 当前 Windows 候选包 | `Ruijie-Harness-2.1.0-x64-Setup.exe` | 354378568 | 337.96 | `CB7E1BFA2176DBA44F28DD1F8D6DD065959E3A2A0B8B79CF826793145FFBA6BB` | `NotSigned` |
+| 上版备份 | `Ruijie-Harness-2.1.4-x64-Setup.exe` | 354577083 | 338.15 | `F29FCCAF0F63B0EF03CB718325474AF2958C8C48FEAD215B5F7E60B640C259DB` | `NotSigned` |
+| 当前 Windows 候选包 | `Ruijie-Harness-2.1.5-x64-Setup.exe` | 354578151 | 338.15 | `0F5B40225356A1CB159941AB6F3975F8A15ED5B4D639CA1E835D03F5A31AE752` | `NotSigned` |
 
-`2.1.0` Windows 候选包生成于产品提交 `2376a16c38dd511961f01fed9ec01e5e3f4a2114`。`node scripts/verify-win-installer.ts`、完整 headless gate、Windows 关键测试（含侧栏页面正文读取、浏览器搜索证据、ModSearch 供应商顺序与 JSON storage 根目录恢复）以及真实 Electron WebView 连续性 `20/20` 均已通过；同时已从 `win-unpacked` 最终物理依赖树确认 storage 恢复补丁进入安装包闭包。本轮按用户要求未安装，因此首次安装、保留数据升级、真实联网与跨版本自动升级仍标记为未执行，不能仅凭本快照宣称完成正式发布验收。
+`2.1.5` Windows 候选包生成于产品提交 `d841bf3d58`，包含 `425131b4c6` 引入的三个 GPTAuth Claude 模型及 Claude 原生图片链路。完整 `corepack yarn check`、Windows 打包专项测试 `178/178`、真实 Electron WebView 连续性 `20/20`、运行时依赖闭包和 `node scripts/verify-win-installer.ts` 均已通过。用户已经在本地开发版确认 Claude 功能；本轮未安装 Setup EXE，因此安装后的首次启动、保留数据升级、三个 Claude 上游连接性与跨版本自动升级仍须按第 10 节验收，不能仅凭本快照宣称完成正式发布验收。
 
-`node scripts/verify-win-installer.ts` 已对 2.0.8 通过验证。该安装包包含 profile 框架单例修复，产品源码 commit 为 `5d90929a86d99a871e18497be3bed37a319b2dad`。此快照只证明构建产物结构、打包内容检查与发布门禁通过；由于本轮没有安装授权，安装后的联网、登录、侧栏、Office、搜索、PDF 和真实保留数据升级仍须按第 10 节验收。
-
-2.0.9 生成于产品提交 `73143e3bd9748e5a8a078ddc6b9e12dface07791` 之后，并已保存在上述发布目录。它是历史产物，不自动包含其后新增的源码改动；当前源码与该提交存在产品差异时，必须提升版本并重新打包，不能覆盖或继续交付同名 2.0.9 文件。
-
-`2.0.7` EXE 生成于 OCR 文件正式纳入 Git 与重新安装 file dependency 之前，因此不能宣称它已内置离线中英文 OCR。该 EXE 继续作为上版保留，不得因生成 2.0.8 而删除。
+按 2026-09-01 的明确清理授权，Windows `2.1.2` 及更早正式安装包已经从本机 `dist` 删除；`2.1.4` 作为上版备份保留。删除本机旧文件不改变 Git 历史，也不代表远端发布资产已经同步清理。
 
 ## 13. 每次使用结束后的按需优化
 
