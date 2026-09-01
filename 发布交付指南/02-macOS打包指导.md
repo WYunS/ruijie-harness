@@ -184,24 +184,30 @@ gh run watch <run-id> --repo WYunS/ruijie-harness --exit-status
 
 | 模式 | Action 输入 | 适用条件 | 完成条件 |
 |---|---|---|---|
-| 全量新候选 | 三项输入均留空 | 产品源码、依赖、vendor、打包配置或版本发生变化 | 完整门禁通过，生成并保存新的 candidate Artifact，自动验收形成完整证据和阶段判定 |
-| 省略已通过的发布门禁 | `skip_release_checks=true`，其他留空 | 同一产品源码范围内只改验收工具，且本轮仍需重新生成候选 DMG | 必须执行 `yarn build` 生成 `lib/`，保存新 candidate，自动验收形成完整证据和阶段判定 |
-| 复用候选并续验 | `candidate_run_id=<候选 run>`；只有已有可靠基线证据时才加 `acceptance_resume_run_id=<证据 run>` | DMG、产品源码、依赖、vendor 与打包配置均未变化，失败仅来自验收脚本或后续阶段 | 下载的是同一候选 DMG；从最近可信断点续验，最终形成完整证据和阶段判定 |
+| 全量新候选 | `acceptance_baseline=<上次已验收提交或标签>`，其余留空 | 产品源码、依赖、vendor、打包配置或版本发生变化 | 完整门禁通过，生成并保存新的 candidate Artifact，自动验收形成完整证据和阶段判定 |
+| 省略已通过的发布门禁 | `acceptance_baseline=<基线>`、`skip_release_checks=true` | 同一产品源码范围内只改验收工具，且本轮仍需重新生成候选 DMG | 必须执行 `yarn build` 生成 `lib/`，保存新 candidate，自动验收形成完整证据和阶段判定 |
+| 复用候选并续验 | `acceptance_baseline=<基线>`、`candidate_run_id=<候选 run>`；只有已有可靠基线证据时才加 `acceptance_resume_run_id=<证据 run>` | DMG、产品源码、依赖、vendor 与打包配置均未变化，失败仅来自验收脚本或后续阶段 | 下载的是同一候选 DMG；从最近可信断点续验，最终形成完整证据和阶段判定 |
 
 命令行示例：
 
 ```powershell
 # 全量新候选
-gh workflow run macos-internal-build.yml --repo WYunS/ruijie-harness --ref main
+gh workflow run macos-internal-build.yml --repo WYunS/ruijie-harness --ref main \
+  -f acceptance_baseline=<上次已验收提交或标签>
 
 # 只改验收工具，但仍重新生成候选 DMG
-gh workflow run macos-internal-build.yml --repo WYunS/ruijie-harness --ref main -f skip_release_checks=true
+gh workflow run macos-internal-build.yml --repo WYunS/ruijie-harness --ref main \
+  -f acceptance_baseline=<上次已验收提交或标签> \
+  -f skip_release_checks=true
 
 # 复用同一候选，只从失败点继续；没有可延续证据时不要传 acceptance_resume_run_id
 gh workflow run macos-internal-build.yml --repo WYunS/ruijie-harness --ref main `
+  -f acceptance_baseline=<上次已验收提交或标签> `
   -f candidate_run_id=<候选run-id> `
   -f acceptance_resume_run_id=<已有基线证据run-id>
 ```
+
+工作流检出必须使用完整 Git 历史（`fetch-depth: 0`），并把 `acceptance_baseline` 原样传给 `DSH_MAC_ACCEPTANCE_BASELINE`。该输入不得省略，也不得填写当前候选提交；否则动态矩阵会退化为空差异，漏掉本版功能风险。
 
 `candidate_run_id` 指向“产生并保存 DMG 的 run”；`acceptance_resume_run_id` 指向“已有可审计验收证据的 run”。两者可以相同，也可能不同，不能仅因编号相近就混用。复用前核对 candidate 的 `CANDIDATE-MANIFEST.txt`、DMG 文件名、版本、bytes、SHA-256 与预期源码范围；任何一项不一致都回到全量新候选。
 
