@@ -77,6 +77,8 @@
 
 同一份 ad-hoc 构建安装后应稳定复用本次代码要求。版本内容变化会改变 CodeDirectory/CDHash，因此从 A 覆盖到 B 时可能重新询问一次，不能承诺 ad-hoc 跨所有版本零提示。
 
+`2.1.5` 包含 GPTAuth Claude 模型、OAuth 代理和运行时配置变化，必须视为新的完整应用内容：即使没有改动签名脚本，也要从最终 universal `.app` 重新执行 inside-out ad-hoc 签名并挂载最终 DMG 复验，不能继承 `2.1.4` 的签名审计、CDHash 或 TCC 验收结论。模型供应商变化本身不授权访问 Downloads、Documents 或 Desktop；Claude 与 DeepSeek 的图片输入都只能在用户已经选择或主动附加文件后读取，不能为了模型能力预探测受保护目录。
+
 正式升级门禁是：不清 TCC，从旧正式版覆盖安装新候选；第一次访问受保护目录可以零次或最多一次 `Allow`，此后连续访问和重启不再提示。每次升级都循环提示、同一动作出现第二次提示或继续出现 requirement mismatch 均为失败。
 
 ## 7. 升级到固定证书的条件

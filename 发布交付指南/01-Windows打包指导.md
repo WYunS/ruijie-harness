@@ -398,6 +398,8 @@ corepack yarn verify:webview-continuity
 
 对 `deepseek-v4-flash` 必须保留“原生 `tool_calls` 与累计 DSML 文本同时出现”的回归用例。适配器只能执行原生工具调用，不能把 `<｜DSML｜tool_calls>` 控制包络追加到助手正文；否则一次调用会被累计快照放大成大量重复文本。
 
+`2.1.5` 起，模型目录还必须在统一 DeepSeek 组之外独立显示 Claude 组，并且只包含 GPTAuth 后台配置的 `claude-fable-5`、`claude-opus-5`、`claude-sonnet-5`。三者必须通过桌面 OAuth 代理使用 Anthropic Messages 协议；代理接受客户端的 `x-api-key` 后只向 GPTAuth 上游发送当前用户的 OAuth Bearer，不得透传本地代理密钥，也不得形成 `/v1/v1/messages`。最终 Setup EXE 必须分别验证三个 Claude 模型能完成普通文本对话；至少一个 Claude 模型直接读取一张真实图片，轨迹中不得调用 `vision_*` Luna 工具；同一会话切换 Claude 与 DeepSeek 后上下文和图片仍可继续使用。DeepSeek 的既有图片链路必须单独回归并继续由 Luna `vision_*` 工具处理，Claude 的过滤逻辑不得删除 DeepSeek 的工具定义或改变其默认模型、推理强度和计费路由。模型不可用、价格未配置或上游返回错误时应如实记录为 GPTAuth 渠道问题，不能用静态目录存在冒充真实可用。
+
 ## 8. 正式打包
 
 只有第 6、7 节门禁全部通过后才执行：
