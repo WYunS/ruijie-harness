@@ -3,6 +3,10 @@ name: Build macOS Internal DMG
 on:
   workflow_dispatch:
     inputs:
+      acceptance_baseline:
+        description: 'Last accepted release commit or tag used to build the dynamic test matrix'
+        required: true
+        type: string
       candidate_run_id:
         description: 'Reuse the candidate DMG artifact from this run ID; leave empty to rebuild'
         required: false
@@ -38,6 +42,7 @@ jobs:
         with:
           persist-credentials: false
           submodules: recursive
+          fetch-depth: 0
 
       - uses: actions/setup-node@v6
         with:
@@ -120,6 +125,7 @@ jobs:
 
       - name: Run installed-app acceptance
         env:
+          DSH_MAC_ACCEPTANCE_BASELINE: ${{ inputs.acceptance_baseline }}
           DSH_MAC_ACCEPTANCE_RESUME_RUN_ID: ${{ inputs.acceptance_resume_run_id }}
         run: yarn workspace dsh-plugin-desktop accept:mac-installed dist/mac-internal
 

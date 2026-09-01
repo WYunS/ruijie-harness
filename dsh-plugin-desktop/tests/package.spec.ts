@@ -568,7 +568,9 @@ describe('published package surface', () => {
 
   it('publishes the manually dispatched internal Mac DMG with provenance', () => {
     expect(macInternalWorkflow).toContain('workflow_dispatch:')
+    expect(macInternalWorkflow).toContain('acceptance_baseline:')
     expect(macInternalWorkflow).toContain('submodules: recursive')
+    expect(macInternalWorkflow).toContain('fetch-depth: 0')
     expect(macInternalWorkflow).toContain('YARN_ENABLE_IMMUTABLE_INSTALLS=false yarn install')
     expect(macInternalWorkflow).toContain('yarn install --immutable')
     expect(macInternalWorkflow).toContain('run: yarn check')
@@ -579,6 +581,7 @@ describe('published package surface', () => {
     expect(macInternalWorkflow)
       .toContain('run: yarn workspace dsh-plugin-desktop dist:mac-internal')
     expect(macInternalWorkflow).toContain('Upload macOS installed-app acceptance evidence')
+    expect(macInternalWorkflow).toContain('DSH_MAC_ACCEPTANCE_BASELINE: ${{ inputs.acceptance_baseline }}')
     expect(macInternalWorkflow).toContain('if: always()')
     expect(macInternalWorkflow).toContain('dsh-plugin-desktop/dist/mac-internal/acceptance-evidence/**')
     expect(macInternalWorkflow).toContain('source_commit=${GITHUB_SHA}')
