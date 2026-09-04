@@ -90,6 +90,7 @@ import { ensureRuijieAuthEnvironment, type RuijieAuthEnvironment } from './ruiji
 import { RuijieAuthStore } from './ruijie-auth-store.ts'
 import { RuijieLoginWindow } from './ruijie-login-window.ts'
 import { applyResolvedSystemProxy } from './system-proxy.ts'
+import { publishOpenMausBridge } from './openmaus-bridge.ts'
 
 const BIN_NAME = 'dsh-plugin-desktop'
 const PRODUCT_NAME = '锐捷 Harness'
@@ -659,6 +660,15 @@ async function start(): Promise<void> {
       throw cause
     })
     current = ctx
+    const releaseOpenMausBridge = await publishOpenMausBridge(
+      join(app.getPath('appData'), PRODUCT_NAME),
+      ctx.webServer.port,
+      generationId,
+    )
+    ctx.effect(
+      () => releaseOpenMausBridge,
+      'dsh-plugin-desktop: OpenMaus bridge discovery',
+    )
     fileExporter?.setThreshold((ctx.settings.get(DESKTOP_SETTINGS_NAMESPACE) as DesktopSettings | undefined)?.logLevel ?? 'info')
     ctx.on('settings/updated', (namespace, next) => {
       if (namespace !== DESKTOP_SETTINGS_NAMESPACE) return

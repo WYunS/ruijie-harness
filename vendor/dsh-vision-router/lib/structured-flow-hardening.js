@@ -14,7 +14,6 @@ const STRUCTURED_EVIDENCE_TOOLS = new Set([
   'vision_long_screenshot_ocr',
 ])
 
-const DEFAULT_TURN_BUDGET_MS = 90_000
 const MAX_TURN_BUDGET_MS = 600_000
 const MAX_GUIDANCE_OVERRIDES = 14
 const MAX_GUIDANCE_CHARS = 2_000
@@ -117,9 +116,10 @@ function guidanceFor(kind, overrides) {
   return BUILTIN_MIXED_GUIDANCE[kind] ?? '聚焦这个分支新增或验证可见证据。'
 }
 
-function turnBudgetMs(config) {
+export function structuredTurnBudgetMs(config) {
   const value = Number(config?.visionTurnBudgetMs)
-  if (!Number.isFinite(value) || value < 10_000) return DEFAULT_TURN_BUDGET_MS
+  if (!Number.isFinite(value) || value <= 0) return undefined
+  if (value < 10_000) return 10_000
   return Math.min(Math.round(value), MAX_TURN_BUDGET_MS)
 }
 
@@ -159,6 +159,7 @@ function freshState(turn, _config) {
     startedAt: undefined,
     deadlineAt: undefined,
     turnSignal: undefined,
+    budgetActivated: false,
     bootstrapDone: false,
     bootstrapResult: undefined,
     successfulEvidenceCalls: 0,
@@ -171,8 +172,10 @@ function freshState(turn, _config) {
 }
 
 function activateBudget(state, config) {
-  if (state.turnSignal !== undefined) return
-  const budgetMs = turnBudgetMs(config)
+  if (state.budgetActivated) return
+  state.budgetActivated = true
+  const budgetMs = structuredTurnBudgetMs(config)
+  if (budgetMs === undefined) return
   const startedAt = Date.now()
   state.startedAt = startedAt
   state.deadlineAt = startedAt + budgetMs
@@ -301,7 +304,7 @@ function appendGuardMessage(decision, payload, state, config) {
       content: [{
         type: 'text',
         text: state.budgetExhausted
-          ? '本轮视觉总时间预算已耗尽。不要再调用视觉工具；请基于已经获得的证据作答，并明确仍存在的不确定性。'
+          ? '本轮视觉处理时间上限已到（不是账户额度）。不要再调用视觉工具；请基于已经获得的证据作答，并明确仍存在的不确定性。'
           : '本轮识图深度配额已耗尽。不要再调用视觉工具；请基于已经获得的证据作答，并明确仍存在的不确定性。',
       }],
       source: { kind: 'plugin', plugin: 'dsh-vision-router' },
@@ -339,7 +342,7 @@ function failure(code, reason) {
 }
 
 function turnBudgetAbortError() {
-  const error = new Error('the structured-vision turn budget expired while the visual request was running')
+  const error = new Error('the structured-vision processing time limit was reached (not an account quota)')
   error.name = 'TimeoutError'
   error.code = 'VISION_TURN_BUDGET_EXCEEDED'
   return error
@@ -411,7 +414,7 @@ function wrapRegisteredTool(def, states, getConfig) {
           const result = await runBudgetedTool(
             state,
             () => def.execute(args, exec),
-            'the structured-vision turn budget expired before the bootstrap could complete',
+            'the structured-vision processing time limit was reached before bootstrap completed (not an account quota)',
             currentConfig,
           )
           if (resultCode(result) === 'VISION_TURN_BUDGET_EXCEEDED') return result
@@ -435,14 +438,14 @@ function wrapRegisteredTool(def, states, getConfig) {
           return runBudgetedTool(
             state,
             () => def.execute(args, exec),
-            'the structured-vision turn budget expired while the visual request was running',
+            'the structured-vision processing time limit was reached while the request was running (not an account quota)',
             currentConfig,
           )
         }
 
         if (budgetExceeded(state)) {
           state.budgetExhausted = true
-          return failure('VISION_TURN_BUDGET_EXCEEDED', 'the structured-vision turn budget is exhausted; answer from the evidence already collected')
+          return failure('VISION_TURN_BUDGET_EXCEEDED', 'the structured-vision processing time limit was reached (not an account quota); answer from the evidence already collected')
         }
 
         const active = getConfig()
@@ -455,7 +458,7 @@ function wrapRegisteredTool(def, states, getConfig) {
         const result = await runBudgetedTool(
           state,
           () => def.execute(args, exec),
-          'the structured-vision turn budget is exhausted; answer from the evidence already collected',
+          'the structured-vision processing time limit was reached (not an account quota); answer from the evidence already collected',
           active,
         )
         const code = resultCode(result)

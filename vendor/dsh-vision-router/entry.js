@@ -50,16 +50,16 @@ export const SETTINGS_CONTRACT_REVISION = 4
 // for the settings namespace, so composition config and settings validation
 // agree on the same default.
 core.Config.set('progressiveTools', z.boolean().default(false))
-// Structured 1+x also has a turn-level wall-clock budget. Individual
-// visionTaskTimeoutMs budgets remain unchanged; this one prevents a deep turn
-// from multiplying them into several minutes of serial waiting.
-core.Config.set('visionTurnBudgetMs', z.number().step(1000).min(10000).max(600000).default(90000))
+// A paid/internal deployment should be allowed to finish long visual jobs.
+// Zero disables the cumulative per-turn wall clock while every individual
+// request remains protected by visionTaskTimeoutMs.
+core.Config.set('visionTurnBudgetMs', z.number().step(1000).min(0).max(600000).default(0))
 
 // Both visible entry points — Settings > Vision Router and the legacy
 // Settings > Plugins compatibility card — edit the same Host-owned namespace.
 // Keep the depth enum and custom cap on this final public contract so either
 // entry serializes exactly the same shape on every supported Host generation.
-core.Config.set('visionDepth', z.union(['fast', 'standard', 'deep', 'custom']).default('standard'))
+core.Config.set('visionDepth', z.union(['fast', 'standard', 'deep', 'custom']).default('custom'))
 core.Config.set('visionDepthMaxCalls', z.number().step(1).min(0).max(100).default(0))
 
 // Settings surfaces and Host persistence must agree on this field. Keep the
@@ -156,7 +156,7 @@ export function apply(ctx, config = {}) {
     visionTurnBudgetMs:
       Number.isFinite(Number(bootConfig.visionTurnBudgetMs))
         ? Number(bootConfig.visionTurnBudgetMs)
-        : 90000,
+        : 0,
   }
   // The batch-attachment API is the released, non-incidental discriminator
   // between the minimum Host contract and the newer Host-owned integration

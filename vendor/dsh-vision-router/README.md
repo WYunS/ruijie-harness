@@ -352,6 +352,9 @@ Everything is optional; defaults work out of the box. Edit via the Web card or a
 | `downscale` / `downscaleMaxPixels` | `true` / `4000000` | pre-call downscale and its pixel budget (latency guard) |
 | `cache` / `cacheTtlSeconds` / `cacheMaxEntries` | `true` / `3600` / `200` | vision answer cache |
 | `timeoutMs` | `120000` | per vision call deadline |
+| `visionTaskTimeoutMs` | `120000` | total deadline for one vision-tool task; prevents a stuck request without limiting the whole job |
+| `visionTurnBudgetMs` | `0` | cumulative visual wall clock per turn; `0` disables the cap for paid internal routes and long-video jobs |
+| `visionDepth` / `visionDepthMaxCalls` | `custom` / `0` | successful evidence-call cap per turn; `custom + 0` is unlimited |
 | `artifactsDir` | `.dsh-vision-router/artifacts` | artifact directory (relative to the session workspace) |
 | `proxy` / `proxyHosts` | `''` / openrouter hosts | optional proxy for vision provider hosts only |
 | `catalogCorrections` | `true` | built-in catalog-routing corrections: when the installed pi-ai catalog routes a known model to the wrong wire protocol (e.g. `opencode-go/qwen3.6-plus` to OpenAI chat completions while OpenCode Go only serves it on `/v1/messages`), the plugin answers that backend directly over the corrected protocol. Each correction disarms itself once the catalog is fixed upstream |

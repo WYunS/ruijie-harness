@@ -11962,7 +11962,7 @@ __metadata:
 
 "dsh-vision-router@file:../vendor/dsh-vision-router::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
   version: 1.7.3
-  resolution: "dsh-vision-router@file:../vendor/dsh-vision-router#../vendor/dsh-vision-router::hash=b8e58c&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
+  resolution: "dsh-vision-router@file:../vendor/dsh-vision-router#../vendor/dsh-vision-router::hash=df470e&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
   dependencies:
     "@deepseek-ai/schemastery": "npm:>=3.18.0"
     "@neplex/vectorizer": "npm:0.1.0"
@@ -11981,7 +11981,7 @@ __metadata:
       optional: true
   bin:
     dsh-vision-router: ./lib/doctor-cli.js
-  checksum: 10c0/d609c904b231b02edcc3e8cf292d4a617c80223f70e2696b1e564f09fa103dc0855e57257fd85645264e1079ef660d56485d7ef8ec02d1f84d072551761b7b34
+  checksum: 10c0/ad251839c9f07b97bea0fe5cfa7cd4c75cc533a7569b10641072a8f09c489cd371350121f56460b95191472d9a41785542ab2277088963d4bac7678e1bba5946
   languageName: node
   linkType: hard
 
