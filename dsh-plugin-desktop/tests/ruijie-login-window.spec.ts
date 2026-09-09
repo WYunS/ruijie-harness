@@ -163,14 +163,14 @@ describe('Ruijie SSO startup presentation', () => {
   it('keeps the login window alive until the Harness window has mounted', () => {
     const authenticated = main.indexOf('ruijieAuth = authenticatedAccount')
     const mounted = main.indexOf('await runtime.mountScheduled()')
-    const closed = main.indexOf('ruijieLoginWindow.close()')
+    const closed = main.indexOf('ruijieLoginWindow?.close()')
     expect(authenticated).toBeGreaterThan(0)
     expect(mounted).toBeGreaterThan(authenticated)
     expect(closed).toBeGreaterThan(mounted)
   })
 
   it('shows the Harness window after closing the SSO status window', () => {
-    const closed = main.indexOf('ruijieLoginWindow.close()')
+    const closed = main.indexOf('ruijieLoginWindow?.close()')
     const shown = main.indexOf('runtime.show()', closed)
     expect(closed).toBeGreaterThan(0)
     expect(shown).toBeGreaterThan(closed)
@@ -199,7 +199,7 @@ describe('Ruijie SSO startup presentation', () => {
     const completed = main.indexOf("status === 'authorization-complete'")
     const starting = main.indexOf('ruijieLoginWindow?.showStarting()', completed)
     const mounted = main.indexOf('await runtime.mountScheduled()', starting)
-    const closed = main.indexOf('ruijieLoginWindow.close()', mounted)
+    const closed = main.indexOf('ruijieLoginWindow?.close()', mounted)
     expect(starting).toBeGreaterThan(completed)
     expect(mounted).toBeGreaterThan(starting)
     expect(closed).toBeGreaterThan(mounted)

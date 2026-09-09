@@ -196,6 +196,7 @@ function notifyWindowsVolumeConcerns(
 
 /** Start one Electron process and leave lifetime to the mounted desktop plugin. */
 async function start(): Promise<void> {
+  const openMausServerMode = process.argv.includes('--openmaus-server')
   if (!app.requestSingleInstanceLock()) {
     app.quit()
     return
@@ -409,7 +410,7 @@ async function start(): Promise<void> {
       )
     }
     startupStage = 'runtime-bootstrap'
-    ruijieLoginWindow = new RuijieLoginWindow({
+    if (!openMausServerMode) ruijieLoginWindow = new RuijieLoginWindow({
       onCancel: () => { requestQuit(0) },
       onError: cause => {
         electronLogger.error(`${BIN_NAME}: Ruijie authorization window failed: ${cause instanceof Error ? cause.message : String(cause)}`)
@@ -421,6 +422,7 @@ async function start(): Promise<void> {
     const authenticatedAccount = await ensureRuijieAuthEnvironment({
       environment: process.env,
       credentialStore: new RuijieAuthStore(app.getPath('userData'), safeStorage),
+      interactive: !openMausServerMode,
       onStatus: status => {
         if (status === 'authorization-processing') ruijieLoginWindow?.showVerifying()
         if (status === 'authorization-complete') ruijieLoginWindow?.showStarting()
@@ -679,13 +681,25 @@ async function start(): Promise<void> {
       profileDir: prepared.profile.dir,
       homeDir: prepared.homeDir,
     })
+    if (openMausServerMode) {
+      // The Host, OAuth proxy and OpenMaus bridge are already live. Keep the
+      // Electron main process headless: no Renderer, BrowserWindow or tray.
+      // The parent Bot owns this process lifetime and reaches the ordinary
+      // Harness interface through the bridge record published above.
+      process.stdout.write(`${JSON.stringify({
+        type: 'openmaus-server-ready',
+        endpoint: `http://127.0.0.1:${String(ctx.webServer.port)}`,
+        version: desktopProductVersion(),
+      })}\n`)
+      return
+    }
     startupStage = 'renderer-startup'
     runtime.beginRendererBootMonitoring()
     await runtime.mountScheduled()
     // Keep a native-owned window alive across the entire post-OAuth bootstrap.
     // Closing it earlier leaves a gap where an authorization-success browser
     // page exists but no Desktop window can take focus (or survive a close).
-    ruijieLoginWindow.close()
+    ruijieLoginWindow?.close()
     ruijieLoginWindow = undefined
     runtime.show()
     const rendererReport = await rendererBoot
@@ -752,6 +766,11 @@ async function start(): Promise<void> {
     ruijieLoginWindow = undefined
     runtime.stopRendererBootMonitoring()
     electronLogger.errorCause(cause)
+    if (openMausServerMode) {
+      await quiesceHostForRecovery()
+      await shutdown.request(1)
+      return
+    }
     let exitCode = 1
     let installRecoveryRelaunch = false
     const failureRoute = routeDesktopStartupFailure({
@@ -804,7 +823,7 @@ async function start(): Promise<void> {
         electronLogger.error(`dsh-plugin-desktop: failed to roll back desktop profile state: ${stateCause instanceof Error ? stateCause.message : String(stateCause)}`)
       }
     }
-    if (exitCode !== 0
+    if (!openMausServerMode && exitCode !== 0
       && (failureRoute === 'protected-install-recovery' || failureRoute === 'startup-recovery')) {
       const detail = cause instanceof Error ? cause.message : String(cause)
       const recoveryResult = await openStartupRecoveryWindow(
@@ -858,6 +877,10 @@ async function run(): Promise<void> {
 async function handleFatalLauncherFailure(cause: unknown): Promise<void> {
   const detail = maskSecrets(cause instanceof Error ? cause.stack ?? cause.message : String(cause))
   process.stderr.write(`${BIN_NAME}: fatal launcher failure: ${detail}\n`)
+  if (process.argv.includes('--openmaus-server')) {
+    app.exit(1)
+    return
+  }
   if (!app.isReady()) {
     app.exit(1)
     return

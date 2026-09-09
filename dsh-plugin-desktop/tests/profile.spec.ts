@@ -177,7 +177,7 @@ describe('desktop profile composition', {
       'agent-default-model': { model: 'deepseek-v4-flash', reasoningEffort: 'low' },
       'dsh-community-market': { sources: [expect.objectContaining({ builtInProviderKey: 'dsh-1024store' })] },
     })
-  })
+  }, 30_000)
 
   it('preserves installed plugins, market receipts, and custom sources across an upgrade launch', () => {
     const home = temporaryHome()

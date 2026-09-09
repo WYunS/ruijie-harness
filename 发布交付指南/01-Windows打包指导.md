@@ -400,6 +400,16 @@ corepack yarn verify:webview-continuity
 
 `2.1.5` 起，模型目录还必须在统一 DeepSeek 组之外独立显示 Claude 组，并且只包含 GPTAuth 后台配置的 `claude-fable-5`、`claude-opus-5`、`claude-sonnet-5`。三者必须通过桌面 OAuth 代理使用 Anthropic Messages 协议；代理接受客户端的 `x-api-key` 后只向 GPTAuth 上游发送当前用户的 OAuth Bearer，不得透传本地代理密钥，也不得形成 `/v1/v1/messages`。最终 Setup EXE 必须分别验证三个 Claude 模型能完成普通文本对话；至少一个 Claude 模型直接读取一张真实图片，轨迹中不得调用 `vision_*` Luna 工具；同一会话切换 Claude 与 DeepSeek 后上下文和图片仍可继续使用。DeepSeek 的既有图片链路必须单独回归并继续由 Luna `vision_*` 工具处理，Claude 的过滤逻辑不得删除 DeepSeek 的工具定义或改变其默认模型、推理强度和计费路由。模型不可用、价格未配置或上游返回错误时应如实记录为 GPTAuth 渠道问题，不能用静态目录存在冒充真实可用。
 
+`2.1.6` 新增独立 GPT 组，顺序固定为 `gpt-6-astra`、`gpt-5.6-sol`、`gpt-5.6-terra`、`gpt-5.6-luna`、`gpt-5.5`，五个模型均声明原生图片输入并通过当前用户的 GPTAuth OAuth 额度访问。界面统一提供 `off / low / medium / high / xhigh / max` 六档，不因切换型号改变按钮；发往上游时必须按型号安全绑定，当前 `gpt-5.5` 的公开 `max` 映射为上游 `xhigh`，其余已知型号保持同名映射，任何公开档位都不得在请求前触发 `UNSUPPORTED_REASONING_EFFORT`。默认值仍是 `deepseek-vision / deepseek-v4-flash / low`，新增 GPT 组不得抢占默认模型。最终 Setup EXE 必须逐个验证五个 GPT 模型至少一次文本请求、每个可选档位的路由，以及至少一个 GPT 模型直接读取真实图片；目录存在只能证明预封装，不能代替真实 GPTAuth 连通性、额度归属和模型响应。
+
+`2.1.6` 同时调整视觉长任务策略：整轮视觉累计时间和成功识图次数默认不设上限，以允许长视频/多图片任务完成；但每个独立视觉工具任务仍有 `120000 ms` 硬超时。最终 Setup EXE 必须用一个确实超过旧 45 秒边界的长任务确认不会提前中断，再用一个故意不返回的视觉后端确认单任务约 120 秒内终止、用户取消可立即收口且不会留下继续计费或孤儿任务。不能把“累计不限”解释为允许单次请求永久卡死。
+
+### 7.6 OpenMausBot 后台服务模式
+
+`2.1.6` 的安装版必须支持显式参数 `--openmaus-server`，供锐捷 Bot 在第一次实际调用 Harness 时按需启动。普通双击 Harness 的窗口、托盘和登录行为保持不变；锐捷 Bot 自身启动时不得顺带拉起 Harness。后台模式必须复用安装版安全存储中的当前 SSO 凭据，不得打开授权窗、主窗口或托盘；没有可复用登录时应立即返回“先在桌面版完成登录”的明确错误，不能弹窗或无限等待。
+
+Host 就绪后必须在 `%APPDATA%\锐捷 Harness\openmaus-bridge.json` 原子写入仅含 loopback endpoint、PID、generation id 和 schema version 的发现记录，并在标准输出发出 `openmaus-server-ready`。退出时只能删除自己 generation 的记录，不能误删后来进程的记录。打包前确认 `lib/openmaus-bridge.js`、入口参数分支和相关测试进入 `app.asar`/解包运行闭包；打包后从最终安装目录执行一次后台模式，验证无可见窗口、桥接可发现、Bot 可完成一次请求、退出后无孤儿进程和陈旧记录。若桌面版已运行，Bot 应复用其桥接记录而不是再启动第二个实例。
+
 ## 8. 正式打包
 
 只有第 6、7 节门禁全部通过后才执行：

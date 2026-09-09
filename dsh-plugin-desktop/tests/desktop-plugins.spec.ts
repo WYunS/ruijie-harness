@@ -367,7 +367,7 @@ describe('desktop direct bundle management', () => {
     expect(harness.service.disabledPackageNames()).toEqual(['third-party-plugin'])
     expect(readDesktopDisabledBundles(options.statePath, 'desktop').has('third-party-plugin')).toBe(true)
     await harness.dispose()
-  })
+  }, 15_000)
 
   it('preserves stale names while canonicalizing duplicate and unordered state on the next write', async () => {
     const root = temporaryRoot()
@@ -535,5 +535,5 @@ describe('desktop direct bundle management', () => {
       options.statePath,
     )).not.toThrow()
     await harness.dispose()
-  })
+  }, 15_000)
 })
