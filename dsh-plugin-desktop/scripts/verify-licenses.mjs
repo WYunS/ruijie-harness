@@ -11,7 +11,7 @@
  */
 
 import { createRequire } from 'node:module'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -114,9 +114,10 @@ for (let index = 0; index < queue.length; index += 1) {
 
   if (current.name !== rootManifest.name) {
     const license = KNOWN_LICENSE_OVERRIDES.get(current.name) ?? licenseExpression(manifest)
-    const hasLicenseFile = existsSync(join(dirname(current.manifestPath), 'LICENSE'))
-      || existsSync(join(dirname(current.manifestPath), 'LICENSE.md'))
-      || existsSync(join(dirname(current.manifestPath), 'LICENSE.txt'))
+    // npm packages such as khroma@2.1.0 ship a lowercase `license` file.
+    // Windows/macOS lookup hid this omission; Linux is case-sensitive.
+    const hasLicenseFile = readdirSync(dirname(current.manifestPath), { withFileTypes: true })
+      .some(entry => entry.isFile() && /^licen[cs]e(?:\.(?:md|txt))?$/iu.test(entry.name))
     if (license === undefined && !hasLicenseFile) {
       failures.push(`${current.name}: no license field and no LICENSE file`)
     } else if (license !== undefined && license.startsWith('SEE LICENSE IN ')) {
