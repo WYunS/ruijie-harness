@@ -1,0 +1,64 @@
+name: 复验 Intel Mac 安装包
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run:
+        description: 含已验证 release-macos-universal Artifact 的运行编号
+        required: true
+        type: string
+      source_sha:
+        description: 原包清单中的完整 sourceSha
+        required: true
+        type: string
+      version:
+        description: 原包版本号
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify:
+    runs-on: macos-15-intel
+    timeout-minutes: 45
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      RELEASE_MODE: artifacts
+      RELEASE_TARGET: macos-universal
+      RELEASE_KIT_SHA: 99e9ba013465693de6a66129abc0ef3b5f8648be
+      DSH_TELEMETRY_DISABLED: '1'
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: rj-liukaiwen/release-kit
+          ref: 99e9ba013465693de6a66129abc0ef3b5f8648be
+          path: .release-kit
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24.12.0'
+      - run: corepack enable
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: release-macos-universal-${{ inputs.candidate_run }}
+          path: .release-out/intel-input
+          run-id: ${{ inputs.candidate_run }}
+          github-token: ${{ github.token }}
+      - run: node .release-kit/bin/release.mjs install
+      - run: node .release-kit/bin/release.mjs verify-intel
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: intel-reverification-${{ github.run_id }}
+          path: |
+            .release-out/evidence/**
+            .release-out/intel-verification.json
+          if-no-files-found: warn
+          retention-days: 14
