@@ -28,3 +28,7 @@ Windows 未签名；Mac 沿用项目完整 ad-hoc 签名和最终 DMG 审计，�
 共用逻辑维护在 [release-kit](https://github.com/rj-liukaiwen/release-kit)。升级时同步更新调用工作流和 `toolkit_sha` 两处固定提交。项目适配器位于本目录，工具库版本不会自动改变应用身份、缓存路径或更新服务。
 
 Windows 构建会先重建源码内的 sidebar bundle，再刷新本地 file: 依赖，随后执行 immutable 安装、完整 check 和 20 项 webview 检查。仅允许四个本地 vendor archive 的哈希变化，registry 版本与哈希必须不变。生成 bundle 的哈希保存在 evidence。Linux 同时解包 AppImage/deb，运行各自内置 Electron 和两套终端原生模块。
+
+## 已有构建直接生成草稿
+
+打开本项目 Actions 的“从构建生成 Release”，填写“发布软件”成功运行的编号。流程重用同一源码和工具版本对应的已验证 Artifacts，重新核对全部哈希后生成草稿，不重复编译。已有同版本 Release 或过期/缺失产物会被拒绝。
