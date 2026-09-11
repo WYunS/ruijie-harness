@@ -1,0 +1,27 @@
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { readFile, readdir, mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+assert.equal(process.platform, 'linux');
+const root = process.cwd();
+const dist = path.join(root, 'dsh-plugin-desktop/dist');
+const files = await readdir(dist);
+const deb = files.filter(f => f.endsWith('.deb'));
+const appImage = files.filter(f => f.endsWith('.AppImage'));
+assert.equal(deb.length, 1); assert.equal(appImage.length, 1);
+const meta = JSON.parse(await readFile('dsh-plugin-desktop/package.json', 'utf8'));
+assert.equal(execFileSync('dpkg-deb', ['-f', path.join(dist, deb[0]), 'Version'], {encoding:'utf8'}).trim(), meta.version);
+assert.equal(execFileSync('dpkg-deb', ['-f', path.join(dist, deb[0]), 'Architecture'], {encoding:'utf8'}).trim(), 'amd64');
+const extracted = path.join(root, '.release-out/linux-installed');
+await mkdir(extracted, {recursive:true});
+execFileSync('dpkg-deb', ['-x', path.join(dist, deb[0]), extracted], {stdio:'inherit'});
+const executable = path.join(extracted, 'opt/锐捷 Harness/ruijie-harness');
+const header = await readFile(executable);
+assert.equal(header.subarray(0,4).toString('hex'), '7f454c46');
+assert.equal(header.readUInt16LE(18), 62, 'Expected x86-64 ELF');
+const resources = path.join(path.dirname(executable), 'resources/app.asar.unpacked');
+// Exercise packaged module resolution with packaged Electron's Node runtime.
+const script = path.join(root, '.release-out/linux-native-probe.cjs');
+await writeFile(script, `const {createRequire}=require('node:module'); const req=createRequire(${JSON.stringify(path.join(resources, 'package.json'))}); const pty=req('node-pty'); const t=pty.spawn('/bin/sh',['-c','printf release-kit-terminal-ok'],{name:'xterm',cols:80,rows:24,cwd:process.env.HOME,env:process.env}); let out=''; const timer=setTimeout(()=>{t.kill();process.exit(2)},15000); t.onData(x=>out+=x);t.onExit(()=>{clearTimeout(timer);if(!out.includes('release-kit-terminal-ok'))process.exit(3);console.log(out)});`);
+execFileSync(executable, [script], {stdio:'inherit', env:{...process.env,ELECTRON_RUN_AS_NODE:'1'}});
+await writeFile(path.join(root, '.release-out/evidence/linux.json'), JSON.stringify({version:meta.version, architecture:'amd64', debExtraction:'passed', packagedNativeTerminal:'passed', guiLogin:'not performed', upgrade:'not performed'},null,2));

@@ -47,6 +47,25 @@ describe('installed macOS acceptance paths', () => {
 })
 
 describe('dynamic macOS release acceptance plan', () => {
+  it('keeps newly mapped directory, editor, recovery and update risks pending human acceptance', () => {
+    const plan = buildMacAcceptancePlan([
+      'dsh-plugin-desktop/src/client/contracts.ts',
+      'dsh-plugin-desktop/src/client/mac-directory-flow.tsx',
+      'dsh-plugin-desktop/src/desktop-working-directory.ts',
+      'dsh-plugin-desktop/src/mac-directory-access.ts',
+      'dsh-plugin-desktop/src/editor-context-menu.ts',
+      'dsh-plugin-desktop/src/client/ruijie-brand.ts',
+      'dsh-plugin-desktop/src/startup-recovery-window.ts',
+      'dsh-plugin-desktop/src/runtime.ts',
+    ])
+    expect(plan.some(item => item.mode === 'manual-blocking')).toBe(false)
+    for (const id of ['native-directory-tcc', 'native-editor-menu', 'brand-light-dark', 'startup-recovery', 'platform-update-channel']) {
+      expect(plan.find(item => item.id === id)).toMatchObject({ mode: 'manual-required' })
+      expect(plan.find(item => item.id === id)?.reasons.some(reason => reason.startsWith('changed:'))).toBe(true)
+    }
+    expect(buildMacAcceptancePlan(['dsh-plugin-desktop/src/unreviewed-feature.ts'])
+      .some(item => item.mode === 'manual-blocking')).toBe(true)
+  })
   it('always retains the human-like installed-app regression baseline', () => {
     const plan = buildMacAcceptancePlan([])
     expect(plan.map(item => item.id)).toEqual(expect.arrayContaining([

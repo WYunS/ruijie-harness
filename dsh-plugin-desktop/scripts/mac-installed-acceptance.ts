@@ -31,6 +31,11 @@ const BASELINE: readonly Omit<MacAcceptancePlanItem, 'reasons'>[] = [
   { id: 'gpt-model-catalog-and-routing', title: 'Use all five GPTAuth GPT models, all six reasoning choices, and native image input', mode: 'manual-required' },
   { id: 'openmaus-background-bridge', title: 'Launch the installed app as a headless OpenMausBot bridge without windows or TCC prompts', mode: 'manual-required' },
   { id: 'vision-long-task-policy', title: 'Complete a visual task past 45 seconds while retaining the 120-second per-task timeout and cancellation', mode: 'manual-required' },
+  { id: 'native-directory-tcc', title: 'Choose, allow, deny, and cancel protected directories without repeated prompts; preserve old workspaces on upgrade', mode: 'manual-required' },
+  { id: 'native-editor-menu', title: 'Use native cut/copy/paste and type immediately after deleting a session', mode: 'manual-required' },
+  { id: 'brand-light-dark', title: 'Check the transparent Harness badge and native window controls in light and dark themes', mode: 'manual-required' },
+  { id: 'startup-recovery', title: 'Open the inert recovery document after a controlled startup failure; reject unrelated navigation and recover safely', mode: 'manual-required' },
+  { id: 'platform-update-channel', title: 'Verify platform-specific updates, reject/retry, and preservation of user data during upgrade', mode: 'manual-required' },
 ]
 
 interface RiskRule {
@@ -41,6 +46,32 @@ interface RiskRule {
 }
 
 const RISK_RULES: readonly RiskRule[] = [
+  {
+    risk: 'native-directory-tcc',
+    pattern: /dsh-plugin-desktop\/src\/(?:client\/(?:contracts\.ts|mac-directory-flow\.tsx)|desktop-working-directory\.ts|mac-directory-access\.ts)$/iu,
+    checks: ['native-directory-tcc', 'workspace-and-session'],
+    adjacent: { 'restart-persistence': 'adjacent:native-directory-tcc' },
+  },
+  {
+    risk: 'native-editor-menu',
+    pattern: /dsh-plugin-desktop\/src\/editor-context-menu\.ts$/iu,
+    checks: ['native-editor-menu', 'workspace-and-session'],
+  },
+  {
+    risk: 'brand-light-dark',
+    pattern: /dsh-plugin-desktop\/src\/client\/ruijie-brand\.ts$/iu,
+    checks: ['brand-light-dark', 'sidebar-controls'],
+  },
+  {
+    risk: 'startup-recovery',
+    pattern: /dsh-plugin-desktop\/src\/startup-recovery-window\.ts$/iu,
+    checks: ['startup-recovery', 'install-and-first-launch'],
+  },
+  {
+    risk: 'platform-update-channel',
+    pattern: /dsh-plugin-desktop\/src\/runtime\.ts$/iu,
+    checks: ['platform-update-channel', 'restart-persistence'],
+  },
   {
     risk: 'sidebar',
     pattern: /(?:^|\/)(?:dsh-better-sidebar|sidebar)(?:\/|\.|$)/iu,
