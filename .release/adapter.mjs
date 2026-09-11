@@ -4,6 +4,7 @@ import { readFile, writeFile, mkdir, readdir, cp } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { comparableLock } from './lock-graph.mjs';
 const desktop = 'dsh-plugin-desktop';
 const require = createRequire(new URL('../dsh-plugin-desktop/package.json', import.meta.url));
 const hash = value => createHash('sha256').update(value).digest('hex');
@@ -33,16 +34,15 @@ export async function preflight(ctx) {
 export async function install(ctx) {
   await mkdir(path.join(ctx.out, 'evidence'), { recursive: true });
   const before = await readFile('yarn.lock', 'utf8');
-  if (process.platform === 'win32') yarn(['install', '--immutable']);
-  else {
-    // Yarn local file archives include host metadata. Permit checksum-only refresh,
-    // then require immutable install; never accept a changed dependency graph.
-    yarn(['install'], { env: { YARN_ENABLE_IMMUTABLE_INSTALLS: 'false' } });
-    const after = await readFile('yarn.lock', 'utf8');
-    const graph = text => text.replace(/^\s*checksum:.*\r?\n/gm, '').replaceAll('\r\n', '\n');
-    assert.equal(graph(after), graph(before), 'Dependency graph changed during platform checksum refresh');
-    yarn(['install', '--immutable']);
-  }
+  // Clean hosts differ from the developer checkout even on the same OS.
+  // Accept only the four tracked vendor archive hashes, never registry hashes.
+  yarn(['install'], { env: { YARN_ENABLE_IMMUTABLE_INSTALLS: 'false' } });
+  const after = await readFile('yarn.lock', 'utf8');
+  await writeFile(path.join(ctx.out, 'evidence', 'yarn-lock-before.txt'), before);
+  await writeFile(path.join(ctx.out, 'evidence', 'yarn-lock-installed.txt'), after);
+  assert(comparableLock(after) === comparableLock(before), 'Dependency graph or registry bytes changed during local archive refresh; see lock evidence');
+  run('git', ['diff', '--exit-code', '--', 'vendor']);
+  yarn(['install', '--immutable']);
   await writeFile(path.join(ctx.out, 'evidence', 'dependency-locks.json'), JSON.stringify({ original: hash(before), installed: hash(await readFile('yarn.lock')) }, null, 2));
 }
 export async function build(ctx) {
