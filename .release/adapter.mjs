@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFile, writeFile, mkdir, readdir, cp } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir, cp, realpath, lstat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -63,6 +63,13 @@ export async function install(ctx) {
 export async function build(ctx) {
   yarn(['check']);
   yarn(['workspace', desktop, 'verify:vendor-sidebar']);
+  if (ctx.target === 'linux-x64') {
+    assert.equal(process.env.GITHUB_ACTIONS,'true','Linux sandbox setup is restricted to the ephemeral CI runner');
+    const sandbox=await realpath(path.join(path.dirname(require.resolve('electron/package.json')),'dist/chrome-sandbox'));
+    assert(sandbox.startsWith((await realpath(ctx.root))+path.sep) && (await lstat(sandbox)).isFile(),'Unexpected Electron sandbox path');
+    run('sudo',['chown','root:root',sandbox]);
+    run('sudo',['chmod','4755',sandbox]);
+  }
   yarn(['workspace', desktop, 'verify:webview-continuity']);
   if (ctx.target === 'windows-x64') {
     // Full check above includes every check:win-package test; vendor and
