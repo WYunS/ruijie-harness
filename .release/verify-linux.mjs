@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFile, readdir, mkdir, writeFile } from 'node:fs/promises';
+import { readFile, readdir, mkdir, writeFile, open, chmod } from 'node:fs/promises';
 import path from 'node:path';
 assert.equal(process.platform, 'linux');
 const root = process.cwd();
@@ -15,13 +15,28 @@ assert.equal(execFileSync('dpkg-deb', ['-f', path.join(dist, deb[0]), 'Architect
 const extracted = path.join(root, '.release-out/linux-installed');
 await mkdir(extracted, {recursive:true});
 execFileSync('dpkg-deb', ['-x', path.join(dist, deb[0]), extracted], {stdio:'inherit'});
-const executable = path.join(extracted, 'opt/锐捷 Harness/ruijie-harness');
-const header = await readFile(executable);
-assert.equal(header.subarray(0,4).toString('hex'), '7f454c46');
-assert.equal(header.readUInt16LE(18), 62, 'Expected x86-64 ELF');
-const resources = path.join(path.dirname(executable), 'resources/app.asar.unpacked');
-// Exercise packaged module resolution with packaged Electron's Node runtime.
-const script = path.join(root, '.release-out/linux-native-probe.cjs');
-await writeFile(script, `const {createRequire}=require('node:module'); const req=createRequire(${JSON.stringify(path.join(resources, 'package.json'))}); const pty=req('node-pty'); const t=pty.spawn('/bin/sh',['-c','printf release-kit-terminal-ok'],{name:'xterm',cols:80,rows:24,cwd:process.env.HOME,env:process.env}); let out=''; const timer=setTimeout(()=>{t.kill();process.exit(2)},15000); t.onData(x=>out+=x);t.onExit(()=>{clearTimeout(timer);if(!out.includes('release-kit-terminal-ok'))process.exit(3);console.log(out)});`);
-execFileSync(executable, [script], {stdio:'inherit', env:{...process.env,ELECTRON_RUN_AS_NODE:'1'}});
-await writeFile(path.join(root, '.release-out/evidence/linux.json'), JSON.stringify({version:meta.version, architecture:'amd64', debExtraction:'passed', packagedNativeTerminal:'passed', guiLogin:'not performed', upgrade:'not performed'},null,2));
+const imageDir = path.join(root,'.release-out/linux-appimage');
+await mkdir(imageDir,{recursive:true});
+const image = path.join(dist,appImage[0]); await chmod(image,0o755);
+execFileSync(image,['--appimage-extract'],{cwd:imageDir,stdio:'ignore'});
+const results = [];
+for (const [format,executable] of [
+  ['deb',path.join(extracted, 'opt/锐捷 Harness/ruijie-harness')],
+  ['AppImage',path.join(imageDir,'squashfs-root/ruijie-harness')],
+]) {
+  const descriptor=await open(executable,'r'); const header=Buffer.alloc(20);
+  try { await descriptor.read(header,0,20,0); } finally { await descriptor.close(); }
+  assert.equal(header.subarray(0,4).toString('hex'), '7f454c46');
+  assert.equal(header.readUInt16LE(18),62,'Expected x86-64 ELF');
+  const resources = path.join(path.dirname(executable),'resources/app.asar.unpacked');
+  // Both root and sidebar terminals must load their actual packaged native addon.
+  const script=path.join(root,'.release-out/linux-native-probe.cjs');
+  await writeFile(script, `const {createRequire}=require('node:module'); const path=require('node:path'); const root=${JSON.stringify(resources)};
+async function probe(base) { const req=createRequire(path.join(root,base,'package.json')); const pty=req('node-pty');
+await new Promise((resolve,reject)=>{const t=pty.spawn('/bin/sh',['-c','printf release-kit-terminal-ok'],{name:'xterm',cols:80,rows:24,cwd:process.env.HOME,env:process.env});let out='';const timer=setTimeout(()=>{t.kill();reject(new Error('terminal timeout'))},15000);t.onData(x=>out+=x);t.onExit(()=>{clearTimeout(timer);out.includes('release-kit-terminal-ok')?resolve():reject(new Error(out))});}); console.log(base+' terminal passed'); }
+(async()=>{await probe('.');await probe('node_modules/dsh-better-sidebar');})().catch(e=>{console.error(e);process.exitCode=1});`);
+  execFileSync(executable,[script],{stdio:'inherit',timeout:45000,env:{...process.env,ELECTRON_RUN_AS_NODE:'1'}});
+  results.push({format,architecture:'amd64',extraction:'passed',packagedRootAndSidebarTerminal:'passed'});
+}
+await mkdir(path.join(root,'.release-out/evidence'),{recursive:true});
+await writeFile(path.join(root, '.release-out/evidence/linux.json'), JSON.stringify({version:meta.version,packages:results,guiLogin:'not performed',upgrade:'not performed'},null,2));

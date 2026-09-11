@@ -26,3 +26,5 @@ Windows 未签名；Mac 沿用项目完整 ad-hoc 签名和最终 DMG 审计，�
 接入共享工作流没有取消项目许可要求。依赖中的 `@tencent-connect/qqbot-connector@1.2.0` 保留既有业务例外及 notices；对外分发前需确认该例外适用于实际发布范围。
 
 共用逻辑维护在 [release-kit](https://github.com/rj-liukaiwen/release-kit)。升级时同步更新调用工作流和 `toolkit_sha` 两处固定提交。项目适配器位于本目录，工具库版本不会自动改变应用身份、缓存路径或更新服务。
+
+构建会先重建源码内的 sidebar bundle，再刷新本地 file: 依赖，随后执行 immutable 安装、完整 check 和 20 项 webview 检查。仅允许四个本地 vendor archive 的哈希变化，registry 版本与哈希必须不变。生成 bundle 的哈希保存在 evidence。Linux 同时解包 AppImage/deb，运行各自内置 Electron 和两套终端原生模块。
