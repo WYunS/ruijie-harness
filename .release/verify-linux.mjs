@@ -10,7 +10,8 @@ const deb = files.filter(f => f.endsWith('.deb'));
 const appImage = files.filter(f => f.endsWith('.AppImage'));
 assert.equal(deb.length, 1); assert.equal(appImage.length, 1);
 const meta = JSON.parse(await readFile('dsh-plugin-desktop/package.json', 'utf8'));
-assert.equal(execFileSync('dpkg-deb', ['-f', path.join(dist, deb[0]), 'Version'], {encoding:'utf8'}).trim(), meta.version);
+// Debian uses ~ so a prerelease sorts before the corresponding final version.
+assert.equal(execFileSync('dpkg-deb', ['-f', path.join(dist, deb[0]), 'Version'], {encoding:'utf8'}).trim(), meta.version.replace('-', '~'));
 assert.equal(execFileSync('dpkg-deb', ['-f', path.join(dist, deb[0]), 'Architecture'], {encoding:'utf8'}).trim(), 'amd64');
 const extracted = path.join(root, '.release-out/linux-installed');
 await mkdir(extracted, {recursive:true});

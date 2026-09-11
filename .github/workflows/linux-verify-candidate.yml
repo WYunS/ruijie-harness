@@ -1,0 +1,51 @@
+name: 复验 Linux 候选包
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run:
+        description: 保存 Linux candidate 的原运行编号
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: verifier
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24.12.0'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: candidate-linux-x64-${{ inputs.candidate_run }}
+          path: input
+          run-id: ${{ inputs.candidate_run }}
+          github-token: ${{ github.token }}
+      - name: Verify candidate hashes and original source
+        id: source
+        run: node verifier/.release/inspect-linux-candidate.mjs input
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ steps.source.outputs.sha }}
+          path: candidate
+          persist-credentials: false
+      - name: Stage original installers
+        run: |
+          mkdir -p candidate/dsh-plugin-desktop/dist
+          cp input/*.deb input/*.AppImage candidate/dsh-plugin-desktop/dist/
+      - name: Test final package runtimes with updated verifier
+        working-directory: candidate
+        run: node ../verifier/.release/verify-linux.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: linux-reverification-${{ github.run_id }}
+          path: candidate/.release-out/evidence/**
+          if-no-files-found: warn
+          retention-days: 14
