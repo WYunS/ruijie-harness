@@ -285,11 +285,10 @@ export const Config = z.object({
   // default because it adds at least two visual/tool calls to image turns.
   structuredVisionBootstrap: z.boolean().default(false),
   // 看图深度档位（移植自 dsh-vision 的 PRECISION 档位概念）：
-  // fast = 本轮视觉调用上限 1 次（快速）；standard = 上限 2 次（bootstrap+1，
-  // 与现状等价）；deep = 上限 3-4 次（完整证据链）。档位只定「深度上限」，
-  // 模型在档位内按用户问题自选工具与轮次（保留 x 的自由度）。默认 standard
-  // = 现状行为逐字节不变。与场景路由正交：场景管出口、档位管深度。
-  visionDepth: z.union(['fast', 'standard', 'deep']).default('standard'),
+  // fast = 本轮视觉调用上限 1 次；standard = 上限 2 次；deep = 上限 4 次；
+  // custom + visionDepthMaxCalls=0 = 不限制成功调用次数，供付费内部链路上的
+  // 长视频/长任务使用。单次调用仍受 visionTaskTimeoutMs 保护。
+  visionDepth: z.union(['fast', 'standard', 'deep', 'custom']).default('custom'),
   // 引导文案覆盖（引导表可配置化）：kind = visual_kind（code/document/ui/chat）
   // 或 content_kind（person/animal/…/meme），text = 覆盖引导文案。
   // 默认空 = 用内置引导表（零变化）；配置后该 kind 的引导优先用覆盖文案。
@@ -334,9 +333,9 @@ export const Config = z.object({
   timeoutMs: z.number().step(1).min(1000).max(600000).default(120000),
   // One vision task (vision_describe / vision_ground / … including every
   // provider, fallback and retry inside it) shares this single wall-clock
-  // budget. Per-provider requests are capped by min(timeoutMs, remaining
-  // budget), so a chain of slow backends can never multiply the wait.
-  visionTaskTimeoutMs: z.number().step(1).min(1000).max(180000).default(45000),
+  // deadline. The cumulative turn deadline is independently configurable and
+  // is disabled by default for resumable long-running paid/internal jobs.
+  visionTaskTimeoutMs: z.number().step(1).min(1000).max(180000).default(120000),
   // Total budget for one OCR task. Local tesseract gets at most 12s of it
   // (its own cap) and the vision-model fallback only the rest — never two
   // full timeouts added together.

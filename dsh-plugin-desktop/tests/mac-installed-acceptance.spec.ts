@@ -61,6 +61,9 @@ describe('dynamic macOS release acceptance plan', () => {
       'restart-persistence',
       'real-model-document-understanding',
       'real-web-search-and-network',
+      'gpt-model-catalog-and-routing',
+      'openmaus-background-bridge',
+      'vision-long-task-policy',
     ]))
     expect(plan.find(item => item.id === 'real-model-document-understanding')?.mode).toBe('manual-required')
   })
@@ -80,6 +83,34 @@ describe('dynamic macOS release acceptance plan', () => {
     const plan = buildMacAcceptancePlan(['dsh-plugin-desktop/src/ruijie-auth.ts'])
     expect(plan.find(item => item.id === 'protected-login')?.reasons).toContain('changed:auth')
     expect(plan.find(item => item.id === 'restart-persistence')?.reasons).toContain('adjacent:auth')
+  })
+
+  it('maps the 2.1.6 GPT, OpenMaus bridge, and long-vision runtime surfaces', () => {
+    const plan = buildMacAcceptancePlan([
+      'dsh-plugin-desktop/cordis.patch.yml',
+      'dsh-plugin-desktop/src/openmaus-bridge.ts',
+      'vendor/dsh-vision-router/entry.js',
+      'vendor/dsh-vision-router/index.js',
+      'vendor/dsh-vision-router/lib/structured-flow-hardening.js',
+    ])
+
+    expect(plan.some(item => item.id === 'unmapped-runtime-review')).toBe(false)
+    expect(plan.find(item => item.id === 'gpt-model-catalog-and-routing')?.reasons)
+      .toContain('changed:gpt-model-catalog')
+    expect(plan.find(item => item.id === 'model-and-reasoning')?.reasons)
+      .toContain('adjacent:gpt-model-catalog')
+    expect(plan.find(item => item.id === 'openmaus-background-bridge')?.reasons)
+      .toContain('changed:openmaus-bridge')
+    expect(plan.find(item => item.id === 'vision-long-task-policy')?.reasons)
+      .toContain('changed:vision-long-task')
+    expect(plan.find(item => item.id === 'install-and-first-launch')?.reasons)
+      .toContain('adjacent:openmaus-bridge')
+    expect(plan.find(item => item.id === 'protected-login')?.reasons)
+      .toContain('adjacent:openmaus-bridge')
+    expect(plan.find(item => item.id === 'workspace-and-session')?.reasons)
+      .toContain('adjacent:openmaus-tcc')
+    expect(plan.find(item => item.id === 'real-model-document-understanding')?.reasons)
+      .toContain('adjacent:vision-long-task')
   })
 
   it('maps the current desktop UI, search, composition, and update runtime surfaces', () => {

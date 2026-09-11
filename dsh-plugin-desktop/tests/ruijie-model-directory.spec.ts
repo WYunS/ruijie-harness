@@ -87,4 +87,23 @@ describe('unified Ruijie multimodal model directory', () => {
       ],
     })
   })
+
+  it('keeps the independently configured GPT group and its image/reasoning catalog visible', () => {
+    const reasoning = {
+      efforts: ['off', 'low', 'medium', 'high', 'xhigh', 'max'].map(id => ({ id, name: id })),
+      defaultEffort: 'medium',
+    }
+    const gptModels = ['gpt-6-astra', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.5']
+      .map(id => ({ id, name: id, reasoning }))
+    const state = unifiedRuijieModelState({
+      current: { provider: 'openai', model: 'gpt-5.6-sol', reasoningEffort: 'high' },
+      routable: true,
+      status: 'ready',
+      error: null,
+      failures: [],
+      groups: [{ id: 'openai', name: 'GPT', models: gptModels }],
+    })
+    expect(state.groups).toEqual([{ id: 'openai', name: 'GPT', models: gptModels }])
+    expect(state.current).toEqual({ provider: 'openai', model: 'gpt-5.6-sol', reasoningEffort: 'high' })
+  })
 })

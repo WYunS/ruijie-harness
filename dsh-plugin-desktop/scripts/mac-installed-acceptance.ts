@@ -28,6 +28,9 @@ const BASELINE: readonly Omit<MacAcceptancePlanItem, 'reasons'>[] = [
   { id: 'restart-persistence', title: 'Restart with login, settings, workspace, and session state preserved', mode: 'automated' },
   { id: 'real-model-document-understanding', title: 'Use the real company model to understand image, Word, Excel, PowerPoint, and PDF content', mode: 'manual-required' },
   { id: 'real-web-search-and-network', title: 'Use real WebSearch through the target company network', mode: 'manual-required' },
+  { id: 'gpt-model-catalog-and-routing', title: 'Use all five GPTAuth GPT models, all six reasoning choices, and native image input', mode: 'manual-required' },
+  { id: 'openmaus-background-bridge', title: 'Launch the installed app as a headless OpenMausBot bridge without windows or TCC prompts', mode: 'manual-required' },
+  { id: 'vision-long-task-policy', title: 'Complete a visual task past 45 seconds while retaining the 120-second per-task timeout and cancellation', mode: 'manual-required' },
 ]
 
 interface RiskRule {
@@ -55,6 +58,31 @@ const RISK_RULES: readonly RiskRule[] = [
     pattern: /(?:model|reasoning|agent-preset)/iu,
     checks: ['model-and-reasoning'],
     adjacent: { 'restart-persistence': 'adjacent:model' },
+  },
+  {
+    risk: 'gpt-model-catalog',
+    pattern: /(?:cordis\.patch\.yml|ruijie-model-directory)/iu,
+    checks: ['gpt-model-catalog-and-routing'],
+    adjacent: {
+      'model-and-reasoning': 'adjacent:gpt-model-catalog',
+      'restart-persistence': 'adjacent:gpt-model-catalog',
+    },
+  },
+  {
+    risk: 'openmaus-bridge',
+    pattern: /(?:openmaus|--openmaus-server)/iu,
+    checks: ['openmaus-background-bridge'],
+    adjacent: {
+      'install-and-first-launch': 'adjacent:openmaus-bridge',
+      'protected-login': 'adjacent:openmaus-bridge',
+      'workspace-and-session': 'adjacent:openmaus-tcc',
+    },
+  },
+  {
+    risk: 'vision-long-task',
+    pattern: /(?:dsh-vision-router|vision-long-task|structured-flow-hardening)/iu,
+    checks: ['vision-long-task-policy'],
+    adjacent: { 'real-model-document-understanding': 'adjacent:vision-long-task' },
   },
   {
     risk: 'locale',

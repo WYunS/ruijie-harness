@@ -55,6 +55,8 @@ export interface RuijieAuthOptions {
   readonly onError?: (cause: unknown) => void
   /** Bound account-service calls after the browser callback; overridable by deterministic tests. */
   readonly requestTimeoutMs?: number
+  /** False for background agent-server launches: reuse stored SSO only and never open a login window. */
+  readonly interactive?: boolean
 }
 
 export type RuijieAuthStatus =
@@ -629,6 +631,9 @@ export async function ensureRuijieAuthEnvironment(options: RuijieAuthOptions): P
     }
   }
 
+  if (options.interactive === false) {
+    throw new Error('锐捷 Harness 后台模式需要先在桌面版完成登录。')
+  }
   options.onStatus?.('authorization-required')
   const state = randomBytes(32).toString('base64url')
   const verifier = randomBytes(32).toString('base64url')

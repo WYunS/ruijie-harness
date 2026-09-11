@@ -128,6 +128,54 @@
 - id: llm-pi-ai
   config:
     providers:
+      # GPTAuth exposes the user's subscribed GPT channels through the same
+      # OAuth-backed OpenAI-compatible gateway as the DeepSeek routes. Keep
+      # the catalog explicit so a backend discovery outage never removes a
+      # model the installed product knows how to drive.
+      openai:
+        displayName: GPT
+        apiKeyEnv: DEEPSEEK_API_KEY
+        api: openai-completions
+        baseURL: !!js process.env.DEEPSEEK_BASE_URL || 'http://127.0.0.1:9/v1'
+        reasoning: medium
+        defaultContextWindow: 1000000
+        defaultMaxTokens: 16384
+        defaultInput: [text, image]
+        models:
+          - id: gpt-6-astra
+            name: gpt-6-astra
+            input: [text, image]
+            reasoningEfforts: &gptReasoning
+              off:
+              low: low
+              medium: medium
+              high: high
+              xhigh: xhigh
+              max: max
+          - id: gpt-5.6-sol
+            name: gpt-5.6-sol 旗舰模型
+            input: [text, image]
+            reasoningEfforts: *gptReasoning
+          - id: gpt-5.6-terra
+            name: gpt-5.6-terra 均衡模型
+            input: [text, image]
+            reasoningEfforts: *gptReasoning
+          - id: gpt-5.6-luna
+            name: gpt-5.6-luna 经济模型
+            input: [text, image]
+            reasoningEfforts: *gptReasoning
+          - id: gpt-5.5
+            name: gpt-5.5
+            input: [text, image]
+            # The UI keeps the same six public choices. GPT-5.5 tops out at
+            # xhigh, so public max is safely clamped instead of rejected.
+            reasoningEfforts:
+              off:
+              low: low
+              medium: medium
+              high: high
+              xhigh: xhigh
+              max: xhigh
       anthropic:
         displayName: Claude
         apiKeyEnv: DEEPSEEK_API_KEY

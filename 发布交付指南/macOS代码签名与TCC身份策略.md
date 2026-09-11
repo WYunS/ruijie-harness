@@ -79,6 +79,8 @@
 
 `2.1.5` 包含 GPTAuth Claude 模型、OAuth 代理和运行时配置变化，必须视为新的完整应用内容：即使没有改动签名脚本，也要从最终 universal `.app` 重新执行 inside-out ad-hoc 签名并挂载最终 DMG 复验，不能继承 `2.1.4` 的签名审计、CDHash 或 TCC 验收结论。模型供应商变化本身不授权访问 Downloads、Documents 或 Desktop；Claude 与 DeepSeek 的图片输入都只能在用户已经选择或主动附加文件后读取，不能为了模型能力预探测受保护目录。
 
+`2.1.6` 又加入 GPTAuth GPT 模型目录和 `--openmaus-server` 无界面桥接，应用内容与 CodeDirectory 再次变化，必须生成新的 universal DMG、重新完成 inside-out ad-hoc 签名并从挂载 DMG 复验，不能继承 `2.1.5` 的 CDHash、签名审计或 TCC 结果。后台桥接只允许启动 Host、OAuth 代理和 loopback 发现记录；不得创建窗口、状态栏图标、目录选择器，也不得预读 Downloads、Documents、Desktop 或历史工作区来“探测能力”。因此在未主动选目录时，普通启动和 `--openmaus-server` 都必须保持零 TCC 提示。
+
 正式升级门禁是：不清 TCC，从旧正式版覆盖安装新候选；第一次访问受保护目录可以零次或最多一次 `Allow`，此后连续访问和重启不再提示。每次升级都循环提示、同一动作出现第二次提示或继续出现 requirement mismatch 均为失败。
 
 ## 7. 升级到固定证书的条件

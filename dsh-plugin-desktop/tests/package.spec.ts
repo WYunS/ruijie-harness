@@ -179,8 +179,8 @@ describe('published package surface', () => {
     expect(patch).toContain('reasoningEffort: low')
     expect(patch).toContain('id: deepseek-v4-flash')
     expect(patch).toContain('id: deepseek-v4-pro')
-    expect(patch).not.toContain('id: gpt-5.6-luna')
     const modelBlock = patch.match(/- id: llm-deepseek[\s\S]*?\n    models:\s*([\s\S]*?)(?=\n- id:|$)/u)?.[1]
+    expect(modelBlock).not.toContain('id: gpt-5.6-luna')
     expect([...modelBlock?.matchAll(/^\s*- id: (.+)$/gmu) ?? []].map(match => match[1])).toEqual([
       'deepseek-v4-flash',
       'deepseek-v4-pro',
@@ -203,8 +203,29 @@ describe('published package surface', () => {
     ])
   })
 
+  it('prepackages the five image-capable GPTAuth GPT models with native reasoning levels', () => {
+    const patch = readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8')
+    const providerBlock = patch.match(/- id: llm-pi-ai[\s\S]*?\n      openai:\s*([\s\S]*?)(?=\n      anthropic:|$)/u)?.[1]
+    expect(providerBlock).toContain('displayName: GPT')
+    expect(providerBlock).toContain('api: openai-completions')
+    expect(providerBlock).toContain('defaultInput: [text, image]')
+    expect([...providerBlock?.matchAll(/^\s*- id: (.+)$/gmu) ?? []].map(match => match[1])).toEqual([
+      'gpt-6-astra',
+      'gpt-5.6-sol',
+      'gpt-5.6-terra',
+      'gpt-5.6-luna',
+      'gpt-5.5',
+    ])
+    expect(providerBlock).toContain('xhigh: xhigh')
+    expect(providerBlock?.match(/^\s+max: max$/gmu)).toHaveLength(1)
+    const gpt55Block = providerBlock?.match(/- id: gpt-5\.5[\s\S]*?(?=\n\s*- id:|$)/u)?.[0]
+    expect(gpt55Block).toContain('max: xhigh')
+    expect(gpt55Block).not.toContain('max: max')
+  })
+
   it('adds employee-safe vision, document parsing, and Office tools without exposing the hidden VLM', () => {
     const patch = readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8')
+    const visionRouterBlock = patch.match(/    - id: vision-router[\s\S]*?(?=\n    - id:|$)/u)?.[0]
     const visionRouterRuntime = readFileSync(
       new URL('../vendor/dsh-vision-router/index.js', packageRoot),
       'utf8',
@@ -237,7 +258,7 @@ describe('published package surface', () => {
     expect(patch).toContain('autoWrapProviders: false')
     expect(patch).toContain('stealth: false')
     expect(patch).toContain('model: ruijie-gptauth/gpt-5.6-luna')
-    expect(patch).not.toMatch(/models:[\s\S]*?- id: gpt-/u)
+    expect(visionRouterBlock).not.toMatch(/models:[\s\S]*?- id: gpt-/u)
     expect(visionRouterRuntime).toMatch(
       /freeCloudFirst === true[\s\S]*?httpRouteProviders\(\)\[0\][\s\S]*?probeModels/u,
     )

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import {
@@ -205,6 +205,21 @@ describe('Ruijie desktop authentication module', () => {
       environment: { RUIJIE_DSH_OAUTH_ISSUER: 'http://example.com' },
       openExternal,
     })).rejects.toThrow('must use HTTPS unless it is a loopback acceptance fixture')
+  })
+
+  it('never starts interactive SSO in background agent-server mode', async () => {
+    const openExternal = vi.fn()
+    await expect(ensureRuijieAuthEnvironment({
+      environment: {},
+      credentialStore: {
+        load: async () => undefined,
+        save: async () => undefined,
+        clear: async () => undefined,
+      },
+      interactive: false,
+      openExternal,
+    })).rejects.toThrow('后台模式需要先在桌面版完成登录')
+    expect(openExternal).not.toHaveBeenCalled()
   })
 
   it('does not expose an environment-key bypass around SSO', () => {

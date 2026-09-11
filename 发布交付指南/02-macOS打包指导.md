@@ -48,6 +48,8 @@ git diff --stat <上次发布提交>..HEAD
 - Office/PDF/OCR：核对插件闭包、原生依赖和 OCR 数据。
 - IM 交付或生成文件链路：除文件本身外，核对 `dsh_im_return_file` 的 produced-file 展示元数据，追加“本次产出”可点击与右侧栏预览回归。
 - 登录、模型、浏览器、WebSearch、存储迁移：为最终 DMG 的自动与真人验收追加风险项。时间、时区或其他模型可见运行时上下文改动必须额外覆盖直接问答、基于“今天”的搜索词、新旧会话、重启边界和最终 `.app` 依赖闭包。若涉及 GPTAuth Claude，最终 `.app` 必须独立显示 Claude 组及准确模型列表，通过 OAuth 代理使用 Anthropic Messages；验证 Claude 原生图片输入不带 `vision_*` Luna 工具，同时 DeepSeek 图片仍保留 Luna 路径，并覆盖同一会话跨供应商切换。
+- GPTAuth GPT 或推理档位变化：最终 `.app` 必须按 `gpt-6-astra`、`gpt-5.6-sol`、`gpt-5.6-terra`、`gpt-5.6-luna`、`gpt-5.5` 的固定顺序显示独立 GPT 组，五者均可原生读图；界面统一显示 `off / low / medium / high / xhigh / max`，其中 `gpt-5.5` 的公开 `max` 必须安全映射到上游 `xhigh`，不得报不支持档位。默认仍为 `deepseek-vision / deepseek-v4-flash / low`。
+- OpenMausBot 桥接或后台启动变化：检查最终 universal `.app` 同时包含 `--openmaus-server` 分支和 `openmaus-bridge` 模块。普通 Finder 启动行为不得变化；后台模式只复用安全存储凭据，不显示授权窗、主窗口或状态栏图标，并在 `~/Library/Application Support/锐捷 Harness/openmaus-bridge.json` 原子发布 loopback 发现记录。未登录时必须明确失败且不弹窗；退出只清理自身 generation 的记录。
 - 浏览器读取、搜索供应商或计费路由：核对 `browser_search` 同时完成右栏展示和已加载页面的机器可读证据，`browser_open` 能返回正文，用户在右栏内继续导航后 `browser_read_current` 能读取当前页面；独立 `web_search` 保持可用，供应商密钥不进入 DMG。内部计费只能由 GPTAuth OAuth 网关写入当前用户总额度账本；没有服务端证据时不得宣称已完成扣费。
 - 更新逻辑、版本接口、下载地址或安装脚本：追加后台检查、用户拒绝/重试、私有目录下载、DMG 打开、旧数据保留和网站 curl 安装回归；Windows 与 Mac 必须保持同一稳定版本。
 - 仅文档或测试：仍运行适用门禁，但不虚构产品功能变化。
@@ -130,6 +132,10 @@ Mac runner 上 `file:` 依赖可能因宿主 archive 元数据产生哈希差异
 登录窗口门禁还必须覆盖单窗口隔离授权和平台差异：OAuth、GPTAuth sign-in 与锐捷 SSO 全部在桌面端独立窗口内完成，不调用默认浏览器、不增加中间确认弹窗，也不要求第二次点击。每次尝试使用新的非持久化内存 partition，隔离默认浏览器和上次尝试的 Cookie/localStorage；同一次 SSO 返回后若误落授权地址同源主页，或已明确经过企业 SSO 后落到 HTTPS `/user` 或 `/dashboard`，最多自动恢复最初的完整授权 URL 一次，随后无论出现多少 sign-in/dashboard 导航都不得再次恢复或形成频闪。正常 localhost callback、普通 HTTP 页面和未经过企业 SSO 的跨域主页不得误触发。
 
 打包版无论从 Finder、`/Applications`、Downloads、挂载 DMG 还是终端启动，都不得继承进程启动目录。Host 只可使用 Electron userData 下的私有 `runtime-cwd` 作为内部兜底 cwd；它不是 Workspace，禁止写入工作区注册表。全新用户首次进入工作台时工作区列表必须为空，必须由用户主动添加；用户未选择目录时不得访问 Downloads、Documents 或 Desktop，也不得触发 macOS Files and Folders 权限框。Mac 添加工作区必须由锐捷 Harness 主进程直接打开 Electron 原生目录选择器，不得交给 `osascript` 或网页目录浏览器代办；同一次打开状态无论重渲染或重复请求多少次，最多出现一个系统选择器。选定路径后由主进程只做一次访问探测，成功才允许写入 Workspace，拒绝或失败则不落库、不自动重试。Mac 不提供绕过该授权边界的文件夹拖入。用户主动选择 Downloads、Documents、Desktop、iCloud Drive 或其他受保护位置时，允许系统进行一次必要授权；授权后应创建工作区，拒绝后应回到可操作状态，不得要求清浏览器缓存、删除 `~/.dsh`、执行 `tccutil` 或进入系统设置修复。任何连续权限弹窗、应用隐藏后继续弹窗或必须强制结束进程的行为均阻断交付。模型目录冷启动只拿到基础 `deepseek-official` 组时，客户端必须暂时把它映射为可见的 DeepSeek 组，不能过滤成空列表；包装目录随后就绪时再使用包装组，默认仍为 `deepseek-v4-flash / low`。
+
+`2.1.6` 还必须从最终 DMG 分别验证 GPT 模型目录与 OpenMausBot 后台模式。模型门禁按上一节的五模型顺序、图片能力和统一推理档位执行，尤其锁定 `gpt-5.5 max → xhigh` 的实际发送值。后台模式从最终 `.app` 的主可执行文件显式传入 `--openmaus-server`：已有安全存储凭据时无窗口/无状态栏图标启动并发布 loopback 记录，缺少凭据时无交互失败；普通 Finder 启动仍显示完整桌面端。该模式不得主动枚举或访问 Downloads、Documents、Desktop，因此不能借后台桥接触发 TCC 提示。
+
+同一候选还改变视觉长任务默认策略：整轮累计视觉时间与成功调用次数默认不限，但每个独立视觉工具任务仍由 `120000 ms` 硬超时约束。必须从最终 DMG 验证超过旧 45 秒边界的长图片/长视频任务可以继续完成，同时用不返回的可控后端验证单任务会在约 120 秒内终止、用户取消能立即停止且退出后无残留任务；任一请求无限卡死都阻断发布。
 
 Mac 工作区权限属于 `release-blocking` 硬门禁，不能以“清理后可用”降级放行。每个用户主动选择目录的动作，系统权限提示允许为零次（系统已授权）或最多一次；若出现提示，用户点击一次 `Allow` 后必须完成创建并可立即使用，不得要求再次点击。拒绝、取消、访问失败或 UI 重渲染后必须停止，不得自动拉起第二个选择器、再次探测或循环请求。旧版 profile 中即使有多个历史会话指向同一个 Downloads/Documents/Desktop，单次启动恢复批次也只能对该原始 cwd 执行一次 `realpath` 和一次 `stat`，成功或失败结果都复用于该批次；`tests/workspace-cross-move-runtime-patch.spec.ts` 必须通过真实注册表启动和调用计数证明这一点，不能只断言源码文本。`tests/mac-directory-access.spec.ts`、`tests/client-mac-directory-flow.spec.ts` 则必须分别锁定主进程一次探测、并发请求合并、UI 重渲染去重和取消/拒绝后停止。任一测试缺失、跳过或只在 Windows 上肉眼通过，都不得生成可交付 Mac 候选。
 

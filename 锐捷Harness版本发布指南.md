@@ -23,6 +23,8 @@
 
 macOS 安装包必须是同时支持 Intel `x86_64` 与 Apple Silicon `arm64` 的 universal DMG。网页直接下载、应用内更新和 curl 安装都必须使用同一份 DMG。
 
+当前下一候选版本为 `2.1.6`。它包含 GPTAuth GPT 五模型、统一推理档位绑定、视觉长任务默认策略以及供锐捷 Bot 按需使用的 `--openmaus-server` 后台桥接，属于 Windows/macOS 共享业务代码变化；两平台都必须从同一发布提交重新打包和验收，不能复用 `2.1.5` 的 EXE、DMG、哈希、签名审计或真人验收结论。视觉长任务允许整轮累计时间和成功调用次数默认不限，但每个独立视觉工具任务仍须在 `120000 ms` 内收口。正式文件应分别命名为 `Ruijie-Harness-2.1.6-x64-Setup.exe` 与 `Ruijie-Harness-2.1.6-macOS-universal.dmg`。
+
 ## 一、准备安装包
 
 首次桥接时，先把产品版本改为 `2.1.1`，完成源码提交、Windows 打包、macOS universal 打包及对应验收，并准备同版本的两个安装包：
