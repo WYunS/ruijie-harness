@@ -43,19 +43,21 @@ export async function install(ctx) {
   assert(comparableLock(after) === comparableLock(before), 'Dependency graph or registry bytes changed during local archive refresh; see lock evidence');
   run('git', ['diff', '--exit-code', '--', 'vendor']);
   yarn(['install', '--immutable']);
-  // Rebuild source-owned vendor bundles before refreshing their installed file:
-  // archive. The previous Windows preflight rebuilt them after installation.
-  yarn(['workspace', desktop, 'build:vendor-sidebar']);
-  const changed = run('git', ['diff', '--name-only', '--', 'vendor'], {capture:true}).trim().split(/\r?\n/).filter(Boolean);
-  assert(changed.every(file => file.startsWith('vendor/dsh-better-sidebar/lib/')), 'Vendor rebuild changed files outside generated sidebar bundles');
-  yarn(['install'], {env:{YARN_ENABLE_IMMUTABLE_INSTALLS:'false'}});
-  const rebuilt = await readFile('yarn.lock','utf8');
-  assert.equal(comparableLock(rebuilt), comparableLock(before), 'Vendor rebuild changed dependency graph or registry bytes');
-  yarn(['install','--immutable']);
-  yarn(['workspace',desktop,'verify:vendor-sidebar']);
-  const generated = {};
-  for (const file of changed) generated[file] = hash(await readFile(file));
-  await writeFile(path.join(ctx.out,'evidence','generated-vendor.json'),JSON.stringify(generated,null,2));
+  if (process.platform === 'win32') {
+    // Windows owns the source bundle gate. Other hosts retain the committed
+    // bundle as the upstream macOS workflow requires (source-map bytes differ).
+    yarn(['workspace', desktop, 'build:vendor-sidebar']);
+    const changed = run('git', ['diff', '--name-only', '--', 'vendor'], {capture:true}).trim().split(/\r?\n/).filter(Boolean);
+    assert(changed.every(file => file.startsWith('vendor/dsh-better-sidebar/lib/')), 'Vendor rebuild changed files outside generated sidebar bundles');
+    yarn(['install'], {env:{YARN_ENABLE_IMMUTABLE_INSTALLS:'false'}});
+    const rebuilt = await readFile('yarn.lock','utf8');
+    assert.equal(comparableLock(rebuilt), comparableLock(before), 'Vendor rebuild changed dependency graph or registry bytes');
+    yarn(['install','--immutable']);
+    yarn(['workspace',desktop,'verify:vendor-sidebar']);
+    const generated = {};
+    for (const file of changed) generated[file] = hash(await readFile(file));
+    await writeFile(path.join(ctx.out,'evidence','generated-vendor.json'),JSON.stringify(generated,null,2));
+  }
   await writeFile(path.join(ctx.out, 'evidence', 'dependency-locks.json'), JSON.stringify({ original: hash(before), installed: hash(await readFile('yarn.lock')) }, null, 2));
 }
 export async function build(ctx) {
