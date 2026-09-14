@@ -10,6 +10,8 @@ macOS 只生成一个 Universal `.dmg`（同时支持 Apple Silicon 和 Intel）
 
 同步上游 `main` 提交 `e366b3b0420f9e40aab6d7bf4cd460b47965a6c4`，包含附件、PDF 图文、OCR worker、ZIP 深度解析及缓存完整性更新。三平台均从同一版本源码重新构建，并执行新版 `verify:attachment-ocr-electron`；Mac 重新合并双架构、签名和挂载审计，不能继承 v2.1.6 的签名或真人验收结果。本次增量检查与人工待验项见 [v2.1.7 验收矩阵](acceptance-v2.1.7.md)。
 
+已完成：[v2.1.7 Release 草稿](https://github.com/rj-liukaiwen/ruijie-harness/releases/tag/untagged-9f09a7aec71139a85d35)，四个安装包和三个校验/追溯文件。包内源码为 `8bba285bcc258d6e9e205d69044387f3843421f9`。三平台原构建 [34802163711](https://github.com/rj-liukaiwen/ruijie-harness/actions/runs/34802163711) 的 Intel 重启验收发生时序误判，保留原失败；验收器修正后，[34804533325](https://github.com/rj-liukaiwen/ruijie-harness/actions/runs/34804533325) 复用同一 DMG 通过 Intel 及草稿生成。Mac 两种架构均通过 17 项安装后自动检查，真实账号、模型语义、TCC 和升级仍待真人验收。
+
 Windows 未签名；Mac 沿用项目完整 ad-hoc 签名和最终 DMG 审计，未公证。Mac 再由原生 Intel 运行器校验同一 DMG。Linux 是新接入的实验平台，保留原有 afterPack 闭包验证，并检查 deb 内的真实 Electron/终端原生模块；GUI 登录、升级和发行版覆盖不等于自动通过。
 
 本入口不修改现有 GPTAuth 更新站点。原来的 `macos-internal-build.yml` 继续保留，供已有候选的验收续跑使用。
