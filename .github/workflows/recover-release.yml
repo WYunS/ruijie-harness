@@ -1,0 +1,144 @@
+name: 复用安装包续验并生成草稿
+run-name: Harness ${{ inputs.version }} · 复用构建 ${{ inputs.candidate_run }} · Intel 续验
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run:
+        description: 三平台均成功、只有 Intel 复验失败的原运行编号
+        required: true
+        type: string
+      source_sha:
+        description: 原安装包清单中的完整 sourceSha（不是当前 main）
+        required: true
+        type: string
+      version:
+        description: 原安装包的版本号
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: harness-recovery-${{ inputs.candidate_run }}
+  cancel-in-progress: false
+env:
+  RELEASE_VERSION: ${{ inputs.version }}
+  RELEASE_MODE: draft
+  RELEASE_TARGET: macos-universal
+  RELEASE_KIT_SHA: 99e9ba013465693de6a66129abc0ef3b5f8648be
+  CANDIDATE_RUN: ${{ inputs.candidate_run }}
+  CANDIDATE_SHA: ${{ inputs.source_sha }}
+  CANDIDATE_VERSION: ${{ inputs.version }}
+  DSH_TELEMETRY_DISABLED: '1'
+  CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+jobs:
+  verify:
+    runs-on: macos-15-intel
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: .acceptance-tools
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: rj-liukaiwen/release-kit
+          ref: 99e9ba013465693de6a66129abc0ef3b5f8648be
+          path: .release-kit
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24.12.0'
+      - name: Check original run and validate acceptance-tool regression tests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node .acceptance-tools/.release/inspect-recovery.mjs
+          node --test .acceptance-tools/.release/model-readiness.test.mjs .acceptance-tools/.release/inspect-recovery.test.mjs
+      - name: Apply only the current acceptance script to the original checkout
+        run: |
+          node --input-type=module -e "import {copyFileSync} from 'node:fs'; copyFileSync('.acceptance-tools/dsh-plugin-desktop/scripts/verify-mac-installed-app.mjs','dsh-plugin-desktop/scripts/verify-mac-installed-app.mjs');"
+          corepack enable
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: release-macos-universal-${{ inputs.candidate_run }}
+          path: .release-out/intel-input
+          run-id: ${{ inputs.candidate_run }}
+          github-token: ${{ github.token }}
+      - run: node .release-kit/bin/release.mjs install
+      - name: Verify the unchanged original Universal DMG on Intel
+        run: node .release-kit/bin/release.mjs verify-intel
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: recovered-intel-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .release-out/intel-verification.json
+            .release-out/recovery-inspection.json
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: recovery-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .release-out/evidence/**
+          if-no-files-found: warn
+          retention-days: 30
+  publish:
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: rj-liukaiwen/release-kit
+          ref: 99e9ba013465693de6a66129abc0ef3b5f8648be
+          path: .release-kit
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24.12.0'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: release-*-*-${{ inputs.candidate_run }}
+          path: .release-out/downloaded
+          run-id: ${{ inputs.candidate_run }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: recovered-intel-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .release-out/intel
+      - name: Preserve original-build and acceptance-tool provenance
+        run: |
+          node --input-type=module <<'NODE'
+          import {readFileSync,writeFileSync,mkdirSync,copyFileSync} from 'node:fs';
+          mkdirSync('.release-out/release',{recursive:true});
+          copyFileSync('.release-out/intel/recovery-inspection.json','.release-out/release/RECOVERY-MANIFEST.json');
+          const file='.release/config.json';
+          const config=JSON.parse(readFileSync(file,'utf8'));
+          config.releaseNotes.push(`Original packages: https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.CANDIDATE_RUN}. Reused unchanged after an acceptance-only model-readiness fix; validation tools: ${process.env.GITHUB_SHA}. Original Intel failure is preserved for audit.`);
+          writeFileSync(file,JSON.stringify(config,null,2));
+          NODE
+      - name: Verify all source, toolkit, platform and file hashes, then create draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node .release-kit/bin/release.mjs publish
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: recovered-release-manifest-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .release-out/release/*
+          if-no-files-found: error
+          retention-days: 30

@@ -61,6 +61,7 @@ export async function install(ctx) {
   await writeFile(path.join(ctx.out, 'evidence', 'dependency-locks.json'), JSON.stringify({ original: hash(before), installed: hash(await readFile('yarn.lock')) }, null, 2));
 }
 export async function build(ctx) {
+  run(process.execPath, ['--test', '.release/*.test.mjs']);
   yarn(['check']);
   yarn(['workspace', desktop, 'verify:vendor-sidebar']);
   if (ctx.target === 'linux-x64') {

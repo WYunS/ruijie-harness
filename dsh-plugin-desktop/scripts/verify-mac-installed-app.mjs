@@ -229,19 +229,23 @@ async function chooseAcceptanceWorkspace(page) {
 }
 
 async function inspectModelAndReasoning(page) {
-  const summary = await page.evaluate(() => {
-    const button = [...document.querySelectorAll('button')].find((candidate) => {
-      const label = candidate.getAttribute('aria-label') ?? ''
-      return label.startsWith('Select model') || label.startsWith('选择模型')
+  // Workspace restoration can precede the asynchronous model catalog on Intel.
+  // Keep the exact expectations, but wait for their observable ready state.
+  return await waitUntil(async () => {
+    const summary = await page.evaluate(() => {
+      const button = [...document.querySelectorAll('button')].find((candidate) => {
+        const label = candidate.getAttribute('aria-label') ?? ''
+        return label.startsWith('Select model') || label.startsWith('选择模型')
+      })
+      if (!(button instanceof HTMLButtonElement)) return null
+      return { aria: button.getAttribute('aria-label') ?? '', text: button.innerText, title: button.title }
     })
-    if (!(button instanceof HTMLButtonElement)) return null
-    return { aria: button.getAttribute('aria-label') ?? '', text: button.innerText, title: button.title }
-  })
-  if (summary === null) throw new Error('model selector is missing after workspace selection')
-  const rendered = `${summary.aria} ${summary.text} ${summary.title}`.toLocaleLowerCase()
-  if (!rendered.includes('deepseek-v4-flash')) throw new Error(`default model is not visible: ${JSON.stringify(summary)}`)
-  if (!rendered.includes('low')) throw new Error(`default reasoning strength is not visible: ${JSON.stringify(summary)}`)
-  return summary
+    if (summary === null) throw new Error('model selector is missing after workspace selection')
+    const rendered = `${summary.aria} ${summary.text} ${summary.title}`.toLocaleLowerCase()
+    if (!rendered.includes('deepseek-v4-flash')) throw new Error(`default model is not visible: ${JSON.stringify(summary)}`)
+    if (!rendered.includes('low')) throw new Error(`default reasoning strength is not visible: ${JSON.stringify(summary)}`)
+    return summary
+  }, 'default model and reasoning did not become ready')
 }
 
 async function exerciseSidebar(page) {
