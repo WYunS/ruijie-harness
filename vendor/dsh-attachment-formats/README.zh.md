@@ -17,14 +17,16 @@
 | --- | --- | --- |
 | PNG / JPEG / WebP / GIF | 原生管线，本插件不介入 | 图片草稿栏（原生） |
 | **PDF（有文本层）** | 文字层提取（≤40 页用 pymupdf4llm 高保真引擎，更大/不可用时 pdfjs 兜底） | 全文挂**文档卡片**（发送时并入消息）；超限转存工作区 + 索引卡片 |
+| **PDF（文字 + 图片）** | 提取文字层，同时识别含位图页面并生成页面图 | 索引卡片；模型读正文并按需用 `read_image` 查看图表、照片与版式 |
 | **PDF（扫描件/无文本层）** | tesseract.js OCR（置信度 ≥45 才采用），失败回退页面图 | OCR 成功走文本通道；失败 → 图片草稿栏（仅视觉模型） |
 | **Word (.docx) / Excel (.xlsx) / PPT (.pptx)** | 提取文本——docx 经 mammoth HTML → turndown，**表格保留为 Markdown 管道表** | 文档卡片（发送时并入）；超限转存 + 索引卡片 |
 | **旧 .doc / .xls / .ppt** | LibreOffice headless → docx/xlsx/pptx → 标准 Office 管线（需 `soffice`，缺失时明确报错） | 文档卡片（发送时并入） |
 | **epub / odt / rtf** | pandoc → Markdown（PATH 探测）；无 pandoc 时 epub/odt 走 jszip+turndown 兜底；rtf 需 pandoc | 文档卡片（发送时并入） |
 | **TIFF (.tiff/.tif)** | sharp（libvips）→ PNG 页（多页支持，≤20 页） | 原生图片草稿栏 |
 | txt / md / json / 代码等 | 浏览器本地读取（UTF-8，回退 GB18030） | 文档卡片（发送时并入）；超限转存 + 索引卡片 |
+| **ZIP** | 安全解压完整目录；汇总文本/代码并解析 PDF、DOCX、XLSX、PPTX；PDF 页面生成视觉预览；标出 SKILL.md 入口 | 文档卡片 + 可继续读取的 extracted/、converted/、previews/；超限转存 + 索引卡片 |
 | BMP / ICO / AVIF / SVG 等 | 浏览器解码后画布转 PNG | 原生图片草稿栏 |
-| iWork / 音视频 / 压缩包 | —（暂不支持，明确提示并跳过） | — |
+| iWork / 音视频 / 7z / RAR | —（暂不支持，明确提示并跳过） | — |
 
 ## 文档卡片（Codex 式挂载，输入框保持干净）
 
@@ -82,6 +84,8 @@
   `UserInstallation` profile 避免锁冲突。
 - **PDF 大纲**：书签目录（`get_toc` / pdfjs `getOutline`）优先作为索引卡大纲，
   字号启发式仅作回退；无书签的 PDF 行为不变。
+- **ZIP 安全边界**：最多 200 个文件，单文件解压后 ≤8MB、总计 ≤32MB，并
+  拒绝路径穿越、绝对路径、加密包和异常压缩比；7z/RAR 暂不解析。
 
 ## 云端 OCR 与内容自适应引擎（零重量级新依赖）
 
@@ -219,7 +223,7 @@ dsh plugin --profile web add link:path\to\dsh-attachment-formats
 - XLSX 只输出「显示文本/结果」，图表、批注不提取。
 - 大纲优先用书签目录；无书签的 PDF 回退字号启发式（对无标题样式的文档较弱），
   索引卡仍提供行数/页数与读取指引。
-- iWork、压缩包等暂不转换。
+- iWork、7z、RAR 等暂不转换。ZIP 内的文本、代码、PDF、DOCX、XLSX、PPTX 会解析，图片和其他二进制原件会安全落盘并提供读取路径。
 - 附件归属当前对话：文本/文档卡片一定落在你正在看的这个对话框（按 shell
   的「当前会话」解析，不再依赖插槽渲染顺序）。转换出的页面图片走 Harness
   原生 drop 管线——当前会话回复中时会暂时拒绝 drop，插件会等它空闲再投喂；

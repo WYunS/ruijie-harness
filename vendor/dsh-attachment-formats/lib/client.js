@@ -51,6 +51,7 @@ window.__ModuleLoader__.load({
 			"application/vnd.openxmlformats-officedocument.presentationml.presentation",
 			"application/msword", "application/vnd.ms-excel", "application/vnd.ms-powerpoint",
 			"application/epub+zip", "application/vnd.oasis.opendocument.text", "application/rtf",
+			"application/zip", "application/x-zip-compressed", ".zip",
 			"text/plain", "text/markdown", "text/csv", "application/json", "application/xml",
 			".js", ".ts", ".jsx", ".tsx", ".py", ".java", ".go", ".rs", ".c", ".h", ".cpp",
 			".cs", ".rb", ".php", ".sh", ".bat", ".ps1", ".sql", ".yaml", ".yml", ".toml",
@@ -158,6 +159,7 @@ window.__ModuleLoader__.load({
 			if (ext === "docx" || ext === "xlsx" || ext === "pptx") return ext;
 			if (ext === "doc" || ext === "xls" || ext === "ppt") return ext;
 			if (ext === "epub" || ext === "odt" || ext === "rtf") return ext;
+			if (ext === "zip" || type === "application/zip" || type === "application/x-zip-compressed") return "zip";
 			if (ext === "tiff" || ext === "tif" || type === "image/tiff") return "tiff";
 			if (ext === "svg" || type === "image/svg+xml") return "browser-image";
 			if (type.startsWith("image/")) return "browser-image";
@@ -263,7 +265,7 @@ window.__ModuleLoader__.load({
 			for (const byte of head) {
 				if (byte === 0) nuls += 1;
 			}
-			if (nuls > head.length * 0.02) {
+			if (nuls >= Math.max(3, Math.ceil(head.length * 0.02))) {
 				throw new Error("文件看起来是二进制内容，未按文本附加");
 			}
 			let text = new TextDecoder("utf-8").decode(bytes);
@@ -368,7 +370,8 @@ window.__ModuleLoader__.load({
 						: `\n\n[附件: ${name}]\n${text}`))
 				.join("");
 			const current = el.value;
-			const next = current.trim() === "" ? blocks.replace(/^\n+/, "") : current + blocks;
+			const next = (current.trim() === "" ? blocks.replace(/^\n+/, "") : current + blocks)
+				.replace(/\r\n?/g, "\n");
 			const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
 			setter.call(el, next);
 			// 合并自检：DOM 值未生效说明桥接失败——绝不静默丢内容
@@ -632,11 +635,12 @@ window.__ModuleLoader__.load({
 						case "ppt":
 						case "epub":
 						case "odt":
-						case "rtf": {
+						case "rtf":
+						case "zip": {
 							setBus({
 								phase: "working",
 								label: file.name,
-								detail: kind === "pdf" ? "正在提取文字层…" : kind === "tiff" ? "正在转换为图片…" : "正在提取文本…"
+								detail: kind === "pdf" ? "正在提取文字层与页面视觉内容…" : kind === "zip" ? "正在安全检查并提取压缩包…" : "正在提取文本…"
 							});
 							const result = await convertRemote(file, kind, cwd, sessionId, directLimit);
 							if (result.kind === "images") {

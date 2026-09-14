@@ -14,6 +14,7 @@ import { Readable } from "node:stream";
 
 const PROJECT_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const TESSDATA_DIR = join(PROJECT_DIR, "vendor", "tessdata");
+const TESSERACT_WORKER_PATH = join(dirname(fileURLToPath(import.meta.url)), "tesseract-node-worker.cjs");
 
 /** OCR 语言：英文 + 简体中文（best 精度档）。 */
 const LANGS = ["eng", "chi_sim"];
@@ -79,11 +80,21 @@ async function acquireWorker() {
       if (!ok) throw new Error(`OCR 语言包下载失败（${lang}），请检查网络后重试`);
     }
     const { createWorker } = await import("tesseract.js");
-    return createWorker(LANGS, 1, {
+    let rejectWorkerError;
+    const workerError = new Promise((_, reject) => {
+      rejectWorkerError = reject;
+    });
+    const creating = createWorker(LANGS, 1, {
+      workerPath: TESSERACT_WORKER_PATH,
       langPath: TESSDATA_DIR,
       cachePath: TESSDATA_DIR,
-      cacheMethod: "readOnly"
+      cacheMethod: "readOnly",
+      // tesseract.js 默认会从 worker 消息回调直接 throw，导致 Electron Host 退出。
+      errorHandler(error) {
+        rejectWorkerError(error instanceof Error ? error : new Error(String(error)));
+      }
     });
+    return Promise.race([creating, workerError]);
   })().catch((error) => {
     workerPromise = null;
     throw error;
@@ -104,18 +115,23 @@ export async function ocrPages(pages, hooks = {}) {
   let confidences = 0;
   let words = 0;
   let index = 0;
-  for (const page of pages) {
-    const { data } = await worker.recognize(Buffer.from(page.data));
-    const text = String(data?.text ?? "").trim();
-    chars += text.length;
-    if (typeof data?.confidence === "number") {
-      const count = Array.isArray(data.words) ? data.words.length : 1;
-      confidences += data.confidence * count;
-      words += count;
+  try {
+    for (const page of pages) {
+      const { data } = await worker.recognize(Buffer.from(page.data));
+      const text = String(data?.text ?? "").trim();
+      chars += text.length;
+      if (typeof data?.confidence === "number") {
+        const count = Array.isArray(data.words) ? data.words.length : 1;
+        confidences += data.confidence * count;
+        words += count;
+      }
+      if (text !== "") sections.push(`<!-- p${index + 1} -->\n${text}`);
+      index += 1;
+      hooks.onPage?.(index, pages.length, chars);
     }
-    if (text !== "") sections.push(`<!-- p${index + 1} -->\n${text}`);
-    index += 1;
-    hooks.onPage?.(index, pages.length, chars);
+  } catch (error) {
+    await disposeOcr();
+    throw error;
   }
   return {
     text: sections.join("\n\n"),
