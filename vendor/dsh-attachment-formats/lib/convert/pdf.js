@@ -72,8 +72,8 @@ export async function probePdfPageCount(data) {
 /**
  * Render the first `pageCap` pages of an encoded PDF to raster images.
  * @param {Uint8Array} data - encoded PDF bytes.
- * @param {{ pageCap?: number, maxImageBytes?: number, maxWidth?: number }} [options]
- * @returns {Promise<{ pages: Array<{ data: Uint8Array, mediaType: string, width: number, height: number }>, total: number, rendered: number }>}
+ * @param {{ pageCap?: number, pageNumbers?: number[], maxImageBytes?: number, maxWidth?: number }} [options]
+ * @returns {Promise<{ pages: Array<{ data: Uint8Array, mediaType: string, width: number, height: number, pageNumber: number }>, total: number, rendered: number }>}
  */
 export async function renderPdfPages(data, options = {}) {
   const pageCap = options.pageCap ?? PDF_PAGE_CAP;
@@ -93,9 +93,12 @@ export async function renderPdfPages(data, options = {}) {
 
   try {
     const total = doc.numPages;
-    const rendered = Math.min(total, Math.max(1, pageCap));
+    const requested = Array.isArray(options.pageNumbers)
+      ? [...new Set(options.pageNumbers.filter((number) => Number.isInteger(number) && number >= 1 && number <= total))].slice(0, Math.max(1, pageCap))
+      : Array.from({ length: Math.min(total, Math.max(1, pageCap)) }, (_, index) => index + 1);
+    const rendered = requested.length;
     const pages = [];
-    for (let pageNumber = 1; pageNumber <= rendered; pageNumber += 1) {
+    for (const pageNumber of requested) {
       const page = await doc.getPage(pageNumber);
       const base = page.getViewport({ scale: 1 });
       const fit = Math.min(
@@ -130,7 +133,7 @@ export async function renderPdfPages(data, options = {}) {
       }
       NodeCanvasFactory.destroy(surface);
       page.cleanup();
-      pages.push({ data: new Uint8Array(image), mediaType, width, height });
+      pages.push({ data: new Uint8Array(image), mediaType, width, height, pageNumber });
     }
     return { pages, total, rendered };
   } finally {

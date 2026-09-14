@@ -81,6 +81,8 @@
 
 `2.1.6` 又加入 GPTAuth GPT 模型目录和 `--openmaus-server` 无界面桥接，应用内容与 CodeDirectory 再次变化，必须生成新的 universal DMG、重新完成 inside-out ad-hoc 签名并从挂载 DMG 复验，不能继承 `2.1.5` 的 CDHash、签名审计或 TCC 结果。后台桥接只允许启动 Host、OAuth 代理和 loopback 发现记录；不得创建窗口、状态栏图标、目录选择器，也不得预读 Downloads、Documents、Desktop 或历史工作区来“探测能力”。因此在未主动选目录时，普通启动和 `--openmaus-server` 都必须保持零 TCC 提示。
 
+`2.1.7` 修改附件 vendor、OCR worker、PDF 转换和 ZIP 解压运行时代码，最终 `.app` 的 CodeDirectory/CDHash 会再次变化。必须从该版本提交重建 universal DMG，重新完成 inside-out ad-hoc 签名、公证状态核对和挂载后全闭包验签，不能继承 `2.1.6` 的 CDHash、签名审计、哈希或真人 TCC 结论；当前内部版仍应准确标记为 `ad-hoc signed, not notarized`。附件解析只能发生在用户主动选择、上传或明确引用文件之后，不能为发现 ZIP、PDF、OCR 或技能内容预先枚举 Downloads、Documents、Desktop 或历史工作区，因此未选择附件时不得新增 TCC 提示。
+
 正式升级门禁是：不清 TCC，从旧正式版覆盖安装新候选；第一次访问受保护目录可以零次或最多一次 `Allow`，此后连续访问和重启不再提示。每次升级都循环提示、同一动作出现第二次提示或继续出现 requirement mismatch 均为失败。
 
 ## 7. 升级到固定证书的条件

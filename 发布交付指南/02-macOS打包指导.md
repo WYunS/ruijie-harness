@@ -45,7 +45,7 @@ git diff --stat <上次发布提交>..HEAD
 - sidebar/vendor：重建并核对源码、生成文件、安装副本和 `yarn.lock`。
 - 侧栏打开目标：追加“对话/Agent/网页/PDF 固定右栏，下栏仅承接用户在下栏面板内主动点击”的归属回归；不能只验证内容能打开。
 - 会话/工作区管理：追加工作区互移、工作区与未命名双向拖动、归档恢复、彻底删除和重启持久化；拖动只改变侧栏归属，不移动会话 `cwd` 或产物。删除只移除会话事件日志，不删除工作区产物或共享附件；已加载但空闲的会话可删除，正在生成的会话仍受保护。所有操作必须局部更新，不能整页刷新或闪回登录页；永久删除确认必须使用应用内非阻塞 Modal，关闭后立即验证新会话、重命名和新建文件夹仍可键入。
-- Office/PDF/OCR：核对插件闭包、原生依赖和 OCR 数据。
+- Office/PDF/OCR/ZIP：核对插件闭包、原生依赖、OCR 数据、安全解压与文档转换器。附件 vendor 的改动属于 Windows/macOS 共享运行时变化，必须从同一提交重建两平台，不能只沿用 Windows 的本地验收结论。
 - IM 交付或生成文件链路：除文件本身外，核对 `dsh_im_return_file` 的 produced-file 展示元数据，追加“本次产出”可点击与右侧栏预览回归。
 - 登录、模型、浏览器、WebSearch、存储迁移：为最终 DMG 的自动与真人验收追加风险项。时间、时区或其他模型可见运行时上下文改动必须额外覆盖直接问答、基于“今天”的搜索词、新旧会话、重启边界和最终 `.app` 依赖闭包。若涉及 GPTAuth Claude，最终 `.app` 必须独立显示 Claude 组及准确模型列表，通过 OAuth 代理使用 Anthropic Messages；验证 Claude 原生图片输入不带 `vision_*` Luna 工具，同时 DeepSeek 图片仍保留 Luna 路径，并覆盖同一会话跨供应商切换。
 - GPTAuth GPT 或推理档位变化：最终 `.app` 必须按 `gpt-6-astra`、`gpt-5.6-sol`、`gpt-5.6-terra`、`gpt-5.6-luna`、`gpt-5.5` 的固定顺序显示独立 GPT 组，五者均可原生读图；界面统一显示 `off / low / medium / high / xhigh / max`，其中 `gpt-5.5` 的公开 `max` 必须安全映射到上游 `xhigh`，不得报不支持档位。默认仍为 `deepseek-vision / deepseek-v4-flash / low`。
@@ -136,6 +136,8 @@ Mac runner 上 `file:` 依赖可能因宿主 archive 元数据产生哈希差异
 `2.1.6` 还必须从最终 DMG 分别验证 GPT 模型目录与 OpenMausBot 后台模式。模型门禁按上一节的五模型顺序、图片能力和统一推理档位执行，尤其锁定 `gpt-5.5 max → xhigh` 的实际发送值。后台模式从最终 `.app` 的主可执行文件显式传入 `--openmaus-server`：已有安全存储凭据时无窗口/无状态栏图标启动并发布 loopback 记录，缺少凭据时无交互失败；普通 Finder 启动仍显示完整桌面端。该模式不得主动枚举或访问 Downloads、Documents、Desktop，因此不能借后台桥接触发 TCC 提示。
 
 同一候选还改变视觉长任务默认策略：整轮累计视觉时间与成功调用次数默认不限，但每个独立视觉工具任务仍由 `120000 ms` 硬超时约束。必须从最终 DMG 验证超过旧 45 秒边界的长图片/长视频任务可以继续完成，同时用不返回的可控后端验证单任务会在约 120 秒内终止、用户取消能立即停止且退出后无残留任务；任一请求无限卡死都阻断发布。
+
+`2.1.7` 的附件运行时必须从最终 universal `.app` 验证，而不能以源码目录或 Windows 安装副本代替。两种架构的闭包都必须包含 `dsh-attachment-formats`、`tesseract-node-worker.cjs`、Tesseract 语言数据、PDF/Office/归档转换器，并验证安全解压目录、转换目录和 PDF 页面预览目录均写入应用允许的运行数据位置。最终 DMG 必须通过纯文字、图文混合、纯图片三种 PDF 和含中文/GBK 名称、Office/PDF、嵌套 `SKILL.md` 的 ZIP 测试；ZIP 要进行全文与语义分析而非只列目录。路径穿越、符号链接、异常压缩比、超限与损坏归档必须拒绝，OCR 或单个成员失败不得使 Host 崩溃。
 
 Mac 工作区权限属于 `release-blocking` 硬门禁，不能以“清理后可用”降级放行。每个用户主动选择目录的动作，系统权限提示允许为零次（系统已授权）或最多一次；若出现提示，用户点击一次 `Allow` 后必须完成创建并可立即使用，不得要求再次点击。拒绝、取消、访问失败或 UI 重渲染后必须停止，不得自动拉起第二个选择器、再次探测或循环请求。旧版 profile 中即使有多个历史会话指向同一个 Downloads/Documents/Desktop，单次启动恢复批次也只能对该原始 cwd 执行一次 `realpath` 和一次 `stat`，成功或失败结果都复用于该批次；`tests/workspace-cross-move-runtime-patch.spec.ts` 必须通过真实注册表启动和调用计数证明这一点，不能只断言源码文本。`tests/mac-directory-access.spec.ts`、`tests/client-mac-directory-flow.spec.ts` 则必须分别锁定主进程一次探测、并发请求合并、UI 重渲染去重和取消/拒绝后停止。任一测试缺失、跳过或只在 Windows 上肉眼通过，都不得生成可交付 Mac 候选。
 

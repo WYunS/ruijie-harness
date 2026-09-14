@@ -6,7 +6,7 @@
  * 正文的倍数粗检。产物是文字优先通道的主输入（无损、纯文本模型可用），
  * 页面渲染图仅作视觉补充（见 pdf.js）。
  */
-import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+import { getDocument, OPS } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 
@@ -61,13 +61,23 @@ export async function extractPdfText(data) {
       bookmarkOutline = [];
     }
     const pages = [];
+    const imagePages = [];
     for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
       const page = await doc.getPage(pageNumber);
       const content = await page.getTextContent();
       pages.push({ number: pageNumber, items: content.items ?? [] });
+      try {
+        const operators = await page.getOperatorList();
+        if (operators.fnArray.some((op) => op === OPS.paintImageXObject
+          || op === OPS.paintInlineImageXObject || op === OPS.paintImageMaskXObject)) {
+          imagePages.push(pageNumber);
+        }
+      } catch {
+        // 视觉探测是补充能力；不能让异常图片操作符破坏已成功提取的文字层。
+      }
       page.cleanup();
     }
-    return assemblePdfText(pages, pageCount, bookmarkOutline);
+    return { ...assemblePdfText(pages, pageCount, bookmarkOutline), imagePages };
   } finally {
     await doc.destroy();
   }

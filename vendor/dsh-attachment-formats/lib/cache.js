@@ -6,8 +6,8 @@
  * 工具按需分页读取。目录同时做约 7 天未访问过期清理（尽力而为，
  * 以 manifest.lastAccessedAt 与主文档文件系统访问时间为准）。
  */
-import { join, isAbsolute, relative, sep } from "node:path";
-import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { access, mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 
 export const CACHE_DIR_NAME = ".dsh-attachments";
@@ -65,7 +65,12 @@ export async function writeCache({ root, rel }, id, sourceName, kind, files, ext
   await mkdir(join(dir, "pages"), { recursive: true });
   const written = [];
   for (const file of files) {
-    const target = join(dir, file.name.replace(/^\.\./, ""));
+    const target = resolve(dir, file.name);
+    const inside = relative(dir, target);
+    if (inside === "" || inside.startsWith(`..${sep}`) || inside === ".." || isAbsolute(inside)) {
+      throw new Error(`缓存文件路径越界：${file.name}`);
+    }
+    await mkdir(dirname(target), { recursive: true });
     await writeFile(target, file.data);
     written.push(file.name);
   }
@@ -125,6 +130,16 @@ export async function readCachedTextIfValid(root, id, sourceHash) {
     if (manifest.schemaVersion !== CACHE_SCHEMA_VERSION) return null;
     // 完整哈希严格相等：短目录 id 碰撞时仍能区分（双保险）
     if (typeof manifest.sourceHash !== "string" || manifest.sourceHash !== sourceHash) return null;
+    if (Array.isArray(manifest.files)) {
+      await Promise.all(manifest.files.map(async (name) => {
+        const target = resolve(dir, String(name));
+        const inside = relative(dir, target);
+        if (inside === "" || inside.startsWith(`..${sep}`) || inside === ".." || isAbsolute(inside)) {
+          throw new Error(`缓存清单路径越界：${name}`);
+        }
+        await access(target);
+      }));
+    }
     let docFile = typeof manifest.docFile === "string" ? manifest.docFile : void 0;
     if (docFile === undefined || docFile.includes("..") || docFile.includes("/") || docFile.includes("\\")) {
       const files = await readdir(dir);

@@ -13,9 +13,11 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import JSZip from "jszip";
+import { createCanvas } from "@napi-rs/canvas";
 import * as plugin from "../lib/index.js";
 import { probePythonEngine } from "../lib/convert/provider.js";
 import { shortHashOf } from "../lib/cache.js";
+import { decodeZipFileName } from "../lib/convert/archive.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const fixturePdf = readFileSync(join(root, "temp", "fixture.pdf"));
@@ -53,6 +55,45 @@ function buildBlankPdf() {
   return Buffer.from(pdf, "binary");
 }
 const fixtureBlankPdf = buildBlankPdf();
+
+/** 同时包含文字层和位图的 PDF。 */
+function buildMixedPdf() {
+  const canvas = createCanvas(80, 80);
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#e11d48";
+  context.fillRect(0, 0, 80, 80);
+  const jpeg = canvas.toBuffer("image/jpeg", 80);
+  const content = "BT /F1 12 Tf 72 740 Td (Mixed PDF text layer) Tj ET\nq 160 0 0 160 72 500 cm /Im1 Do Q";
+  const imageHead = `<< /Type /XObject /Subtype /Image /Width 80 /Height 80 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`;
+  const objs = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> /XObject << /Im1 5 0 R >> >> /Contents 6 0 R >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    imageHead,
+    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets = [];
+  for (let i = 0; i < objs.length; i += 1) {
+    offsets.push(Buffer.byteLength(pdf, "binary"));
+    pdf += `${i + 1} 0 obj\n${objs[i]}`;
+    if (i === 4) pdf += jpeg.toString("binary") + "\nendstream\nendobj\n";
+    else pdf += "\nendobj\n";
+  }
+  const xrefStart = Buffer.byteLength(pdf, "binary");
+  pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets) pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  pdf += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
+  return Buffer.from(pdf, "binary");
+}
+const fixtureMixedPdf = buildMixedPdf();
+
+async function buildZip(entries) {
+  const zip = new JSZip();
+  for (const [name, value] of entries) zip.file(name, value);
+  return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+}
 
 /** 多行文本 PDF（Helvetica 文字层）——惰性页面图/低预算分流夹具。 */
 function buildTextPdf(lines) {
@@ -265,6 +306,74 @@ console.log("\n== 扫描件 PDF 回退（无文本层 → images）==");
   const result = body.results?.[0];
   check("blank pdf → images", result?.kind === "images", `got ${result?.kind}`);
   check("images have scan warning", Array.isArray(result.warnings) && result.warnings.some((w) => w.includes("文本层")), JSON.stringify(result.warnings));
+}
+
+console.log("\n== 混合 PDF（文字 + 图片 → 索引卡和页面图）==");
+{
+  const { body } = await callRoute([
+    { name: "图文报告.pdf", kind: "pdf", data: fixtureMixedPdf.toString("base64") }
+  ]);
+  const result = body.results?.[0];
+  check("mixed pdf → index", result?.kind === "index", `got ${result?.kind}`);
+  check("mixed pdf 保留文字层", existsSync(join(testCwd, String(result?.docPath)))
+    && readFileSync(join(testCwd, String(result?.docPath)), "utf8").includes("Mixed PDF text layer"));
+  check("mixed pdf 卡片含页面图入口", String(result?.card).includes("页面图"));
+  check("mixed pdf 页面图已生成", existsSync(join(testCwd, ".dsh-attachments", shortHashOf(fixtureMixedPdf), "pages", "p01.png")));
+  const cached = await callRoute([
+    { name: "图文报告.pdf", kind: "pdf", data: fixtureMixedPdf.toString("base64") }
+  ]);
+  check("mixed pdf 缓存命中仍保留视觉入口", cached.body.results?.[0]?.kind === "index"
+    && String(cached.body.results?.[0]?.card).includes("页面图"));
+}
+
+console.log("\n== ZIP 安全提取 ==");
+{
+  const zip = await buildZip([
+    ["README.md", "# 压缩包\r\n中文😀e\u0301"],
+    ["src/app.js", "console.log('ok');"],
+    ["skill/SKILL.md", "# Zip Skill\n\n读取 references/guide.md 后回答用户。"],
+    ["skill/references/guide.md", "技能参考资料：完整读取成功。"],
+    ["legacy.txt", Buffer.from([0xd6, 0xd0, 0xce, 0xc4, 0x0d, 0xcf, 0xdf])],
+    ["docs/说明.docx", fixtureDocx],
+    ["docs/report.pdf", fixturePdf],
+    ["assets/logo.bin", Buffer.from([0, 1, 2, 3])]
+  ]);
+  const { body } = await callRoute([{ name: "项目.zip", kind: "zip", data: zip.toString("base64") }]);
+  const result = body.results?.[0];
+  check("zip → text", result?.kind === "text", `got ${result?.kind} ${result?.error?.message ?? ""}`);
+  check("zip 提取文本并列出二进制", String(result?.text).includes("README.md")
+    && String(result?.text).includes("中文😀e\u0301") && String(result?.text).includes("assets/logo.bin"));
+  check("zip 深度解析 Office/PDF", String(result?.text).includes("你好 DOCX 冒烟测试")
+    && String(result?.text).includes("Hello PDF page 1"));
+  check("zip 标出 Skill 入口", String(result?.text).includes("Skill 入口")
+    && String(result?.text).includes("skill/SKILL.md"));
+  check("zip 解码 GBK 正文并规范 CR", String(result?.text).includes("中文\n线"));
+  const zipCache = join(testCwd, ".dsh-attachments", shortHashOf(zip));
+  check("zip 完整目录已安全解压", existsSync(join(zipCache, "extracted", "skill", "SKILL.md"))
+    && existsSync(join(zipCache, "extracted", "docs", "说明.docx")));
+  check("zip 派生文本和 PDF 页面预览已落盘", existsSync(join(zipCache, "converted", "docs", "说明.docx.md"))
+    && existsSync(join(zipCache, "converted", "docs", "report.pdf.md"))
+    && existsSync(join(zipCache, "previews", "docs", "report.pdf", "p01.png")));
+  rmSync(join(zipCache, "extracted", "skill", "SKILL.md"));
+  const rebuilt = await callRoute([{ name: "项目.zip", kind: "zip", data: zip.toString("base64") }]);
+  check("zip 缓存缺少展开文件时自动重建", rebuilt.body.results?.[0]?.engine === "builtin+deep-archive"
+    && existsSync(join(zipCache, "extracted", "skill", "SKILL.md")));
+  check("GBK 中文 ZIP 文件名解码", decodeZipFileName(Uint8Array.from([0xb4, 0xf2, 0xd3, 0xcd, 0xca, 0xab])) === "打油诗");
+
+  const traversal = await buildZip([["../outside.txt", "blocked"]]);
+  const blocked = await callRoute([{ name: "穿越.zip", kind: "zip", data: traversal.toString("base64") }]);
+  check("zip 拒绝路径穿越", blocked.body.results?.[0]?.kind === "error"
+    && /路径/.test(blocked.body.results?.[0]?.error?.message ?? ""));
+
+  const bomb = await buildZip([["huge.txt", "A".repeat(2 * 1024 * 1024)]]);
+  const rejected = await callRoute([{ name: "高压缩比.zip", kind: "zip", data: bomb.toString("base64") }]);
+  check("zip 拒绝异常压缩比", rejected.body.results?.[0]?.kind === "error"
+    && /压缩比/.test(rejected.body.results?.[0]?.error?.message ?? ""));
+
+  const empty = await buildZip([]);
+  const emptyResult = await callRoute([{ name: "空.zip", kind: "zip", data: empty.toString("base64") }]);
+  check("空 ZIP 可识别", emptyResult.body.results?.[0]?.kind === "text"
+    && String(emptyResult.body.results?.[0]?.text).includes("共 0 个文件"));
 }
 
 console.log("\n== Office 直插（小 docx → text）==");

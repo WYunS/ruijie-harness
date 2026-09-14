@@ -26,7 +26,7 @@ export const MAX_TEXT_CHARS = 300_000;
  * Classify encoded bytes by magic numbers.
  * @param {Uint8Array} bytes - file head (first 64 bytes suffice).
  * @param {string} name - display name used for the extension fallback.
- * @returns {"pdf"|"docx"|"xlsx"|"pptx"|"unknown"} - host conversion kind.
+ * @returns {"pdf"|"docx"|"xlsx"|"pptx"|"zip"|"unknown"} - host conversion kind.
  */
 export function sniffKind(bytes, name = "") {
   const head = bytes.subarray(0, 16);
@@ -53,9 +53,14 @@ export function sniffKind(bytes, name = "") {
   }
   // RTF：{\rtf
   if (ascii(0, 5) === "{\\rtf") return "rtf";
-  if (head[0] === 0x50 && head[1] === 0x4b && head[2] === 0x03 && head[3] === 0x04) {
+  const zipMagic = head[0] === 0x50 && head[1] === 0x4b
+    && ((head[2] === 0x03 && head[3] === 0x04)
+      || (head[2] === 0x05 && head[3] === 0x06)
+      || (head[2] === 0x07 && head[3] === 0x08));
+  if (zipMagic) {
     // ZIP 容器 — 用扩展名判别（OOXML / epub / odt）
     if (ext === "docx" || ext === "xlsx" || ext === "pptx" || ext === "epub" || ext === "odt") return ext;
+    if (ext === "zip") return "zip";
     return "unknown";
   }
   return "unknown";

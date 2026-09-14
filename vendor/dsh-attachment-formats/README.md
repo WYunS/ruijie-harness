@@ -18,14 +18,16 @@ history rendering and model request pipeline.
 | --- | --- | --- |
 | PNG / JPEG / WebP / GIF | native pipeline (plugin not involved) | image draft rail (native) |
 | **PDF (with text layer)** | text-layer extraction (≤40 pages via the pymupdf4llm high-fidelity engine; larger/unavailable falls back to pdfjs) | full text on a **document card** (merged on send); over-limit → workspace spill + index card |
+| **PDF (text + images)** | extracts the text layer, detects bitmap-bearing pages and renders those pages | index card; the model reads text and uses `read_image` for charts, photos and layout |
 | **PDF (scanned / no text layer)** | tesseract.js OCR (accepted only at confidence ≥45), falls back to page images | OCR success → text channel; failure → image draft rail (vision models only) |
 | **Word (.docx) / Excel (.xlsx) / PPT (.pptx)** | text extraction — docx via mammoth HTML → turndown, **tables kept as Markdown pipe tables** | document card (merged on send); over-limit → spill + index card |
 | **Legacy .doc / .xls / .ppt** | LibreOffice headless → docx/xlsx/pptx → standard Office pipeline (needs `soffice`; clear error when absent) | document card (merged on send) |
 | **epub / odt / rtf** | pandoc → Markdown (probe on PATH); epub/odt fall back to jszip+turndown without pandoc; rtf requires pandoc | document card (merged on send) |
 | **TIFF (.tiff/.tif)** | sharp (libvips) → PNG pages (multi-page, ≤20) | native image draft rail |
 | txt / md / json / code | read in the browser (UTF-8, GB18030 fallback) | document card (merged on send); over-limit → spill + index card |
+| **ZIP** | safely extracts the full tree; aggregates text/code and parses PDF, DOCX, XLSX, and PPTX; renders PDF page previews; identifies SKILL.md entry points | document card plus readable extracted/, converted/, and previews/ trees; large output → spill + index card |
 | BMP / ICO / AVIF / SVG etc. | browser decode → canvas → PNG | native image draft rail |
-| iWork / audio-video / archives | — (not yet supported; explicit notice, skipped) | — |
+| iWork / audio-video / 7z / RAR | — (not yet supported; explicit notice, skipped) | — |
 
 ## Document cards (Codex-style mounting, composer stays clean)
 
@@ -248,7 +250,7 @@ afterwards).
 - Outlines prefer bookmark TOCs; PDFs without bookmarks fall back to font-size
   heuristics (weak on documents without strong heading styling) — the index card still
   carries line/page counts and reading pointers.
-- iWork and archives are not converted yet.
+- iWork, 7z and RAR are not converted yet. ZIP entries containing text, code, PDF, DOCX, XLSX, or PPTX are parsed; images and other binary originals are safely materialized with readable paths.
 - Attachments are attributed to the shell's **current conversation** (the one being
   viewed). Text/document cards therefore land in the dialog you are looking at.
   Converted page images go through the harness's native drop pipeline: if the current

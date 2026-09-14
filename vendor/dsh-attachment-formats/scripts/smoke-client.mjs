@@ -65,7 +65,8 @@ Object.defineProperty(HTMLTextAreaElementStub.prototype, "value", {
     return this._dshafValue ?? "";
   },
   set(next) {
-    this._dshafValue = String(next);
+    // 浏览器 textarea 的真实行为：赋值时 CRLF/CR 都会规范为 LF。
+    this._dshafValue = String(next).replace(/\r\n?/g, "\n");
   },
   configurable: true
 });
@@ -238,6 +239,37 @@ check("pdf drop intercepted", evPdf.prevented === true && evPdf.stopped === true
   const afterFirst = textarea.value;
   keydowns[0].fn({ key: "Enter", shiftKey: false, target: textarea });
   check("二次 Enter 不重复合并", textarea.value === afterFirst);
+}
+
+// ---- 换行与 Unicode 边界：浏览器规范换行，但不得改写其他字符 ------------
+{
+  const textarea = new HTMLTextAreaElementStub();
+  textarea.disabled = false;
+  textarea.readOnly = false;
+  textarea.setSelectionRange = () => {};
+  textarea.dispatchEvent = () => true;
+  textarea.focus = () => {};
+  queriedTextarea = textarea;
+  const sourceText = "CRLF\r\nCR\rLF\n中文😀e\u0301\uFEFF\t\0\u2028\u2029末尾";
+  const expectedText = sourceText.replace(/\r\n?/g, "\n");
+  const edgeFile = {
+    name: "边界字符.md",
+    type: "text/markdown",
+    size: 100,
+    arrayBuffer: async () => new TextEncoder().encode(sourceText).buffer
+  };
+  drops[0].fn({
+    dataTransfer: { types: ["Files"], files: [edgeFile] },
+    preventDefault: () => {},
+    stopImmediatePropagation: () => {}
+  });
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  keydowns[0].fn({ key: "Enter", shiftKey: false, target: textarea });
+  check("CRLF/CR 按浏览器规则规范为 LF", textarea.value.includes(expectedText), JSON.stringify(textarea.value));
+  check("Unicode/控制字符保持原样", textarea.value.includes("中文😀e\u0301\uFEFF\t\0\u2028\u2029末尾"));
+  const once = textarea.value;
+  keydowns[0].fn({ key: "Enter", shiftKey: false, target: textarea });
+  check("边界字符附件不会重复合并", textarea.value === once);
 }
 
 // ---- 组件真实挂载（SSR）：验证产品而非框架 --------------------------------
