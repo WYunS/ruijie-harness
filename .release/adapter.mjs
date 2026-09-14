@@ -84,6 +84,9 @@ export async function build(ctx) {
 export async function assets(ctx) {
   const dir = ctx.target === 'macos-universal' ? `${desktop}/dist/mac-internal` : `${desktop}/dist`;
   const files = await readdir(dir);
+  if (ctx.target === 'macos-universal') {
+    assert(!files.some(file => /\.(zip|pkg|tar(?:\.gz)?|tgz)$/i.test(file)), 'macOS release must contain only a Universal DMG, without ZIP/PKG/archive packages');
+  }
   const entries = files.filter(file => ctx.target === 'windows-x64' ? file === `Ruijie-Harness-${ctx.version}-x64-Setup.exe` : ctx.target === 'macos-universal' ? file.endsWith('.dmg') : /\.(AppImage|deb)$/.test(file));
   assert.equal(entries.length, ctx.target === 'linux-x64' ? 2 : 1, 'Missing or ambiguous package outputs');
   return entries.map(file => ({ path: `${dir}/${file}`, ...(ctx.target === 'macos-universal' ? { name: `Ruijie-Harness-${ctx.version}-macOS-universal.dmg` } : {}) }));

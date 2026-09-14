@@ -1,4 +1,5 @@
 name: 发布软件
+run-name: Harness ${{ inputs.version }} · Windows / macOS Universal DMG / Linux · ${{ inputs.mode }}
 on:
   workflow_dispatch:
     inputs:
@@ -6,13 +7,13 @@ on:
         description: 版本号（写入软件内部，不覆盖已发布版本）
         required: true
         type: string
-        default: v2.1.6
+        default: v2.1.7
       source_ref:
         description: 本仓库已接入发布配置的分支或提交
         default: main
         type: string
       mode:
-        description: check 预检 / artifacts 下载包 / draft 待验草稿
+        description: Windows EXE、macOS 仅 Universal DMG、Linux AppImage/deb；check 预检 / artifacts 下载 / draft 草稿
         default: draft
         type: choice
         options: [check, artifacts, draft]

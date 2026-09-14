@@ -4,6 +4,12 @@
 
 填写新版本，选择 `main`，运行 `draft`。同一提交构建 Windows x64 NSIS、macOS Universal DMG、Linux x64 AppImage/deb；成功后在本仓库创建待验 Release 草稿。
 
+macOS 只生成一个 Universal `.dmg`（同时支持 Apple Silicon 和 Intel），不生成 Mac ZIP 或 PKG 安装包；产物收集会拒绝这些额外格式。GitHub 下载 Artifact 时自身的 ZIP 外包装不是新增的软件格式。Windows 保留 Setup `.exe`，Linux 保留 `.AppImage` 和 `.deb`，另附校验和与构建清单。
+
+## v2.1.7 候选
+
+同步上游 `main` 提交 `e366b3b0420f9e40aab6d7bf4cd460b47965a6c4`，包含附件、PDF 图文、OCR worker、ZIP 深度解析及缓存完整性更新。三平台均从同一版本源码重新构建，并执行新版 `verify:attachment-ocr-electron`；Mac 重新合并双架构、签名和挂载审计，不能继承 v2.1.6 的签名或真人验收结果。本次增量检查与人工待验项见 [v2.1.7 验收矩阵](acceptance-v2.1.7.md)。
+
 Windows 未签名；Mac 沿用项目完整 ad-hoc 签名和最终 DMG 审计，未公证。Mac 再由原生 Intel 运行器校验同一 DMG。Linux 是新接入的实验平台，保留原有 afterPack 闭包验证，并检查 deb 内的真实 Electron/终端原生模块；GUI 登录、升级和发行版覆盖不等于自动通过。
 
 本入口不修改现有 GPTAuth 更新站点。原来的 `macos-internal-build.yml` 继续保留，供已有候选的验收续跑使用。
