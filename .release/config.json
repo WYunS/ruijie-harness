@@ -8,14 +8,14 @@
   "targets": ["windows-x64", "linux-x64", "macos-universal"],
   "signing": "testing",
   "allowPrerelease": true,
-  "acceptanceBaseline": "v2.0.7",
+  "acceptanceBaseline": "v2.1.7",
   "releaseNotes": [
     "Packages: Windows x64 Setup EXE; macOS Universal DMG only (Apple Silicon + Intel); Linux x64 AppImage and deb.",
     "v2.1.8 repairs DeepSeek streaming: invalid saved GPTAuth website endpoints are removed, completed streams without only [DONE] remain compatible, and genuinely truncated streams retry with a bounded policy.",
     "When OpenMausBot starts Harness headlessly, a normal user launch now mounts and shows the desktop window instead of leaving the existing headless instance hidden.",
     "A version bump pushed to main automatically starts this three-platform candidate workflow and creates the corresponding GitHub prerelease after all platform and native-Intel checks pass.",
     "Candidate only: real SSO/model/IM, upgrade, and physical macOS TCC acceptance remain required.",
-    "The historical v2.0.7 tag is used to include the complete visible change range; it is not claimed to have passed human acceptance.",
+    "The repository's v2.1.7 tag is used as the available automated comparison point; it is not claimed to have passed human acceptance.",
     "Linux is a new experimental packaging target. Its installed runtime and desktop integration require validation.",
     "GitHub Release does not update the existing gptauth.ruijie.com.cn application update service."
   ]
