@@ -108,6 +108,7 @@ describe('dynamic macOS release acceptance plan', () => {
     const plan = buildMacAcceptancePlan([
       'dsh-plugin-desktop/cordis.patch.yml',
       'dsh-plugin-desktop/src/openmaus-bridge.ts',
+      'dsh-plugin-desktop/src/desktop-launch-mode.ts',
       'vendor/dsh-vision-router/entry.js',
       'vendor/dsh-vision-router/index.js',
       'vendor/dsh-vision-router/lib/structured-flow-hardening.js',

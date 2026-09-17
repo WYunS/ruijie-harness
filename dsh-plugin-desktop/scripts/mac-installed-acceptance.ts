@@ -101,7 +101,7 @@ const RISK_RULES: readonly RiskRule[] = [
   },
   {
     risk: 'openmaus-bridge',
-    pattern: /(?:openmaus|--openmaus-server)/iu,
+    pattern: /(?:openmaus|desktop-launch-mode|--openmaus-server)/iu,
     checks: ['openmaus-background-bridge'],
     adjacent: {
       'install-and-first-launch': 'adjacent:openmaus-bridge',
