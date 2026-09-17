@@ -2,12 +2,14 @@
 
 import { createRequire, findPackageJSON } from 'node:module'
 import {
+  chmodSync,
   existsSync,
   lstatSync,
   mkdirSync,
   readdirSync,
   readFileSync,
   realpathSync,
+  renameSync,
   rmSync,
   symlinkSync,
   unlinkSync,
@@ -83,6 +85,7 @@ const UI_SIDEBAR_PACKAGE = '@deepseek-ai/dsh-client-ui-sidebar'
 const UI_CONVERSATION_PACKAGE = '@deepseek-ai/dsh-client-ui-conversation'
 const RUIJIE_OFFICE_BUNDLE = '@huanlin/dsh-plugin-better-sidebar-plugin-office'
 const RUIJIE_EXPERIENCE_VERSION = 2
+const CREDENTIAL_REF = /^[A-Za-z_][A-Za-z0-9_]*$/u
 const DEFAULT_MARKET_SOURCE = {
   sourceRecordId: '10241024-1024-4024-8024-102410241024',
   registrationKind: 'built-in',
@@ -298,6 +301,54 @@ export function ensureRuijieExperienceDefaults(home: string): void {
   }
   document.setIn(['ruijie-desktop', 'experienceVersion'], RUIJIE_EXPERIENCE_VERSION)
   writeFileSync(settingsPath, document.toString({ lineWidth: 0 }))
+}
+
+/**
+ * Repair the one pre-release credentials wrapper written by older Ruijie
+ * builds. Current dsh-credentials-local owns a strict, flat mapping and will
+ * abort the complete plugin tree when either wrapper key reaches its parser.
+ * Unknown documents remain untouched so recovery still reports corruption
+ * instead of silently discarding user data.
+ */
+export function migrateLegacyCredentialsDocument(home: string): boolean {
+  const credentialsPath = join(home, '.credentials.yaml')
+  let text: string
+  try {
+    text = readFileSync(credentialsPath, 'utf8')
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code === 'ENOENT') return false
+    throw cause
+  }
+
+  const document = parseDocument(text, { prettyErrors: true, uniqueKeys: true })
+  if (document.errors.length > 0) return false
+  const root: unknown = document.toJS()
+  if (typeof root !== 'object' || root === null || Array.isArray(root)) return false
+  const wrapper = root as Record<string, unknown>
+  if (Object.keys(wrapper).sort().join(',') !== 'refs,version') return false
+  if (wrapper.version !== 1 && wrapper.version !== '1') return false
+  if (typeof wrapper.refs !== 'object' || wrapper.refs === null || Array.isArray(wrapper.refs)) return false
+
+  const entries = Object.entries(wrapper.refs as Record<string, unknown>)
+  if (entries.some(([key, value]) => !CREDENTIAL_REF.test(key)
+    || typeof value !== 'string'
+    || value.length === 0)) return false
+
+  const migrated = parseDocument('{}\n')
+  for (const [key, value] of entries) migrated.setIn([key], value)
+  const temporaryPath = `${credentialsPath}.migrate-${String(process.pid)}-${String(Date.now())}`
+  try {
+    writeFileSync(temporaryPath, migrated.toString({ lineWidth: 0 }), {
+      encoding: 'utf8',
+      flag: 'wx',
+      mode: 0o600,
+    })
+    renameSync(temporaryPath, credentialsPath)
+    chmodSync(credentialsPath, 0o600)
+  } finally {
+    rmSync(temporaryPath, { force: true })
+  }
+  return true
 }
 
 /** Prepared profile inputs consumed by app-boot. */
@@ -553,6 +604,7 @@ export function prepareDesktopProfile(
   profileName: string = DESKTOP_PROFILE_NAME,
   pluginStatePath?: string,
 ): PreparedDesktopProfile {
+  migrateLegacyCredentialsDocument(home)
   const profileDir = profileName === DESKTOP_PROFILE_NAME
     ? ensureDesktopProfile(home)
     : resolveProfileDir(profileName, home)

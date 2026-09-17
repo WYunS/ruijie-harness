@@ -13,6 +13,7 @@ import {
   desktopBundleList,
   ensureDesktopProfile,
   ensureRuijieExperienceDefaults,
+  migrateLegacyCredentialsDocument,
   prepareDesktopProfile,
   readDesktopShellMode,
   shippedPresetRoot,
@@ -179,6 +180,43 @@ describe('desktop profile composition', {
       'dsh-community-market': { sources: [expect.objectContaining({ builtInProviderKey: 'dsh-1024store' })] },
     })
   }, 30_000)
+
+  it.each(['1', '"1"'])(
+    'migrates the legacy version %s credentials wrapper before plugin startup', (version) => {
+      const home = temporaryHome()
+      const credentialsPath = join(home, '.credentials.yaml')
+      writeFileSync(credentialsPath, [
+        `version: ${version}`,
+        'refs:',
+        '  DEEPSEEK_API_KEY: sk-fixture',
+        '  MULTILINE_SECRET: |-',
+        '    first',
+        '    second',
+        '',
+      ].join('\n'))
+
+      prepareDesktopProfile(undefined, home, 'darwin')
+
+      expect(parse(readFileSync(credentialsPath, 'utf8'))).toEqual({
+        DEEPSEEK_API_KEY: 'sk-fixture',
+        MULTILINE_SECRET: 'first\nsecond',
+      })
+    },
+  )
+
+  it.each([
+    'DEEPSEEK_API_KEY: sk-current\n',
+    'version: 2\nrefs:\n  DEEPSEEK_API_KEY: sk-future\n',
+    'version: 1\nrefs:\n  DEEPSEEK_API_KEY: sk-legacy\nextra: keep\n',
+    'version: 1\nrefs:\n  DEEPSEEK_API_KEY: 123\n',
+  ])('leaves non-legacy credentials documents untouched', (contents) => {
+    const home = temporaryHome()
+    const credentialsPath = join(home, '.credentials.yaml')
+    writeFileSync(credentialsPath, contents)
+
+    expect(migrateLegacyCredentialsDocument(home)).toBe(false)
+    expect(readFileSync(credentialsPath, 'utf8')).toBe(contents)
+  })
 
   it.each(['https://gptauth.ruijie.com.cn', 'https://gptauth.ruijie.com.cn/'])(
     'repairs the GPTAuth website override %s even for an already migrated profile', (baseURL) => {
