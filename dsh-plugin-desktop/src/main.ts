@@ -23,6 +23,7 @@ import {
 } from './desktop-runtime-environment.ts'
 import { desktopWorkingDirectory } from './desktop-working-directory.ts'
 import { desktopProductVersion, ElectronDesktopRuntime } from './electron-runtime.ts'
+import { secondInstanceUiAction } from './desktop-launch-mode.ts'
 import {
   ElectronStderrLogger,
   installDesktopChildProcessLogging,
@@ -229,6 +230,9 @@ async function start(): Promise<void> {
   const rendererBoot = new Promise<RendererBootReport>((resolve) => {
     resolveRendererBoot = resolve
   })
+  let rendererMountTask: Promise<void> | undefined
+  let hostReady = false
+  let desktopWindowRequested = false
   const generationId = randomUUID()
   let startupStage: DesktopStartupFailureStage = 'electron-ready'
   try {
@@ -389,10 +393,46 @@ async function start(): Promise<void> {
     return result
   }
 
+  const mountDesktopRenderer = async (): Promise<void> => {
+    if (rendererMountTask !== undefined) {
+      await rendererMountTask
+      return
+    }
+    const task = (async (): Promise<void> => {
+      startupStage = 'renderer-startup'
+      runtime.beginRendererBootMonitoring()
+      await runtime.mountScheduled()
+      // Keep a native-owned window alive across the entire post-OAuth bootstrap.
+      // Closing it earlier leaves a gap where an authorization-success browser
+      // page exists but no Desktop window can take focus (or survive a close).
+      ruijieLoginWindow?.close()
+      ruijieLoginWindow = undefined
+      runtime.show()
+    })()
+    rendererMountTask = task
+    try {
+      await task
+    } catch (cause) {
+      if (rendererMountTask === task) rendererMountTask = undefined
+      throw cause
+    }
+  }
+
   app.on('second-instance', () => {
     if (startupRecoveryWindow !== undefined) startupRecoveryWindow.show()
     else if (ruijieLoginWindow !== undefined) ruijieLoginWindow.show()
-    else runtime.show()
+    else if (openMausServerMode) {
+      desktopWindowRequested = true
+      if (!hostReady) return
+      if (secondInstanceUiAction({
+        openMausServerMode,
+        rendererMounted: rendererMountTask !== undefined,
+      }) === 'mount') {
+        void mountDesktopRenderer().catch(cause => electronLogger.errorCause(cause))
+      } else {
+        runtime.show()
+      }
+    } else runtime.show()
   })
   try {
     await app.whenReady()
@@ -681,6 +721,7 @@ async function start(): Promise<void> {
       profileDir: prepared.profile.dir,
       homeDir: prepared.homeDir,
     })
+    hostReady = true
     if (openMausServerMode) {
       // The Host, OAuth proxy and OpenMaus bridge are already live. Keep the
       // Electron main process headless: no Renderer, BrowserWindow or tray.
@@ -691,17 +732,10 @@ async function start(): Promise<void> {
         endpoint: `http://127.0.0.1:${String(ctx.webServer.port)}`,
         version: desktopProductVersion(),
       })}\n`)
+      if (desktopWindowRequested) await mountDesktopRenderer()
       return
     }
-    startupStage = 'renderer-startup'
-    runtime.beginRendererBootMonitoring()
-    await runtime.mountScheduled()
-    // Keep a native-owned window alive across the entire post-OAuth bootstrap.
-    // Closing it earlier leaves a gap where an authorization-success browser
-    // page exists but no Desktop window can take focus (or survive a close).
-    ruijieLoginWindow?.close()
-    ruijieLoginWindow = undefined
-    runtime.show()
+    await mountDesktopRenderer()
     const rendererReport = await rendererBoot
     if (rendererReport.status === 'healthy') {
       startupStage = 'health-commit'

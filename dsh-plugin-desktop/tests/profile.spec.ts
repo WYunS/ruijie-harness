@@ -12,6 +12,7 @@ import {
   desktopStartupSettingsFromSettings,
   desktopBundleList,
   ensureDesktopProfile,
+  ensureRuijieExperienceDefaults,
   prepareDesktopProfile,
   readDesktopShellMode,
   shippedPresetRoot,
@@ -178,6 +179,32 @@ describe('desktop profile composition', {
       'dsh-community-market': { sources: [expect.objectContaining({ builtInProviderKey: 'dsh-1024store' })] },
     })
   }, 30_000)
+
+  it.each(['https://gptauth.ruijie.com.cn', 'https://gptauth.ruijie.com.cn/'])(
+    'repairs the GPTAuth website override %s even for an already migrated profile', (baseURL) => {
+      const home = temporaryHome()
+      prepareDesktopProfile(undefined, home, 'win32')
+      const path = join(home, 'settings.yaml')
+      writeFileSync(path, `${readFileSync(path, 'utf8')}\nllm-deepseek:\n  baseURL: ${baseURL}\n  maxTokens: 8192\n`)
+      prepareDesktopProfile(undefined, home, 'win32')
+      const repaired = readFileSync(path, 'utf8')
+      expect(parse(repaired)['llm-deepseek']).toEqual({ maxTokens: 8192 })
+      ensureRuijieExperienceDefaults(home)
+      expect(readFileSync(path, 'utf8')).toBe(repaired)
+    },
+  )
+
+  it.each(['https://custom.example/v1', 'https://gptauth.ruijie.com.cn/v1'])(
+    'preserves the explicit API endpoint %s', (baseURL) => {
+      const home = temporaryHome()
+      ensureRuijieExperienceDefaults(home)
+      const path = join(home, 'settings.yaml')
+      const configured = `${readFileSync(path, 'utf8')}\nllm-deepseek:\n  baseURL: ${baseURL}\n`
+      writeFileSync(path, configured)
+      ensureRuijieExperienceDefaults(home)
+      expect(readFileSync(path, 'utf8')).toBe(configured)
+    },
+  )
 
   it('preserves installed plugins, market receipts, and custom sources across an upgrade launch', () => {
     const home = temporaryHome()

@@ -2614,7 +2614,7 @@ __metadata:
 
 "@deepseek-ai/dsh-llm-deepseek@patch:@deepseek-ai/dsh-llm-deepseek@npm%3A0.1.0-rc.8#./patches/dsh-llm-deepseek@0.1.0-rc.8.patch::locator=deepseek-harness-desktop%40workspace%3A.":
   version: 0.1.0-rc.8
-  resolution: "@deepseek-ai/dsh-llm-deepseek@patch:@deepseek-ai/dsh-llm-deepseek@npm%3A0.1.0-rc.8#./patches/dsh-llm-deepseek@0.1.0-rc.8.patch::version=0.1.0-rc.8&hash=5e118f&locator=deepseek-harness-desktop%40workspace%3A."
+  resolution: "@deepseek-ai/dsh-llm-deepseek@patch:@deepseek-ai/dsh-llm-deepseek@npm%3A0.1.0-rc.8#./patches/dsh-llm-deepseek@0.1.0-rc.8.patch::version=0.1.0-rc.8&hash=fed182&locator=deepseek-harness-desktop%40workspace%3A."
   dependencies:
     "@deepseek-ai/schemastery": "npm:^3.18.1"
     eventsource-parser: "npm:^3.1.0"
@@ -2628,7 +2628,7 @@ __metadata:
     "@deepseek-ai/dsh-llm": ^0.1.0-rc.8
     "@deepseek-ai/dsh-settings": ^0.1.0-rc.8
     "@deepseek-ai/dsh-timeout": ^0.1.0-rc.8
-  checksum: 10c0/b450eb1b52d2be654b2e0195da8d584a9fe335c49ee69fd7a8f3a6f24f34d4413d92ab28555a6d6369911bd23502d6d714ee6d6a16bb50fbd0cbe14fd18fd1ef
+  checksum: 10c0/f0ff2058175935964826a4e6716a14a17569d416b3bb1afcdecf7305069e6ab8b00355617b4a3a003264cffcdd57a5078634fc3b3c11648585f006d849d4cb29
   languageName: node
   linkType: hard
 
@@ -5283,13 +5283,13 @@ __metadata:
 
 "@liustack/modsearch@file:../vendor/modsearch::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
   version: 5.6.0
-  resolution: "@liustack/modsearch@file:../vendor/modsearch#../vendor/modsearch::hash=a004bb&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
+  resolution: "@liustack/modsearch@file:../vendor/modsearch#../vendor/modsearch::hash=13f100&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
   dependencies:
     commander: "npm:^13.1.0"
     undici: "npm:^7.29.0"
   bin:
     modsearch: ./dist/main.js
-  checksum: 10c0/927933b2a964386a7836b52b935e77d39a48f5c86d37626aa8ca21c6609fcf7d84a9588a8d74db290809e12b37acb355d8ed043e8909a23dc137a662397e6d39
+  checksum: 10c0/6461c26e4351c364385016216fa7cec43f5aeea91388c6a45afc4a13b75139fbe3eaf3e6830faf1a4594f6ef42a993a0edb018a07ca37720aa609c83de4b978d
   languageName: node
   linkType: hard
 
@@ -11515,7 +11515,7 @@ __metadata:
 
 "dsh-attachment-formats@file:../vendor/dsh-attachment-formats::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
   version: 0.6.4
-  resolution: "dsh-attachment-formats@file:../vendor/dsh-attachment-formats#../vendor/dsh-attachment-formats::hash=948b48&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
+  resolution: "dsh-attachment-formats@file:../vendor/dsh-attachment-formats#../vendor/dsh-attachment-formats::hash=ba6bc4&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
   dependencies:
     "@joplin/turndown-plugin-gfm": "npm:^1.0.67"
     "@napi-rs/canvas": "npm:^0.1.80"
@@ -11526,13 +11526,13 @@ __metadata:
     sharp: "npm:^0.35.3"
     tesseract.js: "npm:^5.1.1"
     turndown: "npm:^7.2.4"
-  checksum: 10c0/e05fb6271a8ec4782f37f1f48748e2616ae30486f5e6d5c5ca286a3f6f196d27c57783c76fe374bfd7da33e1e2cc5cb820c8f4d03c4b50ea3b8c9f3b32a19d22
+  checksum: 10c0/c9cc748b77d1d9098cff45bbc6b21f79fed61f0b254aa926a46edeba976af86d0736230bcca57fdc11de778578e7a0242703e4c6da85d4ac8cbfac22e8d7bc78
   languageName: node
   linkType: hard
 
 "dsh-better-sidebar@file:../vendor/dsh-better-sidebar::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
   version: 0.14.0
-  resolution: "dsh-better-sidebar@file:../vendor/dsh-better-sidebar#../vendor/dsh-better-sidebar::hash=2c0b5f&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
+  resolution: "dsh-better-sidebar@file:../vendor/dsh-better-sidebar#../vendor/dsh-better-sidebar::hash=d15dd8&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
   dependencies:
     "@codemirror/commands": "npm:^6.10.4"
     "@codemirror/lang-cpp": "npm:^6.0.3"
@@ -11582,7 +11582,7 @@ __metadata:
   peerDependenciesMeta:
     cordis:
       optional: true
-  checksum: 10c0/bc878610f6a59efb08d551966d4d8f06a3140b585dd6864f4c2d73ebb9dc574c8462dc46f710cc6c0ad9e87e6669ef1f9f003d85ffba6b136042eeccf917f768
+  checksum: 10c0/613a2acd92835e583f43c3f60c6773dc7b14f888030df3dc5e1ee747e6fd4876897404c764438a702e6334e9664be5be2225ace66214e5a9dc5c702930ac47e0
   languageName: node
   linkType: hard
 
@@ -11962,7 +11962,7 @@ __metadata:
 
 "dsh-vision-router@file:../vendor/dsh-vision-router::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
   version: 1.7.3
-  resolution: "dsh-vision-router@file:../vendor/dsh-vision-router#../vendor/dsh-vision-router::hash=92ba76&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
+  resolution: "dsh-vision-router@file:../vendor/dsh-vision-router#../vendor/dsh-vision-router::hash=e6678f&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
   dependencies:
     "@deepseek-ai/schemastery": "npm:>=3.18.0"
     "@neplex/vectorizer": "npm:0.1.0"
@@ -11981,7 +11981,7 @@ __metadata:
       optional: true
   bin:
     dsh-vision-router: ./lib/doctor-cli.js
-  checksum: 10c0/03d5f227c6684c3c4b84056bf07b9639ce7cc9428da48bdec5e6c36b422c0ebcb34916429231afccea91c6f1cf78bde856724c24198edb9a8e14d36cbe46b1f6
+  checksum: 10c0/8f6a7d19b81e85419ad6eacd571995ae437906f43961a3bfff25ebb29aa6f266c128d881e64cc8992d8f9dba48241f0495e042ad007aff03d52e9a2f2fe6760c
   languageName: node
   linkType: hard
 

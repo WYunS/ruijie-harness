@@ -2,6 +2,32 @@ diff --git a/lib/index.js b/lib/index.js
 index b2cadf0..79ce466 100644
 --- a/lib/index.js
 +++ b/lib/index.js
+@@ -365,5 +365,19 @@ async function* translate(payloads) {
+ 	const order = [];
+ 	let pendingFinish;
+ 	let pendingUsage;
++	async function* terminalCompletionPayloads() {
++		try {
++			yield* payloads;
++		} catch (error) {
++			// Some OpenAI-compatible gateways omit [DONE] after sending an
++			// explicit finish_reason. Accept only that completed shape; a stream
++			// that closes before a finish_reason remains retryable STREAM_CLOSED.
++			if (error instanceof LlmError && error.code === "STREAM_CLOSED" && pendingFinish !== void 0) {
++				yield "[DONE]";
++				return;
++			}
++			throw error;
++		}
++	}
+ 	function open(kind) {
+ 		const block = {
+@@ -374,4 +388,4 @@ async function* translate(payloads) {
+ 		return block;
+ 	}
+-	for await (const payload of payloads) {
++	for await (const payload of terminalCompletionPayloads()) {
+ 		if (payload === "[DONE]") {
 @@ -410,5 +410,6 @@ async function* translate(payloads) {
  		for (const choice of chunk.choices ?? []) {
  			const delta = choice.delta;
@@ -39,7 +65,7 @@ index b2cadf0..79ce466 100644
  				const fragment = call.function?.arguments ?? "";
  				block.text += fragment;
  				yield {
-@@ -641,8 +641,34 @@ var DeepSeekAdapter = class extends LlmAdapter {
+@@ -641,6 +641,32 @@ var DeepSeekAdapter = class extends LlmAdapter {
  	providerRetryPolicy(_provider) {
  		return this.config.options().retryPolicy;
  	}
@@ -74,5 +100,11 @@ index b2cadf0..79ce466 100644
 +		const ids = [...new Set(payload.data.map((model) => model?.id).filter((id) => typeof id === "string" && id.length > 0 && id !== "gpt-5.6-luna"))];
 +		return ids.length === 0 ? fallback() : ids.map((id) => modelInfo(provider, configured.get(id) ?? { id }));
  	}
- 	resolveModel(provider, model, _signal) {
- 		const connection = this.config.options();
+@@ -762,2 +804,7 @@ var DeepSeekAdapter = class extends LlmAdapter {
++		const contentType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
++		if (contentType && contentType !== "text/event-stream") {
++			await response.body?.cancel().catch(() => {});
++			throw new LlmError("模型接口返回的不是 SSE 流式响应。请检查 baseURL 是否包含正确的 API 路径；锐捷登录请恢复默认地址。", "MALFORMED_RESPONSE");
++		}
+ 		if (!response.body) throw new LlmError("DeepSeek API returned no response body", "EMPTY_RESPONSE");
+ 		yield* translate(parseSse(response.body, onComment));

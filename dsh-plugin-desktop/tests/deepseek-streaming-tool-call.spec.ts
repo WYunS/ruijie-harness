@@ -5,6 +5,17 @@ import {
   resolveAdapterOptions,
 } from '@deepseek-ai/dsh-llm-deepseek'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
+function deepSeekCompositionConfig(): string {
+  const filename = resolve(import.meta.dirname, '..', 'cordis.patch.yml')
+  const text = readFileSync(filename, 'utf8')
+  const start = text.indexOf('- id: llm-deepseek')
+  const end = text.indexOf('- id: llm-pi-ai', start)
+  if (start < 0 || end < 0) throw new Error('llm-deepseek composition entry is missing')
+  return text.slice(start, end)
+}
 
 function sseResponse(payloads: readonly unknown[]): Response {
   const body = payloads
@@ -19,6 +30,116 @@ function sseResponse(payloads: readonly unknown[]): Response {
 describe('DeepSeek streaming tool calls', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+  })
+
+  it('retries a truncated SSE turn through the desktop DeepSeek policy', () => {
+    const config = deepSeekCompositionConfig()
+    expect(config).toContain('retryPolicy:')
+    expect(config).toContain('maxRetries: 3')
+    expect(config).toContain('        - STREAM_CLOSED')
+  })
+
+  it('accepts a terminal OpenAI-compatible stream when the gateway omits only [DONE]', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => sseResponse([
+      { choices: [{ delta: { content: 'complete despite missing sentinel' } }] },
+      {
+        choices: [{ delta: {}, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 3, completion_tokens: 5, total_tokens: 8 },
+      },
+    ])))
+    const adapter = new DeepSeekAdapter({
+      options: () => resolveAdapterOptions({
+        baseURL: 'https://example.test/v1',
+        thinking: 'disabled',
+      }),
+      resolveApiKey: async () => 'test-key',
+      resolveUserId: () => 'test-user' as AnonymousUserId,
+    })
+    const chunks: StreamChunk[] = []
+
+    for await (const chunk of adapter.stream({
+      provider: 'deepseek-official',
+      model: 'deepseek-v4-flash',
+      messages: [{
+        id: MessageId('message-user'),
+        role: 'user',
+        content: [{ type: 'text', text: 'hello' }],
+        source: { kind: 'user' },
+      }],
+    })) chunks.push(chunk)
+
+    expect(chunks.find(chunk => chunk.type === 'block-end')).toMatchObject({
+      block: { type: 'text', text: 'complete despite missing sentinel' },
+    })
+    expect(chunks.at(-1)).toEqual({ type: 'finish', reason: { kind: 'stop' } })
+  })
+
+  it.each(['text/html; charset=utf-8', 'application/json'])(
+    'rejects HTTP 200 %s as an endpoint response error rather than a truncated SSE stream', async (contentType) => {
+      vi.stubGlobal('fetch', vi.fn(async () => new Response('<html>not a model stream</html>', {
+        status: 200, headers: { 'content-type': contentType },
+      })))
+      const adapter = new DeepSeekAdapter({
+        options: () => resolveAdapterOptions({ baseURL: 'https://gptauth.ruijie.com.cn', thinking: 'disabled' }),
+        resolveApiKey: async () => 'test-key',
+        resolveUserId: () => 'test-user' as AnonymousUserId,
+      })
+      const run = async () => {
+        for await (const _chunk of adapter.stream({
+          provider: 'deepseek-official', model: 'deepseek-v4-flash',
+          messages: [{ id: MessageId('test-endpoint'), role: 'user', content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' } }],
+        })) { /* Consume the real adapter path. */ }
+      }
+      await expect(run()).rejects.toMatchObject({ code: 'MALFORMED_RESPONSE', message: expect.stringContaining('baseURL') })
+    },
+  )
+
+  it('accepts a completed tool-call stream when the gateway omits only [DONE]', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => sseResponse([
+      {
+        choices: [{
+          delta: {
+            tool_calls: [{
+              index: 0,
+              id: 'call_missing_sentinel',
+              type: 'function',
+              function: { name: 'web_search', arguments: '{"query":"DeepSeek"}' },
+            }],
+          },
+        }],
+      },
+      { choices: [{ delta: {}, finish_reason: 'tool_calls' }] },
+    ])))
+    const adapter = new DeepSeekAdapter({
+      options: () => resolveAdapterOptions({
+        baseURL: 'https://example.test/v1',
+        thinking: 'disabled',
+      }),
+      resolveApiKey: async () => 'test-key',
+      resolveUserId: () => 'test-user' as AnonymousUserId,
+    })
+    const chunks: StreamChunk[] = []
+
+    for await (const chunk of adapter.stream({
+      provider: 'deepseek-official',
+      model: 'deepseek-v4-flash',
+      messages: [{
+        id: MessageId('message-user'),
+        role: 'user',
+        content: [{ type: 'text', text: 'Search DeepSeek' }],
+        source: { kind: 'user' },
+      }],
+      tools: [{
+        name: 'web_search',
+        description: 'Search the web',
+        parameters: { type: 'object', properties: { query: { type: 'string' } } },
+      }],
+    })) chunks.push(chunk)
+
+    expect(chunks.find(chunk => chunk.type === 'block-end')).toMatchObject({
+      block: { type: 'tool-call', id: 'call_missing_sentinel', name: 'web_search' },
+    })
+    expect(chunks.at(-1)).toEqual({ type: 'finish', reason: { kind: 'tool-calls' } })
   })
 
   it('keeps the first non-empty id and name when continuation deltas contain empty strings', async () => {

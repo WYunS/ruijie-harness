@@ -1,31 +1,55 @@
 name: 发布软件
-run-name: Harness ${{ inputs.version }} · Windows / macOS Universal DMG / Linux · ${{ inputs.mode }}
+run-name: Harness ${{ github.event_name == 'push' && github.sha || inputs.source_ref }} · Windows / macOS Universal DMG / Linux
 on:
+  push:
+    branches: [main]
+    paths:
+      - package.json
+      - dsh-plugin-desktop/package.json
   workflow_dispatch:
     inputs:
       version:
         description: 版本号（写入软件内部，不覆盖已发布版本）
         required: true
         type: string
-        default: v2.1.7
+        default: 2.1.8
       source_ref:
         description: 本仓库已接入发布配置的分支或提交
         default: main
         type: string
       mode:
-        description: Windows EXE、macOS 仅 Universal DMG、Linux AppImage/deb；check 预检 / artifacts 下载 / draft 草稿
-        default: draft
+        description: Windows EXE、macOS Universal DMG、Linux AppImage/deb；check 预检 / artifacts 仅产物 / draft 草稿 / prerelease 发布候选
+        default: prerelease
         type: choice
-        options: [check, artifacts, draft]
+        options: [check, artifacts, draft, prerelease]
 permissions:
   contents: read
 jobs:
+  discover-version:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.package.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p \"require('./dsh-plugin-desktop/package.json').version\")"
+          test "$version" = "$(node -p \"require('./package.json').version\")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
   release:
+    needs: [discover-version]
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || needs.discover-version.result == 'success') }}
     permissions:
       contents: write
     uses: rj-liukaiwen/release-kit/.github/workflows/desktop.yml@99e9ba013465693de6a66129abc0ef3b5f8648be
     with:
       toolkit_sha: 99e9ba013465693de6a66129abc0ef3b5f8648be
-      version: ${{ inputs.version }}
-      source_ref: ${{ inputs.source_ref }}
-      mode: ${{ inputs.mode }}
+      version: ${{ github.event_name == 'push' && needs.discover-version.outputs.version || inputs.version }}
+      source_ref: ${{ github.event_name == 'push' && github.sha || inputs.source_ref }}
+      mode: ${{ github.event_name == 'push' && 'prerelease' || inputs.mode }}

@@ -23,7 +23,7 @@
 
 macOS 安装包必须是同时支持 Intel `x86_64` 与 Apple Silicon `arm64` 的 universal DMG。网页直接下载、应用内更新和 curl 安装都必须使用同一份 DMG。
 
-当前下一候选版本为 `2.1.7`。它保留 `2.1.6` 的 GPT 五模型、统一推理档位、视觉长任务策略和 `--openmaus-server` 桥接，并新增 PDF 文字与页面图联合输入、纯图片 PDF OCR 防崩溃、ZIP 安全解压与全内容分析，以及 ZIP 内 `SKILL.md` 和引用资源识别。这些属于 Windows/macOS 共享运行时变化；两平台都必须从同一发布提交重新打包和验收，不能复用 `2.1.6` 的 EXE、DMG、哈希、签名审计或真人验收结论。正式文件应分别命名为 `Ruijie-Harness-2.1.7-x64-Setup.exe` 与 `Ruijie-Harness-2.1.7-macOS-universal.dmg`。
+当前下一候选版本为 `2.1.8`。它修复 DeepSeek 在 GPTAuth 网站根地址配置下把 HTML 页面误判为 SSE `[DONE]` 缺失的问题：启动会清理这一已知错误覆盖，完成但仅缺少 `[DONE]` 的流仍兼容，真正中断的流按有限策略重试。同时，Bot 后台启动 Harness 后，用户正常点击启动器会挂载并显示桌面窗口。这些属于 Windows/macOS/Linux 共享运行时变化；三个平台都必须从同一发布提交重新打包和验收，不能复用 `2.1.7` 的 EXE、DMG、Linux 包、哈希、签名审计或真人验收结论。正式文件应分别命名为 `Ruijie-Harness-2.1.8-x64-Setup.exe`、`Ruijie-Harness-2.1.8-macOS-universal.dmg`、对应的 Linux AppImage 和 deb。
 
 ## 一、准备安装包
 

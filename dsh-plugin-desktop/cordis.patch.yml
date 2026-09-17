@@ -113,6 +113,23 @@
     reasoningEffort: low
     defaultContextWindow: 1000000
     maxTokens: 16384
+    # GPTAuth may close an otherwise valid SSE response before emitting the
+    # OpenAI terminal marker. Retry the whole request a bounded number of
+    # times; the stream layer must still reject a permanently truncated turn.
+    retryPolicy:
+      mode: normal
+      maxRetries: 3
+      retryableCodes:
+        - EMPTY_RESPONSE
+        - RATE_LIMIT
+        - SERVER
+        - STREAM_CLOSED
+        - TIMEOUT
+        - TRANSPORT
+      backoff:
+        initialDelayMs: 500
+        maxDelayMs: 4000
+        jitterRatio: 0.1
     models:
       - id: deepseek-v4-flash
         name: DeepSeek-V4-Flash

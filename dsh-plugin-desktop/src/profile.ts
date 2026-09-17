@@ -263,8 +263,18 @@ export function ensureRuijieExperienceDefaults(home: string): void {
   if (document.errors.length > 0) {
     throw new Error(`${BIN_NAME}: invalid settings document at ${settingsPath}: ${document.errors.map(error => error.message).join('; ')}`)
   }
+  // A saved GPTAuth website URL overrides the per-launch OAuth proxy and
+  // returns HTTP 200 HTML at /chat/completions. Restore composition inheritance
+  // only for that known invalid endpoint; explicit API/custom URLs are retained.
+  const deepSeekBaseURL = document.getIn(['llm-deepseek', 'baseURL'])
+  const repairedEndpoint = typeof deepSeekBaseURL === 'string'
+    && /^https:\/\/gptauth\.ruijie\.com\.cn\/?$/iu.test(deepSeekBaseURL.trim())
+  if (repairedEndpoint) document.deleteIn(['llm-deepseek', 'baseURL'])
   const currentVersion = document.getIn(['ruijie-desktop', 'experienceVersion'])
-  if (currentVersion === RUIJIE_EXPERIENCE_VERSION) return
+  if (currentVersion === RUIJIE_EXPERIENCE_VERSION) {
+    if (repairedEndpoint) writeFileSync(settingsPath, document.toString({ lineWidth: 0 }))
+    return
+  }
 
   document.setIn(['ui-onboarding', 'welcomeNoticeVersion'], '2026-08-13.1')
   if (document.getIn(['agent-default-model', 'provider']) === undefined) {
