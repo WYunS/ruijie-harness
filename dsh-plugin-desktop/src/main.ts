@@ -88,6 +88,7 @@ import {
 import type { RendererBootReport } from './renderer-boot-contract.ts'
 import { desktopLocaleFromLanguageTag } from './tray-locale.ts'
 import { ensureRuijieAuthEnvironment, type RuijieAuthEnvironment } from './ruijie-auth.ts'
+import { createInheritedRuijieAuthChannel } from './ruijie-auth-channel.ts'
 import { RuijieAuthStore } from './ruijie-auth-store.ts'
 import { RuijieLoginWindow } from './ruijie-login-window.ts'
 import { applyResolvedSystemProxy } from './system-proxy.ts'
@@ -459,9 +460,10 @@ async function start(): Promise<void> {
         electronLogger.error(`${BIN_NAME}: resumed the OAuth authorization after enterprise SSO lost its return target`)
       },
     })
+    const inheritedAuth = createInheritedRuijieAuthChannel(process.env, () => { requestQuit(0) })
     const authenticatedAccount = await ensureRuijieAuthEnvironment({
       environment: process.env,
-      credentialStore: new RuijieAuthStore(app.getPath('userData'), safeStorage),
+      credentialStore: inheritedAuth?.credentialStore ?? new RuijieAuthStore(app.getPath('userData'), safeStorage),
       interactive: !openMausServerMode,
       onStatus: status => {
         if (status === 'authorization-processing') ruijieLoginWindow?.showVerifying()
@@ -703,7 +705,7 @@ async function start(): Promise<void> {
     })
     current = ctx
     const releaseOpenMausBridge = await publishOpenMausBridge(
-      join(app.getPath('appData'), PRODUCT_NAME),
+      process.env.RUIJIE_DSH_BRIDGE_DIR?.trim() || join(app.getPath('appData'), PRODUCT_NAME),
       ctx.webServer.port,
       generationId,
     )

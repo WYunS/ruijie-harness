@@ -12,7 +12,7 @@ on:
         description: 版本号（写入软件内部，不覆盖已发布版本）
         required: true
         type: string
-        default: 2.1.9
+        default: 2.1.10
       source_ref:
         description: 本仓库已接入发布配置的分支或提交
         default: main

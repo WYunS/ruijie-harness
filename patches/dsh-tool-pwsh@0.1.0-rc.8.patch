@@ -1,0 +1,25 @@
+diff --git a/lib/index.js b/lib/index.js
+index 36d0fb8..bb50b82 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -217,9 +217,18 @@ function apply(ctx, config = {}) {
+ 			}]
+ 		},
+ 		async execute(args, exec) {
+-			validatePwshArgs(args);
+ 			const standingPolicy = resolveSandboxPolicy(exec);
+-			const approvedMode = args.sandbox_permissions !== void 0 && args.justification !== void 0 ? await approvePwshEscalation(args.sandbox_permissions, args.justification, exec, standingPolicy) : void 0;
++			// Full access is already the widest policy. Some models still echo the
++			// optional escalation pair from the shared schema; treating that pair as
++			// a redundant no-op keeps ordinary commands runnable without weakening
++			// the approval boundary of either confined mode.
++			const effectiveArgs = standingPolicy?.mode === "danger-full-access" ? {
++				...args,
++				sandbox_permissions: void 0,
++				justification: void 0
++			} : args;
++			validatePwshArgs(effectiveArgs);
++			const approvedMode = effectiveArgs.sandbox_permissions !== void 0 && effectiveArgs.justification !== void 0 ? await approvePwshEscalation(effectiveArgs.sandbox_permissions, effectiveArgs.justification, exec, standingPolicy) : void 0;
+ 			const policy = approvedMode === void 0 ? standingPolicy : {
+ 				...standingPolicy,
+ 				mode: approvedMode

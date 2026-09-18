@@ -199,7 +199,8 @@ describe('Ruijie SSO startup presentation', () => {
 
   it('uses Windows protection so ordinary application exits retain authorization', () => {
     expect(main).toContain('safeStorage')
-    expect(main).toContain('credentialStore: new RuijieAuthStore')
+    expect(main).toContain("new RuijieAuthStore(app.getPath('userData'), safeStorage)")
+    expect(main).toContain('credentialStore: inheritedAuth?.credentialStore')
     expect(main).toContain("if (status === 'authorization-complete') ruijieLoginWindow?.showStarting()")
   })
 
