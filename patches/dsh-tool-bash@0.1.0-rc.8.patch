@@ -1,0 +1,20 @@
+diff --git a/lib/index.js b/lib/index.js
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -386,4 +386,12 @@
+-		async execute(args, exec) {
+-			validateBashArgs(args);
+-			const standingPolicy = resolveSandboxPolicy(exec);
+-			const approvedMode = args.sandbox_permissions !== void 0 && args.justification !== void 0 ? await approveBashEscalation(args.sandbox_permissions, args.justification, exec, standingPolicy) : void 0;
++		async execute(args, exec) {
++			const standingPolicy = resolveSandboxPolicy(exec);
++			// As with pwsh and write/edit, already-full-access calls treat the
++			// optional escalation pair as a no-op. Confined calls still validate
++			// and require approval before either foreground or background execution.
++			const effectiveArgs = standingPolicy?.mode === "danger-full-access" ? {
++				...args,
++				sandbox_permissions: void 0,
++				justification: void 0
++			} : args;
++			validateBashArgs(effectiveArgs);
++			const approvedMode = effectiveArgs.sandbox_permissions !== void 0 && effectiveArgs.justification !== void 0 ? await approveBashEscalation(effectiveArgs.sandbox_permissions, effectiveArgs.justification, exec, standingPolicy) : void 0;

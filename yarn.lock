@@ -3618,7 +3618,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@deepseek-ai/dsh-tool-bash@npm:^0.1.0-rc.8":
+"@deepseek-ai/dsh-tool-bash@npm:0.1.0-rc.8":
   version: 0.1.0-rc.8
   resolution: "@deepseek-ai/dsh-tool-bash@npm:0.1.0-rc.8"
   dependencies:
@@ -3637,6 +3637,28 @@ __metadata:
     "@deepseek-ai/dsh-tools": ^0.1.0-rc.8
     "@deepseek-ai/dsh-user-approval": ^0.1.0-rc.8
   checksum: 10c0/141de1eb592d8f2fdf0b6b86e478eacb2f48cc5eedc173ccf9b891a9e50602b46befa22c3a77d2c1495a1bba26d847929aad5dfb20a7bd5615d542a326ed630a
+  languageName: node
+  linkType: hard
+
+"@deepseek-ai/dsh-tool-bash@patch:@deepseek-ai/dsh-tool-bash@npm%3A0.1.0-rc.8#./patches/dsh-tool-bash@0.1.0-rc.8.patch::locator=deepseek-harness-desktop%40workspace%3A.":
+  version: 0.1.0-rc.8
+  resolution: "@deepseek-ai/dsh-tool-bash@patch:@deepseek-ai/dsh-tool-bash@npm%3A0.1.0-rc.8#./patches/dsh-tool-bash@0.1.0-rc.8.patch::version=0.1.0-rc.8&hash=c17a0f&locator=deepseek-harness-desktop%40workspace%3A."
+  dependencies:
+    "@deepseek-ai/schemastery": "npm:^3.18.1"
+  peerDependencies:
+    "@deepseek-ai/cordis": ^4.0.1
+    "@deepseek-ai/dsh-agent": ^0.1.0-rc.8
+    "@deepseek-ai/dsh-invariants": ^0.1.0-rc.8
+    "@deepseek-ai/dsh-jobs": ^0.1.0-rc.8
+    "@deepseek-ai/dsh-llm": ^0.1.0-rc.8
+    "@deepseek-ai/dsh-sandbox": ^0.1.0-rc.8
+    "@deepseek-ai/dsh-sandbox-policy": ^0.1.0-rc.8
+    "@deepseek-ai/dsh-shell": ^0.1.0-rc.8
+    "@deepseek-ai/dsh-shell-env": ^0.1.0-rc.8
+    "@deepseek-ai/dsh-system-prompt": ^0.1.0-rc.8
+    "@deepseek-ai/dsh-tools": ^0.1.0-rc.8
+    "@deepseek-ai/dsh-user-approval": ^0.1.0-rc.8
+  checksum: 10c0/4d4d7372cbf165c76d53ea723aead5c5ce4ab2f348c1a5ec634a0a9213fe66ae7fa49077c111ae8086562ea3f61bf230523a3c67d74b282487689b4e1701e43a
   languageName: node
   linkType: hard
 
@@ -3691,7 +3713,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@deepseek-ai/dsh-tool-fs@npm:^0.1.0-rc.8":
+"@deepseek-ai/dsh-tool-fs@npm:0.1.0-rc.8":
   version: 0.1.0-rc.8
   resolution: "@deepseek-ai/dsh-tool-fs@npm:0.1.0-rc.8"
   dependencies:
@@ -3710,6 +3732,28 @@ __metadata:
     "@deepseek-ai/dsh-tools": ^0.1.0-rc.8
     "@deepseek-ai/dsh-user-approval": ^0.1.0-rc.8
   checksum: 10c0/04bce0bf0b3947477ecaa84387ec9732071b3ef9faa55583e240f3d708958afac37a1dbaf886fd546f70966da5f380f5317d024032b13ed493117487b1fcdac3
+  languageName: node
+  linkType: hard
+
+"@deepseek-ai/dsh-tool-fs@patch:@deepseek-ai/dsh-tool-fs@npm%3A0.1.0-rc.8#./patches/dsh-tool-fs@0.1.0-rc.8.patch::locator=deepseek-harness-desktop%40workspace%3A.":
+  version: 0.1.0-rc.8
+  resolution: "@deepseek-ai/dsh-tool-fs@patch:@deepseek-ai/dsh-tool-fs@npm%3A0.1.0-rc.8#./patches/dsh-tool-fs@0.1.0-rc.8.patch::version=0.1.0-rc.8&hash=a288a7&locator=deepseek-harness-desktop%40workspace%3A."
+  dependencies:
+    "@deepseek-ai/schemastery": "npm:^3.18.1"
+    diff: "npm:^9.0.0"
+  peerDependencies:
+    "@deepseek-ai/cordis": ^4.0.1
+    "@deepseek-ai/dsh-attachment": ^0.1.0-rc.8
+    "@deepseek-ai/dsh-fs": ^0.1.0-rc.8
+    "@deepseek-ai/dsh-invariants": ^0.1.0-rc.8
+    "@deepseek-ai/dsh-llm": ^0.1.0-rc.8
+    "@deepseek-ai/dsh-sandbox": ^0.1.0-rc.8
+    "@deepseek-ai/dsh-sandbox-policy": ^0.1.0-rc.8
+    "@deepseek-ai/dsh-session": ^0.1.0-rc.8
+    "@deepseek-ai/dsh-system-prompt": ^0.1.0-rc.8
+    "@deepseek-ai/dsh-tools": ^0.1.0-rc.8
+    "@deepseek-ai/dsh-user-approval": ^0.1.0-rc.8
+  checksum: 10c0/07bb0ca9ef37ab15c39b334922a90e1aa84d682da661d0374d7095702cdd51662b00be54c046949d7745655525275457ba86cb6d454796f3c8b465c9767de1ca
   languageName: node
   linkType: hard
 
@@ -5305,13 +5349,13 @@ __metadata:
 
 "@liustack/modsearch@file:../vendor/modsearch::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
   version: 5.6.0
-  resolution: "@liustack/modsearch@file:../vendor/modsearch#../vendor/modsearch::hash=13f100&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
+  resolution: "@liustack/modsearch@file:../vendor/modsearch#../vendor/modsearch::hash=a004bb&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
   dependencies:
     commander: "npm:^13.1.0"
     undici: "npm:^7.29.0"
   bin:
     modsearch: ./dist/main.js
-  checksum: 10c0/6461c26e4351c364385016216fa7cec43f5aeea91388c6a45afc4a13b75139fbe3eaf3e6830faf1a4594f6ef42a993a0edb018a07ca37720aa609c83de4b978d
+  checksum: 10c0/927933b2a964386a7836b52b935e77d39a48f5c86d37626aa8ca21c6609fcf7d84a9588a8d74db290809e12b37acb355d8ed043e8909a23dc137a662397e6d39
   languageName: node
   linkType: hard
 
@@ -11537,7 +11581,7 @@ __metadata:
 
 "dsh-attachment-formats@file:../vendor/dsh-attachment-formats::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
   version: 0.6.4
-  resolution: "dsh-attachment-formats@file:../vendor/dsh-attachment-formats#../vendor/dsh-attachment-formats::hash=ba6bc4&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
+  resolution: "dsh-attachment-formats@file:../vendor/dsh-attachment-formats#../vendor/dsh-attachment-formats::hash=852dc5&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
   dependencies:
     "@joplin/turndown-plugin-gfm": "npm:^1.0.67"
     "@napi-rs/canvas": "npm:^0.1.80"
@@ -11548,13 +11592,13 @@ __metadata:
     sharp: "npm:^0.35.3"
     tesseract.js: "npm:^5.1.1"
     turndown: "npm:^7.2.4"
-  checksum: 10c0/c9cc748b77d1d9098cff45bbc6b21f79fed61f0b254aa926a46edeba976af86d0736230bcca57fdc11de778578e7a0242703e4c6da85d4ac8cbfac22e8d7bc78
+  checksum: 10c0/7fd5a8d603a6e50c62819691d7edb7b1ed302f440311cf300dd64284fe5139f487fa33e3311df5eb87acfd4c5b125a87c8d06eb8fd34a7c3a2b4ccfe85df3110
   languageName: node
   linkType: hard
 
 "dsh-better-sidebar@file:../vendor/dsh-better-sidebar::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
   version: 0.14.0
-  resolution: "dsh-better-sidebar@file:../vendor/dsh-better-sidebar#../vendor/dsh-better-sidebar::hash=d15dd8&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
+  resolution: "dsh-better-sidebar@file:../vendor/dsh-better-sidebar#../vendor/dsh-better-sidebar::hash=2c0b5f&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
   dependencies:
     "@codemirror/commands": "npm:^6.10.4"
     "@codemirror/lang-cpp": "npm:^6.0.3"
@@ -11604,7 +11648,7 @@ __metadata:
   peerDependenciesMeta:
     cordis:
       optional: true
-  checksum: 10c0/613a2acd92835e583f43c3f60c6773dc7b14f888030df3dc5e1ee747e6fd4876897404c764438a702e6334e9664be5be2225ace66214e5a9dc5c702930ac47e0
+  checksum: 10c0/bc878610f6a59efb08d551966d4d8f06a3140b585dd6864f4c2d73ebb9dc574c8462dc46f710cc6c0ad9e87e6669ef1f9f003d85ffba6b136042eeccf917f768
   languageName: node
   linkType: hard
 
@@ -11984,7 +12028,7 @@ __metadata:
 
 "dsh-vision-router@file:../vendor/dsh-vision-router::locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop":
   version: 1.7.3
-  resolution: "dsh-vision-router@file:../vendor/dsh-vision-router#../vendor/dsh-vision-router::hash=e6678f&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
+  resolution: "dsh-vision-router@file:../vendor/dsh-vision-router#../vendor/dsh-vision-router::hash=92ba76&locator=dsh-plugin-desktop%40workspace%3Adsh-plugin-desktop"
   dependencies:
     "@deepseek-ai/schemastery": "npm:>=3.18.0"
     "@neplex/vectorizer": "npm:0.1.0"
@@ -12003,7 +12047,7 @@ __metadata:
       optional: true
   bin:
     dsh-vision-router: ./lib/doctor-cli.js
-  checksum: 10c0/8f6a7d19b81e85419ad6eacd571995ae437906f43961a3bfff25ebb29aa6f266c128d881e64cc8992d8f9dba48241f0495e042ad007aff03d52e9a2f2fe6760c
+  checksum: 10c0/03d5f227c6684c3c4b84056bf07b9639ce7cc9428da48bdec5e6c36b422c0ebcb34916429231afccea91c6f1cf78bde856724c24198edb9a8e14d36cbe46b1f6
   languageName: node
   linkType: hard
 

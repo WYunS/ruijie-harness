@@ -1,0 +1,15 @@
+diff --git a/lib/index.js b/lib/index.js
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -1122,4 +1122,7 @@
+-	async resolvePolicy(toolName, args, exec) {
+-		validateEscalationArgs(args.sandbox_permissions, args.justification);
+-		const standingPolicy = this.policy?.resolve({ ...exec.agent ? { session: exec.agent.session } : {} });
+-		if (args.sandbox_permissions === void 0 || args.justification === void 0) return standingPolicy;
++	async resolvePolicy(toolName, args, exec) {
++		const standingPolicy = this.policy?.resolve({ ...exec.agent ? { session: exec.agent.session } : {} });
++		// Use the current session policy, not the filesystem default. Redundant
++		// escalation fields cannot widen full access and must not block a mutation.
++		if (standingPolicy?.mode === "danger-full-access") return standingPolicy;
++		validateEscalationArgs(args.sandbox_permissions, args.justification);
++		if (args.sandbox_permissions === void 0 || args.justification === void 0) return standingPolicy;

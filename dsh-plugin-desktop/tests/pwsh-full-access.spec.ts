@@ -47,7 +47,20 @@ class FullAccessShell extends ShellExecutor {
 }
 
 describe('desktop pwsh full-access compatibility', () => {
-  it('runs an ordinary command when a model redundantly requests full access', async () => {
+  it.each([
+    { label: 'without permission arguments', permissions: {} },
+    {
+      label: 'with redundant full access and no justification',
+      permissions: { sandbox_permissions: 'danger-full-access' },
+    },
+    {
+      label: 'with redundant full access and justification',
+      permissions: {
+        sandbox_permissions: 'danger-full-access',
+        justification: 'The session already has full access.',
+      },
+    },
+  ])('runs an ordinary command $label', async ({ permissions }) => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
@@ -63,8 +76,7 @@ describe('desktop pwsh full-access compatibility', () => {
       arguments: {
         command: 'lark-cli auth status',
         description: 'Check Lark CLI authentication status',
-        sandbox_permissions: 'danger-full-access',
-        justification: 'The session already has full access.',
+        ...permissions,
       },
       signal: new AbortController().signal,
     })
@@ -74,4 +86,39 @@ describe('desktop pwsh full-access compatibility', () => {
     expect(shell.requests).toHaveLength(1)
     expect(shell.requests[0]?.sandboxPolicy?.mode).toBe('danger-full-access')
   })
+
+  it.each(['read-only', 'workspace-write'] as const)(
+    'does not bypass escalation validation in %s mode',
+    async (mode) => {
+      const ctx = new Context()
+      await ctx.plugin(SystemPrompt)
+      await ctx.plugin(ToolRuntime)
+      await ctx.plugin(AgentRegistry)
+      await ctx.plugin(ShellEnv)
+      await ctx.plugin(SandboxPolicyService, { mode })
+      // Deliberately keep the executor's default at full access: the current
+      // resolved policy, not the executor default, must control the bypass.
+      await ctx.plugin(FullAccessShell)
+      await ctx.plugin(ToolPwsh)
+
+      for (const permissions of [
+        { sandbox_permissions: 'danger-full-access' },
+        { sandbox_permissions: mode, justification: 'This is not a wider mode.' },
+        { sandbox_permissions: 'danger-full-access', justification: 'No approver is mounted.' },
+      ]) {
+        const result = await ctx.tools.execute({
+          callId: CallId(`confined-${mode}`),
+          name: 'pwsh',
+          arguments: {
+            command: 'Write-Output SHOULD-NOT-RUN',
+            description: 'Check confined permission validation without running commands',
+            ...permissions,
+          },
+          signal: new AbortController().signal,
+        })
+        expect(result.isError).toBe(true)
+        expect((ctx.shell as FullAccessShell).requests).toHaveLength(0)
+      }
+    },
+  )
 })
